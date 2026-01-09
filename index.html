@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>가계부 (Supabase · 월별 기록 업로드 · 최소 템플릿)</title>
+  <title>가계부 (대시보드/기록/대량업로드)</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
     h1 { margin: 0 0 8px; }
@@ -12,11 +12,25 @@
     input, select, button { padding:10px; border:1px solid #ccc; border-radius:12px; font-size:14px; }
     button { cursor:pointer; background:#f6f6f6; }
     button.primary { background:#111; color:#fff; border-color:#111; }
+    button.ghost { background:#fff; }
     .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
-    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
     .hidden { display:none !important; }
     .pill { display:inline-flex; padding:6px 10px; border:1px solid #e5e5e5; border-radius:999px; font-size:13px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border-bottom:1px solid #eee; padding:10px; text-align:left; vertical-align:top; }
+    td.right { text-align:right; }
+    .tabs { display:flex; gap:8px; margin:12px 0; }
+    .tabBtn { padding:10px 14px; border-radius:999px; border:1px solid #ddd; background:#fff; }
+    .tabBtn.active { background:#111; color:#fff; border-color:#111; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    .badge { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:10px; border:1px solid #eee; }
+    canvas { width:100%; height:280px; border:1px solid #eee; border-radius:12px; }
+    @media (max-width: 900px){
+      .grid2,.grid3{grid-template-columns:1fr;}
+    }
   </style>
 
   <!-- XLSX -->
@@ -29,21 +43,56 @@
 
     const DEFAULT_LEDGER_NAME = "우리집";
     const SS_KEY = "ledger_session_v1";
+    const COMMON_START_MONTH = "2026-01"; // 2026-01부터 공통
 
-    // ✅ 공통 컬럼이 생기는 기준 월(포함)
-    const COMMON_START_MONTH = "2026-01";
+    // ✅ 카테고리(기록 탭/템플릿 공용)
+    const RECORD_ROWS = [
+      { flow:"expense", category:"식비", sub:"식재료", note:"" },
+      { flow:"expense", category:"식비", sub:"외식", note:"" },
+      { flow:"expense", category:"식비", sub:"배달", note:"" },
+      { flow:"expense", category:"식비", sub:"중식", note:"" },
+      { flow:"expense", category:"식비", sub:"카페/간식", note:"" },
+
+      { flow:"expense", category:"소비 생활", sub:"쇼핑", note:"의류, 잡화, 가방, 신발, 화장품" },
+      { flow:"expense", category:"소비 생활", sub:"미용", note:"미용실, 네일, 미용시술" },
+      { flow:"expense", category:"소비 생활", sub:"구독", note:"넷플릭스, 유튜브프리미엄, 음악, 클라우드, 멤버십" },
+      { flow:"expense", category:"소비 생활", sub:"생활편의", note:"생필품, 가전, 인테리어, 가구" },
+
+      { flow:"expense", category:"문화여가", sub:"여행", note:"" },
+      { flow:"expense", category:"문화여가", sub:"취미", note:"" },
+      { flow:"expense", category:"문화여가", sub:"도서", note:"" },
+
+      { flow:"expense", category:"건강·관리", sub:"운동", note:"" },
+      { flow:"expense", category:"건강·관리", sub:"병원", note:"" },
+      { flow:"expense", category:"건강·관리", sub:"약/영양제", note:"" },
+
+      { flow:"expense", category:"인간관계", sub:"선물", note:"" },
+      { flow:"expense", category:"인간관계", sub:"경조사", note:"" },
+      { flow:"expense", category:"인간관계", sub:"모임", note:"" },
+
+      { flow:"expense", category:"예비/기타", sub:"예비비", note:"" },
+      { flow:"expense", category:"예비/기타", sub:"기타", note:"" },
+
+      { flow:"expense", category:"필수 생활", sub:"주거/관리비", note:"" },
+      { flow:"expense", category:"필수 생활", sub:"통신", note:"" },
+      { flow:"expense", category:"필수 생활", sub:"교통", note:"" },
+
+      { flow:"saving", category:"금융·저축", sub:"적금", note:"" },
+      { flow:"saving", category:"금융·저축", sub:"투자", note:"" },
+      { flow:"saving", category:"금융·저축", sub:"대출상환", note:"" },
+
+      { flow:"income", category:"수입", sub:"급여", note:"" },
+      { flow:"income", category:"수입", sub:"부수입", note:"" },
+      { flow:"income", category:"수입", sub:"환급/기타", note:"" },
+      { flow:"income", category:"수입", sub:"이자/배당", note:"" },
+    ];
 
     let session = null; // { access_token, refresh_token, user }
     let currentLedgerId = null;
-    let cachedMembers = []; // active members
+    let cachedMembers = []; // {id,name,kind}
+    let activeTab = "dash"; // dash | edit | bulk
 
     const byId = (id) => document.getElementById(id);
-
-    const todayISO = () => {
-      const d = new Date();
-      const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
-      return z.toISOString().slice(0,10);
-    };
 
     function setStatus(msg){ byId("status").textContent = msg || ""; }
     function setError(msg){ byId("error").textContent = msg || ""; }
@@ -60,6 +109,8 @@
       try { return JSON.parse(raw); } catch { return null; }
     }
 
+    function fmt(n){ return Number(n||0).toLocaleString("ko-KR"); }
+
     async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true, extraHeaders=null } = {}){
       const url = new URL(SUPABASE_URL + path);
       if(query){
@@ -72,20 +123,10 @@
       const headers = { "apikey": SUPABASE_KEY };
       if(body) headers["Content-Type"] = "application/json";
       if(auth && session?.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+      if(preferReturn && (method==="POST" || method==="PATCH")) headers["Prefer"] = "return=representation";
+      if(extraHeaders) for(const [k,v] of Object.entries(extraHeaders)) headers[k]=v;
 
-      if(preferReturn && (method==="POST" || method==="PATCH")){
-        headers["Prefer"] = "return=representation";
-      }
-      if(extraHeaders){
-        for(const [k,v] of Object.entries(extraHeaders)) headers[k] = v;
-      }
-
-      const res = await fetch(url.toString(), {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined
-      });
-
+      const res = await fetch(url.toString(), { method, headers, body: body ? JSON.stringify(body) : undefined });
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
@@ -99,11 +140,10 @@
       return data;
     }
 
-    // ---------- Auth (email+password) ----------
+    // ---------- Auth ----------
     async function fetchUser(){
       return await apiFetch("/auth/v1/user", { method:"GET", auth:true, preferReturn:false });
     }
-
     async function loginWithPassword(email, password){
       const data = await apiFetch("/auth/v1/token", {
         method: "POST",
@@ -117,34 +157,11 @@
       const user = await fetchUser();
       saveSession({ ...session, user });
     }
-
     async function logout(){
       saveSession(null);
     }
 
-    // ---------- App ----------
-    async function refreshUI(){
-      const authed = !!(session?.access_token);
-
-      show(byId("authCard"), !authed);
-      show(byId("monthlyCard"), authed);
-
-      byId("who").textContent = authed ? `로그인: ${session.user?.email || ""}` : "";
-      byId("ledgerName").textContent = "";
-
-      if(!authed){
-        setStatus("로그인 상태가 아니야.");
-        return;
-      }
-
-      if(!byId("monthPick").value) byId("monthPick").value = todayISO().slice(0,7);
-
-      await ensureDefaultLedger();
-      await loadMembers();
-
-      setStatus("준비 완료!");
-    }
-
+    // ---------- Ledger + members ----------
     async function ensureDefaultLedger(){
       const ledgers = await apiFetch("/rest/v1/ledgers", {
         query: { select:"id,name,created_at", order:"created_at.asc" }
@@ -179,68 +196,245 @@
       cachedMembers = members || [];
     }
 
-    // =========================================
-    // ✅ 월별 "기록" 템플릿 업/다운 (monthly_records)
-    // =========================================
-
-    // 기록 템플릿에 들어갈 카테고리 라인(최소)
-    // ※ flow는 monthly_records.flow_type으로 저장됨
-    const RECORD_ROWS = [
-      // expense
-      { flow:"expense", category:"식비", sub:"식재료", note:"" },
-      { flow:"expense", category:"식비", sub:"외식", note:"" },
-      { flow:"expense", category:"식비", sub:"배달", note:"" },
-      { flow:"expense", category:"식비", sub:"중식", note:"" },
-      { flow:"expense", category:"식비", sub:"카페/간식", note:"" },
-
-      { flow:"expense", category:"소비 생활", sub:"쇼핑", note:"의류, 잡화, 가방, 신발, 화장품" },
-      { flow:"expense", category:"소비 생활", sub:"미용", note:"미용실, 네일, 미용시술" },
-      { flow:"expense", category:"소비 생활", sub:"구독", note:"넷플릭스, 유튜브프리미엄, 음악, 클라우드, 멤버십" },
-      { flow:"expense", category:"소비 생활", sub:"생활편의", note:"생필품, 가전, 인테리어, 가구" },
-
-      { flow:"expense", category:"문화여가", sub:"여행", note:"항공권, 숙박, 교통, 입장권" },
-      { flow:"expense", category:"문화여가", sub:"취미", note:"" },
-      { flow:"expense", category:"문화여가", sub:"도서", note:"" },
-
-      { flow:"expense", category:"건강·관리", sub:"운동", note:"" },
-      { flow:"expense", category:"건강·관리", sub:"병원", note:"" },
-      { flow:"expense", category:"건강·관리", sub:"약/영양제", note:"" },
-
-      { flow:"expense", category:"인간관계", sub:"선물", note:"" },
-      { flow:"expense", category:"인간관계", sub:"경조사", note:"" },
-      { flow:"expense", category:"인간관계", sub:"모임", note:"" },
-
-      { flow:"expense", category:"예비/기타", sub:"예비비", note:"" },
-      { flow:"expense", category:"예비/기타", sub:"기타", note:"" },
-
-      { flow:"expense", category:"필수 생활", sub:"주거/관리비", note:"" },
-      { flow:"expense", category:"필수 생활", sub:"통신", note:"" },
-      { flow:"expense", category:"필수 생활", sub:"교통", note:"" },
-
-      // saving
-      { flow:"saving", category:"금융·저축", sub:"적금", note:"" },
-      { flow:"saving", category:"금융·저축", sub:"투자", note:"" },
-      { flow:"saving", category:"금융·저축", sub:"대출상환", note:"" },
-
-      // income
-      { flow:"income", category:"수입", sub:"급여", note:"" },
-      { flow:"income", category:"수입", sub:"부수입", note:"" },
-      { flow:"income", category:"수입", sub:"환급/기타", note:"" },
-      { flow:"income", category:"수입", sub:"이자/배당", note:"" },
-    ];
-
-    function monthToDate(monthYYYYMM){
-      return `${monthYYYYMM}-01`;
-    }
-
-    function hasCommonForMonth(monthYYYYMM){
-      // 문자열 비교로 충분 (YYYY-MM 형태)
-      return monthYYYYMM >= COMMON_START_MONTH;
-    }
-
     function getMemberIdByName(name){
       const m = cachedMembers.find(x => x.name === name);
       return m ? m.id : null;
+    }
+
+    function monthToDate(monthYYYYMM){ return `${monthYYYYMM}-01`; }
+    function hasCommonForMonth(monthYYYYMM){ return monthYYYYMM >= COMMON_START_MONTH; }
+
+    // ---------- Tabs ----------
+    function switchTab(tab){
+      activeTab = tab;
+      for(const b of document.querySelectorAll(".tabBtn")){
+        b.classList.toggle("active", b.dataset.tab === tab);
+      }
+      show(byId("tabDash"), tab === "dash");
+      show(byId("tabEdit"), tab === "edit");
+      show(byId("tabBulk"), tab === "bulk");
+
+      // 탭 들어갈 때 새로 그리기
+      if(tab==="dash") refreshDashboard().catch(e=>setError(e.message));
+      if(tab==="edit") refreshEditTable().catch(e=>setError(e.message));
+    }
+
+    // =========================================
+    // ✅ 탭1: 대시보드 (월별 추이 그래프)
+    // =========================================
+    async function fetchMonthlySeries({ fromMonth, toMonth, memberName, flowType }){
+      const member_id = getMemberIdByName(memberName);
+      if(!member_id) throw new Error(`members에 ${memberName} 가 없어. 먼저 멤버 추가해줘.`);
+
+      const fromDate = monthToDate(fromMonth);
+      const toDate = monthToDate(toMonth);
+
+      // month is date (YYYY-MM-01). use gte/lte
+      const rows = await apiFetch("/rest/v1/monthly_records", {
+        query: {
+          select:"month,amount",
+          ledger_id:`eq.${currentLedgerId}`,
+          member_id:`eq.${member_id}`,
+          flow_type:`eq.${flowType}`,
+          month:`gte.${fromDate}`,
+          order:"month.asc"
+        }
+      });
+
+      // months list
+      const months = [];
+      const map = new Map();
+      for(const r of rows||[]){
+        const k = String(r.month).slice(0,7);
+        map.set(k, (map.get(k)||0) + Number(r.amount||0));
+      }
+
+      // fill all months in range
+      const [fy,fm] = fromMonth.split("-").map(Number);
+      const [ty,tm] = toMonth.split("-").map(Number);
+      let y=fy, m=fm;
+      while(y < ty || (y===ty && m<=tm)){
+        const mm = String(m).padStart(2,"0");
+        const key = `${y}-${mm}`;
+        months.push({ month:key, total: map.get(key)||0 });
+        m++;
+        if(m===13){ m=1; y++; }
+      }
+      return months;
+    }
+
+    function drawLineChart(canvas, points){
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width = canvas.clientWidth * devicePixelRatio;
+      const h = canvas.height = 280 * devicePixelRatio;
+
+      ctx.clearRect(0,0,w,h);
+
+      const pad = 40 * devicePixelRatio;
+      const plotW = w - pad*2;
+      const plotH = h - pad*2;
+
+      const maxV = Math.max(1, ...points.map(p=>p.total));
+      const minV = 0;
+
+      // axes
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 1*devicePixelRatio;
+      ctx.beginPath();
+      ctx.moveTo(pad, pad);
+      ctx.lineTo(pad, h-pad);
+      ctx.lineTo(w-pad, h-pad);
+      ctx.stroke();
+
+      // line
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 2*devicePixelRatio;
+      ctx.beginPath();
+      points.forEach((p,i)=>{
+        const x = pad + (plotW * (points.length===1 ? 0 : i/(points.length-1)));
+        const y = pad + plotH * (1 - (p.total - minV)/(maxV-minV));
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+
+      // dots
+      ctx.fillStyle = "#111";
+      points.forEach((p,i)=>{
+        const x = pad + (plotW * (points.length===1 ? 0 : i/(points.length-1)));
+        const y = pad + plotH * (1 - (p.total - minV)/(maxV-minV));
+        ctx.beginPath(); ctx.arc(x,y,3*devicePixelRatio,0,Math.PI*2); ctx.fill();
+      });
+
+      // labels (min simple)
+      ctx.fillStyle = "#666";
+      ctx.font = `${12*devicePixelRatio}px system-ui`;
+      ctx.fillText("0", 6*devicePixelRatio, h-pad+4*devicePixelRatio);
+      ctx.fillText(fmt(maxV), 6*devicePixelRatio, pad+4*devicePixelRatio);
+    }
+
+    async function refreshDashboard(){
+      setError("");
+      await loadMembers();
+
+      const fromMonth = byId("dashFrom").value;
+      const toMonth = byId("dashTo").value;
+      const memberName = byId("dashMember").value;
+      const flowType = byId("dashFlow").value;
+
+      if(!fromMonth || !toMonth) return;
+      if(fromMonth > toMonth) throw new Error("From/To 월 순서를 확인해줘");
+
+      // 2026-01 이전에는 공통 옵션 숨기기/불가
+      if(memberName === "공통" && !hasCommonForMonth(fromMonth)){
+        throw new Error("2026-01 이전 범위에는 공통이 없어.");
+      }
+
+      const series = await fetchMonthlySeries({ fromMonth, toMonth, memberName, flowType });
+      const total = series.reduce((a,b)=>a+b.total,0);
+      const last = series[series.length-1]?.total || 0;
+
+      byId("dashSumRange").textContent = fmt(total);
+      byId("dashSumLast").textContent = fmt(last);
+
+      drawLineChart(byId("dashChart"), series);
+
+      // table
+      const tbody = byId("dashTbody");
+      tbody.innerHTML = "";
+      for(const p of series){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="mono">${p.month}</td><td class="right mono">${fmt(p.total)}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // =========================================
+    // ✅ 탭2: 기록/수정 (화면에서 직접 월 입력)
+    // =========================================
+    function getEditCols(month){
+      return hasCommonForMonth(month) ? ["돌프","천사","공통"] : ["돌프","천사"];
+    }
+
+    async function fetchMonthlyMatrix(monthYYYYMM){
+      await loadMembers();
+      const cols = getEditCols(monthYYYYMM);
+      const memberIds = cols.map(n => getMemberIdByName(n));
+      if(memberIds.some(x=>!x)) throw new Error(`members에 ${cols.filter((n,i)=>!memberIds[i]).join(", ")} 가 없어.`);
+
+      const rows = await apiFetch("/rest/v1/monthly_records", {
+        query: {
+          select:"member_id,flow_type,category,subcategory,amount,note,month",
+          ledger_id:`eq.${currentLedgerId}`,
+          month:`eq.${monthToDate(monthYYYYMM)}`,
+          order:"category.asc,subcategory.asc"
+        }
+      });
+
+      // key: flow|cat|sub|memberId -> amount
+      const map = new Map();
+      for(const r of rows||[]){
+        const k = `${r.flow_type}|${r.category}|${r.subcategory}|${r.member_id}`;
+        map.set(k, Number(r.amount||0));
+      }
+      return { cols, memberIds, map };
+    }
+
+    function buildEditTable(month, cols, map){
+      const tbody = byId("editTbody");
+      tbody.innerHTML = "";
+
+      for(const def of RECORD_ROWS){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono">${def.flow}</td>
+          <td>${def.category}</td>
+          <td>${def.sub}</td>
+          <td class="muted">${def.note||""}</td>
+          ${cols.map(c=>`<td><input data-person="${c}" data-flow="${def.flow}" data-cat="${def.category}" data-sub="${def.sub}" inputmode="numeric" placeholder="(공란=유지)" /></td>`).join("")}
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // fill values
+      const memberIdByName = {};
+      cols.forEach(n => memberIdByName[n]=getMemberIdByName(n));
+
+      for(const inp of tbody.querySelectorAll("input")){
+        const person = inp.dataset.person;
+        const flow = inp.dataset.flow;
+        const cat = inp.dataset.cat;
+        const sub = inp.dataset.sub;
+        const mid = memberIdByName[person];
+        const k = `${flow}|${cat}|${sub}|${mid}`;
+        if(map.has(k)){
+          inp.value = String(map.get(k));
+        }else{
+          inp.value = "";
+        }
+      }
+    }
+
+    async function refreshEditTable(){
+      setError("");
+      const month = byId("editMonth").value;
+      if(!month) return;
+
+      const { cols, map } = await fetchMonthlyMatrix(month);
+
+      // header
+      const thead = byId("editThead");
+      thead.innerHTML = `
+        <tr>
+          <th>flow</th>
+          <th>대분류</th>
+          <th>소분류</th>
+          <th>설명</th>
+          ${cols.map(c=>`<th>${c}</th>`).join("")}
+        </tr>
+      `;
+
+      buildEditTable(month, cols, map);
+      byId("editColsInfo").textContent = cols.join(" / ");
     }
 
     function parseNumberCell(v){
@@ -252,24 +446,74 @@
       return n;
     }
 
+    async function saveEditMonth(){
+      setError("");
+      const month = byId("editMonth").value;
+      if(!month) throw new Error("월 선택해줘");
+
+      await loadMembers();
+      const cols = getEditCols(month);
+      const memberMap = {};
+      for(const c of cols){
+        const id = getMemberIdByName(c);
+        if(!id) throw new Error(`members에 ${c} 가 없어.`);
+        memberMap[c]=id;
+      }
+
+      const inputs = Array.from(byId("editTbody").querySelectorAll("input"));
+      const payload = [];
+      let skipped = 0;
+
+      for(const inp of inputs){
+        const n = parseNumberCell(inp.value);
+        if(n === null){ skipped++; continue; } // ✅ 공란 스킵(기존 유지)
+        if(Number.isNaN(n) || n < 0) throw new Error(`금액이 이상해: ${inp.dataset.cat}/${inp.dataset.sub} (${inp.dataset.person})`);
+
+        payload.push({
+          ledger_id: currentLedgerId,
+          month: monthToDate(month),
+          member_id: memberMap[inp.dataset.person],
+          flow_type: inp.dataset.flow,
+          category: inp.dataset.cat,
+          subcategory: inp.dataset.sub,
+          note: null,
+          amount: Math.floor(n),
+          created_by: session.user.id
+        });
+      }
+
+      if(!payload.length){
+        setStatus("");
+        setError("저장할 값이 없어(전부 공란). 공란은 유지라서 저장 없음.");
+        return;
+      }
+
+      setStatus(`저장 중... (${payload.length}개, 공란 ${skipped}개 스킵)`);
+      await apiFetch("/rest/v1/monthly_records", {
+        method:"POST",
+        query:{ on_conflict:"ledger_id,month,member_id,flow_type,category,subcategory" },
+        body: payload,
+        preferReturn:false,
+        extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
+      });
+      setStatus("저장 완료!");
+    }
+
+    // =========================================
+    // ✅ 탭3: 대량 업로드 (엑셀)
+    // =========================================
     async function downloadRecordTemplate(){
-      const month = byId("monthPick").value;
+      const month = byId("bulkMonth").value;
       if(!month) throw new Error("월을 선택해줘");
 
       await loadMembers();
+      const cols = hasCommonForMonth(month) ? ["돌프","천사","공통"] : ["돌프","천사"];
 
-      const cols = hasCommonForMonth(month)
-        ? ["돌프","천사","공통"]
-        : ["돌프","천사"];
-
-      // 필요한 멤버가 없으면 안내
       const missing = cols.filter(n => !getMemberIdByName(n));
-      if(missing.length){
-        throw new Error(`members에 ${missing.join(", ")} 가 없어. 먼저 멤버 추가해줘.`);
-      }
+      if(missing.length) throw new Error(`members에 ${missing.join(", ")} 가 없어. 먼저 멤버 추가해줘.`);
 
       const aoa = [];
-      aoa.push(["월", month, "", "", "", ""]);
+      aoa.push(["월", month]);
       aoa.push(["대분류(B)", "소분류(C)", "설명(D)", ...cols]);
 
       for(const r of RECORD_ROWS){
@@ -280,54 +524,32 @@
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       XLSX.utils.book_append_sheet(wb, ws, "기록");
 
-      // meta sheet (업로드 안정화)
-      const meta = XLSX.utils.aoa_to_sheet([
-        ["month", month],
-        ["ledger_id", currentLedgerId],
-        ["common_start_month", COMMON_START_MONTH]
-      ]);
-      XLSX.utils.book_append_sheet(wb, meta, "_meta");
-
       XLSX.writeFile(wb, `기록_${month}.xlsx`);
     }
 
     async function uploadRecordFile(file){
       if(!file) return;
 
+      const month = byId("bulkMonth").value;
+      if(!month) throw new Error("월을 선택해줘");
+
       setError("");
       setStatus("기록 엑셀 읽는 중...");
 
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type:"array", cellDates:true });
-
       const ws = wb.Sheets["기록"] || wb.Sheets[wb.SheetNames[0]];
-      const metaWs = wb.Sheets["_meta"];
 
-      // header 기반 JSON
       const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
       if(!rows.length) throw new Error("기록 시트에 데이터가 없어");
 
-      // 월 결정: _meta > 화면 선택
-      let month = byId("monthPick").value || "";
-      if(metaWs){
-        const meta = XLSX.utils.sheet_to_json(metaWs, { defval:"" });
-        // _meta는 ["month", "2026-01"] 형태라 sheet_to_json 결과가 다르게 나올 수 있음
-        // 그래서 그냥 A1/B1 직접 읽음이 더 안전하지만 여기선 간단히: 화면 월 우선 + 사용자가 맞게 선택한다고 가정
-      }
-      if(!/^\d{4}-\d{2}$/.test(month)) throw new Error("월 선택이 필요해");
-
-      const monthDate = monthToDate(month);
-      const cols = hasCommonForMonth(month)
-        ? ["돌프","천사","공통"]
-        : ["돌프","천사"];
-
       await loadMembers();
+      const cols = hasCommonForMonth(month) ? ["돌프","천사","공통"] : ["돌프","천사"];
 
-      // 멤버 매핑
       const memberMap = {};
       for(const c of cols){
         const id = getMemberIdByName(c);
-        if(!id) throw new Error(`멤버 '${c}'가 members에 없어. 먼저 멤버 추가해줘.`);
+        if(!id) throw new Error(`멤버 '${c}'가 members에 없어.`);
         memberMap[c] = id;
       }
 
@@ -337,30 +559,23 @@
       for(let i=0;i<rows.length;i++){
         const r = rows[i];
 
-        const category = (r["대분류(B)"] ?? r["대분류"] ?? r["category"] ?? "").toString().trim();
-        const subcategory = (r["소분류(C)"] ?? r["소분류"] ?? r["subcategory"] ?? "").toString().trim();
-        const note = (r["설명(D)"] ?? r["설명"] ?? r["note"] ?? "").toString().trim();
+        const category = (r["대분류(B)"] ?? r["대분류"] ?? "").toString().trim();
+        const subcategory = (r["소분류(C)"] ?? r["소분류"] ?? "").toString().trim();
+        const note = (r["설명(D)"] ?? r["설명"] ?? "").toString().trim();
 
         if(!category && !subcategory) continue;
 
-        // flow_type: 사전에 정의된 RECORD_ROWS에 있으면 그 값, 없으면 expense
         const def = RECORD_ROWS.find(x => x.category===category && x.sub===subcategory);
         const flow_type = def ? def.flow : "expense";
 
-        // ✅ 공란 스킵(기존 유지)
         for(const person of cols){
           const n = parseNumberCell(r[person]);
-          if(n === null){
-            skippedBlankCells++;
-            continue; // 스킵 = 기존값 유지
-          }
-          if(Number.isNaN(n) || n < 0){
-            throw new Error(`(${i+3}행 ${person}) 금액이 이상해: ${r[person]}`);
-          }
+          if(n === null){ skippedBlankCells++; continue; } // ✅ 공란 스킵(기존 유지)
+          if(Number.isNaN(n) || n < 0) throw new Error(`(${i+3}행 ${person}) 금액이 이상해: ${r[person]}`);
 
           payload.push({
             ledger_id: currentLedgerId,
-            month: monthDate,
+            month: monthToDate(month),
             member_id: memberMap[person],
             flow_type,
             category,
@@ -370,14 +585,11 @@
             created_by: session.user.id
           });
         }
-
-        // 업로드 파일에 공통 컬럼이 있어도, 월이 2026-01 이전이면 무시(요구사항)
-        // (cols에 공통이 없으므로 자동으로 무시됨)
       }
 
       if(!payload.length){
         setStatus("");
-        setError("업로드할 값이 없어(전부 공란이었음). 공란 업로드는 허용되지만 저장할 게 없음.");
+        setError("업로드할 값이 없어(전부 공란). 공란 업로드는 허용되지만 저장할 게 없음.");
         return;
       }
 
@@ -391,7 +603,41 @@
         extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
       });
 
-      setStatus("월별 기록 업로드 완료!");
+      setStatus("대량 업로드 완료!");
+    }
+
+    // ---------- UI refresh ----------
+    async function refreshUI(){
+      const authed = !!(session?.access_token);
+      show(byId("authCard"), !authed);
+      show(byId("appCard"), authed);
+
+      byId("who").textContent = authed ? `로그인: ${session.user?.email || ""}` : "";
+      byId("ledgerName").textContent = "";
+
+      if(!authed){
+        setStatus("로그인 상태가 아니야.");
+        return;
+      }
+
+      setStatus("장부 확인 중...");
+      await ensureDefaultLedger();
+      await loadMembers();
+
+      // 기본값
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth()+1).padStart(2,"0");
+      const thisMonth = `${yyyy}-${mm}`;
+
+      if(!byId("dashFrom").value) byId("dashFrom").value = "2026-01";
+      if(!byId("dashTo").value) byId("dashTo").value = thisMonth;
+
+      if(!byId("editMonth").value) byId("editMonth").value = thisMonth;
+      if(!byId("bulkMonth").value) byId("bulkMonth").value = thisMonth;
+
+      setStatus("준비 완료!");
+      switchTab(activeTab);
     }
 
     // ---------- start ----------
@@ -427,29 +673,33 @@
           await refreshUI();
         });
 
-        byId("btnRecordDownload").addEventListener("click", async () => {
-          try{
-            setError("");
-            setStatus("템플릿 생성 중...");
-            await downloadRecordTemplate();
-          }catch(e){
-            setError(e?.message || String(e));
-          }finally{
-            setStatus("");
-          }
-        });
+        // tabs
+        byId("tabBtnDash").addEventListener("click", ()=>switchTab("dash"));
+        byId("tabBtnEdit").addEventListener("click", ()=>switchTab("edit"));
+        byId("tabBtnBulk").addEventListener("click", ()=>switchTab("bulk"));
 
-        byId("recordFile").addEventListener("change", async (e) => {
+        // dash controls
+        byId("btnDashRefresh").addEventListener("click", ()=>refreshDashboard().catch(e=>setError(e.message)));
+        byId("dashFrom").addEventListener("change", ()=>refreshDashboard().catch(e=>setError(e.message)));
+        byId("dashTo").addEventListener("change", ()=>refreshDashboard().catch(e=>setError(e.message)));
+        byId("dashMember").addEventListener("change", ()=>refreshDashboard().catch(e=>setError(e.message)));
+        byId("dashFlow").addEventListener("change", ()=>refreshDashboard().catch(e=>setError(e.message)));
+
+        // edit controls
+        byId("btnEditLoad").addEventListener("click", ()=>refreshEditTable().catch(e=>setError(e.message)));
+        byId("btnEditSave").addEventListener("click", ()=>saveEditMonth().catch(e=>setError(e.message)));
+        byId("editMonth").addEventListener("change", ()=>refreshEditTable().catch(e=>setError(e.message)));
+
+        // bulk controls
+        byId("btnBulkDownload").addEventListener("click", ()=>downloadRecordTemplate().catch(e=>setError(e.message)));
+        byId("bulkFile").addEventListener("change", async (e) => {
           const file = e.target.files?.[0];
           if(!file) return;
           try{
-            setError("");
-            setStatus("업로드 중...");
             await uploadRecordFile(file);
           }catch(err){
             setError(err?.message || String(err));
           }finally{
-            setStatus("");
             e.target.value = "";
           }
         });
@@ -465,46 +715,127 @@
 
 <body>
   <h1>가계부</h1>
-  <div class="muted">
-    월별 "기록" 템플릿 다운로드 → 입력 → 업로드 → <span class="mono">monthly_records</span>에 저장 (공란은 스킵=기존값 유지)
-  </div>
+  <div class="muted">탭1 대시보드(커버) · 탭2 기록/수정 · 탭3 대량 업로드</div>
 
   <div class="card">
     <div class="toolbar">
-      <div id="who" class="muted"></div>
+      <div>
+        <div id="who" class="muted"></div>
+        <div class="muted">현재 장부: <span id="ledgerName" class="mono"></span></div>
+      </div>
       <button id="btnLogout">로그아웃</button>
     </div>
-    <div class="muted">현재 장부: <span id="ledgerName" class="mono"></span></div>
     <div id="status" class="muted"></div>
     <div id="error" class="muted" style="color:#b00020;"></div>
   </div>
 
   <div id="authCard" class="card hidden">
-    <div class="toolbar" style="justify-content:flex-start;">
+    <div class="row" style="justify-content:flex-start;">
       <span class="pill">로그인</span>
       <input id="email" type="email" placeholder="이메일" style="min-width:260px;">
       <input id="password" type="password" placeholder="비밀번호" style="min-width:220px;">
       <button class="primary" id="btnLogin">로그인</button>
     </div>
-    <div class="muted">Confirm email을 켰으면 인증 후 로그인해야 함.</div>
+    <div class="muted">Confirm email 켜져 있으면 인증 후 로그인 가능.</div>
   </div>
 
-  <div id="monthlyCard" class="card hidden">
-    <div class="toolbar" style="justify-content:flex-start;">
-      <span class="pill">월별 기록 업/다운</span>
-      <label class="muted">월</label>
-      <input id="monthPick" type="month" />
-      <button class="primary" id="btnRecordDownload">기록 템플릿 다운로드</button>
-      <label class="pill" style="cursor:pointer;">
-        기록 업로드
-        <input id="recordFile" type="file" accept=".xlsx,.xls" style="display:none;">
-      </label>
+  <div id="appCard" class="hidden">
+    <div class="tabs">
+      <button class="tabBtn active" id="tabBtnDash" data-tab="dash">탭1 · 대시보드</button>
+      <button class="tabBtn" id="tabBtnEdit" data-tab="edit">탭2 · 기록/수정</button>
+      <button class="tabBtn" id="tabBtnBulk" data-tab="bulk">탭3 · 대량 업로드</button>
     </div>
-    <div class="muted">
-      - 2026-01부터 <b>공통</b> 컬럼이 템플릿에 포함됨 (이전 달은 돌프/천사만)<br/>
-      - B=대분류, C=소분류, D=설명, 금액 공란은 업로드해도 에러 없이 <b>스킵(기존 유지)</b>
+
+    <!-- 탭1: 대시보드 -->
+    <div id="tabDash" class="card">
+      <div class="toolbar" style="justify-content:flex-start;">
+        <span class="pill">대시보드</span>
+        <label class="muted">From</label>
+        <input id="dashFrom" type="month" />
+        <label class="muted">To</label>
+        <input id="dashTo" type="month" />
+        <select id="dashMember">
+          <option>돌프</option>
+          <option>천사</option>
+          <option>공통</option>
+        </select>
+        <select id="dashFlow">
+          <option value="expense">지출</option>
+          <option value="income">수입</option>
+          <option value="saving">저축</option>
+        </select>
+        <button id="btnDashRefresh" class="primary">새로고침</button>
+      </div>
+
+      <div class="grid3" style="margin-top:10px;">
+        <div class="card" style="margin:0;">
+          <div class="muted">선택 범위 합계</div>
+          <div class="mono" style="font-size:22px;"><span id="dashSumRange">0</span> 원</div>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="muted">마지막 월 합계</div>
+          <div class="mono" style="font-size:22px;"><span id="dashSumLast">0</span> 원</div>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="muted">설명</div>
+          <div class="muted">monthly_records 월 합계 추이</div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <canvas id="dashChart"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:10px;">
+        <div class="muted">월별 합계 표</div>
+        <table>
+          <thead><tr><th>월</th><th class="right">합계</th></tr></thead>
+          <tbody id="dashTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 탭2: 기록/수정 -->
+    <div id="tabEdit" class="card hidden">
+      <div class="toolbar" style="justify-content:flex-start;">
+        <span class="pill">기록/수정</span>
+        <label class="muted">월</label>
+        <input id="editMonth" type="month" />
+        <button id="btnEditLoad" class="ghost">불러오기</button>
+        <button id="btnEditSave" class="primary">저장(공란=유지)</button>
+        <span class="muted">컬럼: <span id="editColsInfo"></span></span>
+      </div>
+
+      <div class="muted" style="margin-top:6px;">
+        - 공란은 DB에 반영 안 함(기존 유지)<br/>
+        - 2026-01부터 공통 컬럼 포함
+      </div>
+
+      <div style="overflow:auto; margin-top:10px;">
+        <table>
+          <thead id="editThead"></thead>
+          <tbody id="editTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 탭3: 대량 업로드 -->
+    <div id="tabBulk" class="card hidden">
+      <div class="toolbar" style="justify-content:flex-start;">
+        <span class="pill">대량 업로드</span>
+        <label class="muted">월</label>
+        <input id="bulkMonth" type="month" />
+        <button id="btnBulkDownload" class="primary">템플릿 다운로드</button>
+        <label class="pill" style="cursor:pointer;">
+          엑셀 업로드
+          <input id="bulkFile" type="file" accept=".xlsx,.xls" style="display:none;">
+        </label>
+      </div>
+      <div class="muted" style="margin-top:6px;">
+        - 템플릿: 대분류/소분류/설명 + (돌프/천사/공통)<br/>
+        - 공란 업로드는 스킵(기존 유지)
+      </div>
     </div>
   </div>
 </body>
 </html>
-
