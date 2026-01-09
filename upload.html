@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>엑셀 업로드 (v3.xlsx → Supabase)</title>
-
+  <title>CSV 업로드 (Supabase · No SDK)</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
     h1 { margin: 0 0 8px; }
@@ -15,441 +14,121 @@
     button.primary { background:#111; color:#fff; border-color:#111; }
     button:disabled { opacity:.6; cursor:not-allowed; }
     .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-    pre { white-space: pre-wrap; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    pre { white-space:pre-wrap; }
   </style>
 
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- SheetJS (xlsx parser) -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
   <script>
-    // ✅ 너 URL
+    // ✅ 너 프로젝트 값
     const SUPABASE_URL = "https://cqxpmfxwgrpdtxomxfiz.supabase.co";
-    // ✅ 여기에 sb_publishable_... 넣기
-    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_srN_e_EFhBbMEnPHSyu2Eg_03Mw37jS";
+    const SUPABASE_KEY = "sb_publishable_srN_e_EFhBbMEnPHSyu2Eg_03Mw37jS";
 
-    const DEFAULT_START_DATE = "2026-01-01";
     const DEFAULT_LEDGER_NAME = "우리집";
+    const DEFAULT_START_DATE = "2026-01-01";
 
-    let supabase;
-    let session = null;
+    // 여러 페이지에서 공유되도록 localStorage 사용
+    const LS_KEY = "ledger_session_v1";
+    let session = null;     // { access_token, refresh_token, user }
     let ledgerId = null;
 
     const $ = (id) => document.getElementById(id);
 
+    function setStatus(msg){ $("status").textContent = msg || ""; }
+    function setError(msg){ $("error").textContent = msg || ""; }
     function log(msg){
       $("log").textContent += msg + "\n";
       $("log").scrollTop = $("log").scrollHeight;
     }
-    function setError(msg){ $("error").textContent = msg || ""; }
-    function setStatus(msg){ $("status").textContent = msg || ""; }
 
-    async function safe(fn){
-      try { setError(""); return await fn(); }
-      catch(e){ console.error(e); setError(e?.message || String(e)); throw e; }
+    function saveSession(s){
+      session = s;
+      if(s) localStorage.setItem(LS_KEY, JSON.stringify(s));
+      else localStorage.removeItem(LS_KEY);
+    }
+    function loadSession(){
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
     }
 
-    async function init(){
-      if(!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes("PUT_YOUR")){
-        throw new Error("SUPABASE_PUBLISHABLE_KEY 를 sb_publishable_... 값으로 교체해줘!");
-      }
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-      const { data } = await supabase.auth.getSession();
-      session = data.session;
-      supabase.auth.onAuthStateChange(async (_e, s) => { session = s; await refreshUI(); });
-      await refreshUI();
-    }
-
-    async function refreshUI(){
-      const authed = !!session?.user;
-      $("authBox").style.display = authed ? "none" : "block";
-      $("appBox").style.display = authed ? "block" : "none";
-
-      if(!authed){
-        setStatus("로그인 필요");
-        return;
+    async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true } = {}){
+      const url = new URL(SUPABASE_URL + path);
+      if(query){
+        for(const [k,v] of Object.entries(query)){
+          if(v === undefined || v === null) continue;
+          url.searchParams.append(k, v); // 같은 키 중복을 위해 append
+        }
       }
 
-      $("who").textContent = `로그인: ${session.user.email}`;
-      setStatus("장부 확인 중...");
+      const headers = { "apikey": SUPABASE_KEY };
+      if(body) headers["Content-Type"] = "application/json";
+      if(auth && session?.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+      if(preferReturn && (method==="POST" || method==="PATCH")) headers["Prefer"] = "return=representation";
 
-      await ensureLedger();
-      $("ledger").textContent = ledgerId;
-
-      setStatus("준비 완료. 엑셀 파일을 선택하고 업로드를 눌러줘.");
-    }
-
-    async function sendLink(email){
-      const redirectTo = window.location.href;
-      const { error } = await supabase.auth.signInWithOtp({
-        email, options: { emailRedirectTo: redirectTo }
+      const res = await fetch(url.toString(), {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
       });
-      if(error) throw error;
+
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
+
+      if(!res.ok){
+        const msg = (data && typeof data === "object")
+          ? (data.message || data.error_description || JSON.stringify(data))
+          : String(data);
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    // ---- Auth (No SDK) ----
+    function parseTokensFromUrl(){
+      const hash = window.location.hash || "";
+      if(!hash.startsWith("#")) return null;
+      const params = new URLSearchParams(hash.slice(1));
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      if(!access_token) return null;
+      return { access_token, refresh_token };
+    }
+
+    async function fetchUser(){
+      return await apiFetch("/auth/v1/user", { method:"GET", auth:true, preferReturn:false });
+    }
+
+    async function sendMagicLink(email){
+      const redirectTo = window.location.origin + window.location.pathname; // upload.html로 돌아옴
+      await apiFetch("/auth/v1/otp", {
+        method:"POST",
+        auth:false,
+        preferReturn:false,
+        body: { email, create_user:true, options:{ emailRedirectTo: redirectTo } }
+      });
     }
 
     async function logout(){
-      const { error } = await supabase.auth.signOut();
-      if(error) throw error;
+      saveSession(null);
+      await refreshUI();
     }
 
+    // ---- Ledger bootstrap ----
     async function ensureLedger(){
-      // 1) 내가 속한 ledger 있으면 첫 번째 사용
-      const { data: ledgers, error: selErr } = await supabase
-        .from("ledgers").select("id,name,created_at")
-        .order("created_at", { ascending: true });
+      const ledgers = await apiFetch("/rest/v1/ledgers", {
+        query: { select:"id,name,created_at", order:"created_at.asc" }
+      });
 
-      if(selErr) throw selErr;
-
-      if(ledgers && ledgers.length > 0){
+      if(ledgers?.length){
         ledgerId = ledgers[0].id;
+        $("ledger").textContent = ledgers[0].name;
         return;
       }
 
-      // 2) 없으면 생성
-      const { data: created, error: insErr } = await supabase
-        .from("ledgers")
-        .insert({ name: DEFAULT_LEDGER_NAME, created_by: session.user.id })
-        .select("id").single();
-
-      if(insErr) throw insErr;
-      ledgerId = created.id;
-
-      // 3) 내가 owner로 join (이건 예전에 추가한 정책 필요)
-      const { error: joinErr } = await supabase
-        .from("ledger_members")
-        .insert({ ledger_id: ledgerId, user_id: session.user.id, role: "owner" });
-
-      if(joinErr) throw joinErr;
-
-      // 4) 공통 멤버 기본 생성
-      await supabase.from("members").insert({ ledger_id: ledgerId, name: "공통", kind: "common" });
-    }
-
-    // ===== Excel Parsing (v3.xlsx 기준) =====
-    // DB 시트:
-    // A:거래일자, B:구분, C:지출, D:저축, E:수입, F:상세항목, G:소분류, H:대분류, I:거래일(숫자)
-    // 단어표 L:M => 상세항목 -> 소분류
-    // 분류표 O:P => 소분류 -> 대분류
-
-    function excelDateToISO(excelVal){
-      // SheetJS에서 날짜는 보통 Date 객체로 나오기도 하고,
-      // 숫자(엑셀 serial)로 나오기도 해서 둘 다 처리
-      if(excelVal instanceof Date){
-        const z = new Date(excelVal.getTime() - excelVal.getTimezoneOffset()*60000);
-        return z.toISOString().slice(0,10);
-      }
-      if(typeof excelVal === "number"){
-        // Excel serial date -> JS date
-        const utc_days = Math.floor(excelVal - 25569);
-        const utc_value = utc_days * 86400;
-        const date_info = new Date(utc_value * 1000);
-        const z = new Date(date_info.getTime() - date_info.getTimezoneOffset()*60000);
-        return z.toISOString().slice(0,10);
-      }
-      if(typeof excelVal === "string"){
-        // 이미 yyyy-mm-dd 형태면 통과
-        if(/^\d{4}-\d{2}-\d{2}$/.test(excelVal)) return excelVal;
-      }
-      return null;
-    }
-
-    function pickFlowAmount(expense, saving, income){
-      const e = Number(expense || 0);
-      const s = Number(saving || 0);
-      const i = Number(income || 0);
-      if(e > 0) return { flow_type: "expense", amount: e };
-      if(s > 0) return { flow_type: "saving", amount: s };
-      if(i > 0) return { flow_type: "income", amount: i };
-      return null;
-    }
-
-    async function upsertMembersFromNames(names){
-      // 기존 멤버 조회
-      const { data: existing, error } = await supabase
-        .from("members")
-        .select("id,name,kind,is_active")
-        .eq("ledger_id", ledgerId);
-
-      if(error) throw error;
-
-      const existingNames = new Set((existing||[]).map(x => x.name));
-      const inserts = [];
-
-      // 공통 없으면 만들기
-      if(!existingNames.has("공통")){
-        inserts.push({ ledger_id: ledgerId, name: "공통", kind: "common" });
-      }
-
-      for(const n of names){
-        if(!n) continue;
-        if(!existingNames.has(n)){
-          inserts.push({ ledger_id: ledgerId, name: n, kind: "person" });
-        }
-      }
-
-      if(inserts.length){
-        log(`멤버 ${inserts.length}명 추가 중...`);
-        const { error: insErr } = await supabase.from("members").insert(inserts);
-        if(insErr) throw insErr;
-      }
-
-      // 다시 조회해서 name->id 매핑 만들기
-      const { data: after, error: aftErr } = await supabase
-        .from("members")
-        .select("id,name,kind,is_active")
-        .eq("ledger_id", ledgerId)
-        .eq("is_active", true);
-
-      if(aftErr) throw aftErr;
-
-      const map = new Map();
-      for(const m of (after||[])) map.set(m.name, m.id);
-      return map;
-    }
-
-    async function upsertMappings(detailMapRows, subMapRows){
-      // detail_map upsert
-      if(detailMapRows.length){
-        log(`상세→소분류 매핑 ${detailMapRows.length}개 업서트...`);
-        for(let i=0;i<detailMapRows.length;i+=500){
-          const chunk = detailMapRows.slice(i, i+500).map(r => ({
-            ledger_id: ledgerId,
-            detail: r.detail,
-            subcategory: r.subcategory
-          }));
-          const { error } = await supabase
-            .from("detail_map")
-            .upsert(chunk, { onConflict: "ledger_id,detail" });
-          if(error) throw error;
-        }
-      }
-
-      // subcategory_map upsert
-      if(subMapRows.length){
-        log(`소분류→대분류 매핑 ${subMapRows.length}개 업서트...`);
-        for(let i=0;i<subMapRows.length;i+=500){
-          const chunk = subMapRows.slice(i, i+500).map(r => ({
-            ledger_id: ledgerId,
-            subcategory: r.subcategory,
-            category: r.category
-          }));
-          const { error } = await supabase
-            .from("subcategory_map")
-            .upsert(chunk, { onConflict: "ledger_id,subcategory" });
-          if(error) throw error;
-        }
-      }
-    }
-
-    async function uploadEntries(entries){
-      if(!entries.length){
-        log("업로드할 거래가 없음(필터에 의해 0건).");
-        return;
-      }
-      log(`거래 ${entries.length}건 업로드 시작... (500개씩 배치)`);
-
-      for(let i=0;i<entries.length;i+=500){
-        const chunk = entries.slice(i, i+500);
-        const { error } = await supabase.from("entries").insert(chunk);
-        if(error) throw error;
-        log(`- ${Math.min(i+500, entries.length)}/${entries.length} 업로드 완료`);
-      }
-    }
-
-    async function handleUpload(){
-      const file = $("file").files?.[0];
-      if(!file) throw new Error("엑셀 파일(.xlsx)을 선택해줘");
-
-      const onlyFrom2026 = $("only2026").checked;
-      const startDate = $("startDate").value || DEFAULT_START_DATE;
-
-      $("btnUpload").disabled = true;
-      $("log").textContent = "";
-      log("엑셀 읽는 중...");
-
-      // 파일 읽기
-      const arrayBuffer = await file.arrayBuffer();
-      const wb = XLSX.read(arrayBuffer, { type: "array" });
-
-      if(!wb.Sheets["DB"]) throw new Error("엑셀에 'DB' 시트가 없어. 파일이 v3 형식인지 확인해줘.");
-
-      const ws = wb.Sheets["DB"];
-
-      // 시트를 2차원 배열로 변환 (빈칸 포함)
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-
-      // 1) 거래 데이터: 헤더는 rows[1], 데이터는 rows[2]부터, A~I 사용
-      const dataRows = rows.slice(2); // 0:빈, 1:헤더
-      const peopleSet = new Set();
-      const parsedEntries = [];
-
-      for(const r of dataRows){
-        if(!r || r.length < 6) continue;
-
-        const entryDate = excelDateToISO(r[0]); // A
-        const person = r[1]; // B
-        const expense = r[2]; // C
-        const saving = r[3]; // D
-        const income = r[4]; // E
-        const detail = r[5]; // F
-        const subcategory = r[6] || null; // G
-        const category = r[7] || null; // H
-
-        if(!entryDate || !detail) continue;
-
-        // 2026년부터만
-        if(onlyFrom2026 && entryDate < startDate) continue;
-
-        const fa = pickFlowAmount(expense, saving, income);
-        if(!fa) continue;
-
-        if(person) peopleSet.add(String(person).trim());
-
-        // member_id는 나중에 name->id 매핑 후 채움
-        parsedEntries.push({
-          entry_date: entryDate,
-          person_name: person ? String(person).trim() : "공통",
-          flow_type: fa.flow_type,
-          amount: fa.amount,
-          detail: String(detail).trim(),
-          subcategory: subcategory ? String(subcategory).trim() : null,
-          category: category ? String(category).trim() : null,
-        });
-      }
-
-      log(`거래 파싱 완료: ${parsedEntries.length}건 (옵션: ${onlyFrom2026 ? startDate + " 이후만" : "전체"})`);
-
-      // 2) 매핑 테이블: L:M(12,13), O:P(15,16)
-      const detailMapRows = [];
-      const subMapRows = [];
-
-      for(let i=1;i<rows.length;i++){
-        const r = rows[i] || [];
-        const d = r[11]; // L (0-based)
-        const s = r[12]; // M
-        if(d && s && d !== "상세항목"){
-          detailMapRows.push({ detail: String(d).trim(), subcategory: String(s).trim() });
-        }
-        const sub = r[14]; // O
-        const cat = r[15]; // P
-        if(sub && cat && sub !== "소분류"){
-          subMapRows.push({ subcategory: String(sub).trim(), category: String(cat).trim() });
-        }
-      }
-
-      log(`매핑 파싱 완료: 상세→소분류 ${detailMapRows.length}개, 소분류→대분류 ${subMapRows.length}개`);
-
-      // 3) Supabase 업로드 시작
-      log("Supabase로 업로드 준비 중...");
-      await ensureLedger();
-
-      // 멤버 생성 + name->id map
-      const nameToId = await upsertMembersFromNames(Array.from(peopleSet));
-
-      // 매핑 업서트
-      await upsertMappings(detailMapRows, subMapRows);
-
-      // entries 만들기 (member_id 치환)
-      const entriesToInsert = parsedEntries.map(e => ({
-        ledger_id: ledgerId,
-        entry_date: e.entry_date,
-        member_id: nameToId.get(e.person_name) || nameToId.get("공통"),
-        flow_type: e.flow_type,
-        amount: e.amount,
-        detail: e.detail,
-        subcategory: e.subcategory,
-        category: e.category,
-        memo: null,
-        created_by: session.user.id
-      }));
-
-      // 업로드
-      await uploadEntries(entriesToInsert);
-
-      log("✅ 완료! 이제 index.html(가계부)로 가서 확인해봐.");
-      setStatus("업로드 완료");
-    }
-
-    window.addEventListener("DOMContentLoaded", async () => {
-      $("btnSendLink").addEventListener("click", async () => {
-        const email = ($("email").value || "").trim();
-        if(!email) return setError("이메일을 입력해줘");
-        await safe(async () => {
-          $("btnSendLink").disabled = true;
-          await sendLink(email);
-          setStatus("메일로 로그인 링크를 보냈어. 메일에서 링크를 눌러줘!");
-        }).finally(() => $("btnSendLink").disabled = false);
+      const createdArr = await apiFetch("/rest/v1/ledgers", {
+        method:"POST",
+        body: { name: DEFAULT_LEDGER_NAME, created_by: session.user.id }
       });
-
-      $("btnLogout").addEventListener("click", async () => {
-        await safe(async () => logout());
-      });
-
-      $("btnUpload").addEventListener("click", async () => {
-        await safe(async () => handleUpload());
-      });
-
-      await safe(async () => init());
-    });
-  </script>
-</head>
-
-<body>
-  <h1>엑셀 업로드</h1>
-  <div class="muted">
-    v3.xlsx → Supabase로 업로드 (DB 시트 기준) · 기본: 2026-01-01 이후만
-  </div>
-
-  <div class="card">
-    <div id="who" class="muted"></div>
-    <div id="status" class="muted"></div>
-    <div id="error" class="muted" style="color:#b00020;"></div>
-    <div class="muted">
-      돌아가기: <a href="./index.html">가계부(index.html)</a>
-    </div>
-  </div>
-
-  <div id="authBox" class="card" style="display:none;">
-    <div class="row">
-      <input id="email" type="email" placeholder="이메일" style="min-width:260px;">
-      <button class="primary" id="btnSendLink">로그인 링크 보내기(메일)</button>
-    </div>
-    <div class="muted">메일로 온 링크를 누르면 로그인돼.</div>
-  </div>
-
-  <div id="appBox" class="card" style="display:none;">
-    <div class="row" style="justify-content:space-between;">
-      <div class="muted">현재 ledger_id: <span id="ledger" class="mono"></span></div>
-      <button id="btnLogout">로그아웃</button>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <input id="file" type="file" accept=".xlsx" />
-        <label class="muted">
-          <input id="only2026" type="checkbox" checked />
-          2026-01-01 이후만 업로드
-        </label>
-        <input id="startDate" type="date" value="2026-01-01" />
-        <button id="btnUpload" class="primary">업로드 시작</button>
-      </div>
-      <div class="muted">
-        엑셀의 <b>DB</b> 시트에서 거래/매핑을 읽어 업로드해.
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="muted">로그</div>
-      <pre id="log" class="mono" style="height:260px; overflow:auto; border:1px solid #eee; border-radius:12px; padding:10px;"></pre>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="muted">
-      ⚠️ 업로드가 "권한 때문에 실패"하면, 이전에 안내했던 정책(creator can self-join as owner)이 Supabase SQL Editor에 적용됐는지 확인해줘.
-    </div>
-  </div>
-</body>
-</html>
+      const created = createdArr?.[0];
+      if(!created?.id) throw new E
