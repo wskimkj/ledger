@@ -456,7 +456,7 @@ function loadSession(){
       byId("sumNet").textContent = fmt(income - expense);
     }
 
-  window.addEventListener("DOMContentLoaded", async () => {
+window.addEventListener("DOMContentLoaded", async () => {
   try{
     // 1) 매직링크로 돌아온 경우 토큰 파싱
     const tokens = parseTokensFromUrl();
@@ -474,18 +474,54 @@ function loadSession(){
       saveSession({ ...session, user });
     }
 
-    // ✅✅✅ 여기 추가 (이벤트 바인딩들 시작하기 전에)
+    // ✅ 추가: 다른 탭(메일 탭)에서 로그인되면 이 탭도 자동 갱신
     window.addEventListener("storage", async (e) => {
       if (e.key === SS_KEY) {
         session = loadSession();
+        if(session?.access_token && !session.user){
+          try{
+            const user = await fetchUser();
+            saveSession({ ...session, user });
+          }catch(err){
+            setError(err?.message || String(err));
+          }
+        }
         try { await refreshUI(); }
         catch (err) { setError(err?.message || String(err)); }
       }
     });
 
-    // 이벤트 바인딩
+    // 이벤트 바인딩 (원래 네 코드 그대로)
     byId("btnSendLink").addEventListener("click", async () => {
-      ...
+      const email = (byId("email").value||"").trim();
+      if(!email) return setError("이메일을 입력해줘");
+      setError("");
+      setStatus("메일 보내는 중...");
+      await sendMagicLink(email);
+      setStatus("로그인 링크를 이메일로 보냈어. 메일에서 링크를 눌러줘!");
+    });
+
+    byId("btnLogout").addEventListener("click", async () => {
+      await logout();
+      await refreshUI();
+    });
+
+    byId("entryForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setError("");
+      await upsertEntry();
+    });
+
+    byId("btnCancelEdit").addEventListener("click", () => cancelEdit());
+    byId("btnReload").addEventListener("click", async () => { await loadEntries(); await refreshSummary(); });
+    byId("btnApplyFilter").addEventListener("click", async () => { await loadEntries(); await refreshSummary(); });
+
+    byId("btnAddMember").addEventListener("click", async () => {
+      const name = (byId("newMemberName").value||"").trim();
+      const kind = byId("newMemberKind").value;
+      if(!name) return setError("멤버 이름을 입력해줘");
+      await addMember(name, kind);
+      byId("newMemberName").value = "";
     });
 
     await refreshUI();
@@ -494,6 +530,7 @@ function loadSession(){
     setError(e?.message || String(e));
   }
 });
+
 
 
         // 이벤트 바인딩
