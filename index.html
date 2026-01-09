@@ -34,8 +34,8 @@
     const DEFAULT_LEDGER_NAME = "우리집";
     const DEFAULT_START_DATE = "2026-01-01";
 
-    // 세션(탭 유지용)
-    const SS_KEY = "ledger_session_v1"; // sessionStorage key
+    // 세션 저장 키 (localStorage)
+    const SS_KEY = "ledger_session_v1";
     let session = null; // { access_token, refresh_token, user }
 
     let currentLedgerId = null;
@@ -52,18 +52,16 @@
     function setError(msg){ byId("error").textContent = msg || ""; }
     function show(el, yes){ el.classList.toggle("hidden", !yes); }
 
-  function saveSession(s){
-  session = s;
-  if (s) localStorage.setItem(SS_KEY, JSON.stringify(s));
-  else localStorage.removeItem(SS_KEY);
-}
-
-function loadSession(){
-  const raw = localStorage.getItem(SS_KEY);
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
+    function saveSession(s){
+      session = s;
+      if (s) localStorage.setItem(SS_KEY, JSON.stringify(s));
+      else localStorage.removeItem(SS_KEY);
+    }
+    function loadSession(){
+      const raw = localStorage.getItem(SS_KEY);
+      if(!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
+    }
 
     async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true } = {}){
       const url = new URL(SUPABASE_URL + path);
@@ -91,7 +89,6 @@ function loadSession(){
         body: body ? JSON.stringify(body) : undefined
       });
 
-      // Supabase는 에러를 JSON으로 주는 경우가 많음
       let data = null;
       const text = await res.text();
       try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
@@ -104,7 +101,6 @@ function loadSession(){
     }
 
     // ---------- Auth (No SDK) ----------
-    // 이메일 매직링크 발송
     async function sendMagicLink(email){
       const redirectTo = window.location.origin + window.location.pathname; // 현재 페이지로
       await apiFetch("/auth/v1/otp", {
@@ -120,8 +116,6 @@ function loadSession(){
     }
 
     function parseTokensFromUrl(){
-      // 매직링크 클릭 후 URL hash에 access_token 등이 들어옴
-      // 예: #access_token=...&refresh_token=...&type=magiclink
       const hash = window.location.hash || "";
       if(!hash.startsWith("#")) return null;
       const params = new URLSearchParams(hash.slice(1));
@@ -136,7 +130,6 @@ function loadSession(){
     }
 
     async function logout(){
-      // 서버 로그아웃까지 하려면 /logout 호출 가능하지만, 여기선 토큰만 제거
       saveSession(null);
     }
 
@@ -158,7 +151,6 @@ function loadSession(){
 
       setStatus("로그인됨. 장부 확인 중...");
 
-      // 날짜 기본 세팅
       if(!byId("filterFrom").value) byId("filterFrom").value = DEFAULT_START_DATE;
       if(!byId("filterTo").value) byId("filterTo").value = todayISO();
       if(!byId("entryDate").value) byId("entryDate").value = todayISO();
@@ -172,7 +164,6 @@ function loadSession(){
     }
 
     async function ensureDefaultLedger(){
-      // 내가 속한 ledgers 조회 (RLS로 member만 보임)
       const ledgers = await apiFetch("/rest/v1/ledgers", {
         query: { select:"id,name,created_at", order:"created_at.asc" }
       });
@@ -183,7 +174,6 @@ function loadSession(){
         return;
       }
 
-      // ledger 생성
       const createdArr = await apiFetch("/rest/v1/ledgers", {
         method:"POST",
         body: { name: DEFAULT_LEDGER_NAME, created_by: session.user.id }
@@ -194,13 +184,11 @@ function loadSession(){
       currentLedgerId = created.id;
       byId("ledgerName").textContent = DEFAULT_LEDGER_NAME;
 
-      // creator self-join owner
       await apiFetch("/rest/v1/ledger_members", {
         method:"POST",
         body: { ledger_id: currentLedgerId, user_id: session.user.id, role:"owner" }
       });
 
-      // 공통 멤버 생성
       await apiFetch("/rest/v1/members", {
         method:"POST",
         body: { ledger_id: currentLedgerId, name:"공통", kind:"common" }
@@ -226,7 +214,6 @@ function loadSession(){
         sel.appendChild(opt);
       }
 
-      // 필터 멤버
       const filterMember = byId("filterMember");
       const prev = filterMember.value || "all";
       filterMember.innerHTML = `<option value="all">전체 멤버</option>`;
@@ -238,7 +225,6 @@ function loadSession(){
       }
       filterMember.value = prev;
 
-      // 멤버 관리 리스트
       const list = byId("memberList");
       list.innerHTML = "";
       for(const m of members){
@@ -291,25 +277,11 @@ function loadSession(){
     async function loadEntries(){
       const f = getFilters();
 
-      // Supabase REST 필터
-      const query = {
-        select: "id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id",
-        ledger_id: `eq.${currentLedgerId}`,
-        entry_date: `gte.${f.from}`,
-      };
-
-      // lte 조건은 별도 key로 넣어야 해서 같은 컬럼 중복이 어려움 → and 필터 방식 사용
-      // Supabase REST는 column=lte.xxx 형태로 추가 가능하므로, query에 추가:
-      query["entry_date"] = `gte.${f.from}`;
-      query["entry_date"] = query["entry_date"]; // keep
-      // 아래는 URLSearchParams에 직접 추가하기 위해 apiFetch를 안 쓰고 수동 구성할게.
-      // (간단하게 만들려고 별도 함수 사용)
-
       const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-      url.searchParams.set("select", query.select);
+      url.searchParams.set("select", "id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id");
       url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
       url.searchParams.set("entry_date", `gte.${f.from}`);
-      url.searchParams.append("entry_date", `lte.${f.to}`); // 같은 키 두 번
+      url.searchParams.append("entry_date", `lte.${f.to}`);
       if(f.flow !== "all") url.searchParams.set("flow_type", `eq.${f.flow}`);
       if(f.memberId !== "all") url.searchParams.set("member_id", `eq.${f.memberId}`);
       url.searchParams.set("order", "entry_date.desc,created_at.desc");
@@ -323,7 +295,6 @@ function loadSession(){
       const data = await res.json();
       if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
 
-      // 검색(q)은 간단히 클라이언트에서 detail/memo 포함으로 필터
       const rows = (f.q)
         ? data.filter(r => (r.detail||"").includes(f.q) || (r.memo||"").includes(f.q))
         : data;
@@ -428,7 +399,6 @@ function loadSession(){
     async function refreshSummary(){
       const f = getFilters();
 
-      // 요약은 간단히 entries를 불러와서 합산 (초기 버전)
       const url = new URL(SUPABASE_URL + "/rest/v1/entries");
       url.searchParams.set("select", "flow_type,amount");
       url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
@@ -456,82 +426,42 @@ function loadSession(){
       byId("sumNet").textContent = fmt(income - expense);
     }
 
-window.addEventListener("DOMContentLoaded", async () => {
-  try{
-    // 1) 매직링크로 돌아온 경우 토큰 파싱
-    const tokens = parseTokensFromUrl();
-    if(tokens){
-      saveSession({ ...tokens, user: null });
-      history.replaceState({}, document.title, window.location.pathname + window.location.search);
-    } else {
-      const s = loadSession();
-      if(s) session = s;
-    }
-
-    // 2) 토큰이 있으면 user 가져오기
-    if(session?.access_token && !session.user){
-      const user = await fetchUser();
-      saveSession({ ...session, user });
-    }
-
-    // ✅ 추가: 다른 탭(메일 탭)에서 로그인되면 이 탭도 자동 갱신
-    window.addEventListener("storage", async (e) => {
-      if (e.key === SS_KEY) {
-        session = loadSession();
-        if(session?.access_token && !session.user){
-          try{
-            const user = await fetchUser();
-            saveSession({ ...session, user });
-          }catch(err){
-            setError(err?.message || String(err));
-          }
+    // ✅ 앱 시작
+    window.addEventListener("DOMContentLoaded", async () => {
+      try{
+        // 1) 매직링크로 돌아온 경우 토큰 파싱
+        const tokens = parseTokensFromUrl();
+        if(tokens){
+          saveSession({ ...tokens, user: null });
+          history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        } else {
+          const s = loadSession();
+          if(s) session = s;
         }
-        try { await refreshUI(); }
-        catch (err) { setError(err?.message || String(err)); }
-      }
-    });
 
-    // 이벤트 바인딩 (원래 네 코드 그대로)
-    byId("btnSendLink").addEventListener("click", async () => {
-      const email = (byId("email").value||"").trim();
-      if(!email) return setError("이메일을 입력해줘");
-      setError("");
-      setStatus("메일 보내는 중...");
-      await sendMagicLink(email);
-      setStatus("로그인 링크를 이메일로 보냈어. 메일에서 링크를 눌러줘!");
-    });
+        // 2) 토큰이 있으면 user 가져오기
+        if(session?.access_token && !session.user){
+          const user = await fetchUser();
+          saveSession({ ...session, user });
+        }
 
-    byId("btnLogout").addEventListener("click", async () => {
-      await logout();
-      await refreshUI();
-    });
+        // ✅ 다른 탭(메일 탭)에서 로그인되면 이 탭도 자동 갱신
+        window.addEventListener("storage", async (e) => {
+          if (e.key !== SS_KEY) return;
+          session = loadSession();
 
-    byId("entryForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      setError("");
-      await upsertEntry();
-    });
+          if(session?.access_token && !session.user){
+            try{
+              const user = await fetchUser();
+              saveSession({ ...session, user });
+            }catch(err){
+              setError(err?.message || String(err));
+            }
+          }
 
-    byId("btnCancelEdit").addEventListener("click", () => cancelEdit());
-    byId("btnReload").addEventListener("click", async () => { await loadEntries(); await refreshSummary(); });
-    byId("btnApplyFilter").addEventListener("click", async () => { await loadEntries(); await refreshSummary(); });
-
-    byId("btnAddMember").addEventListener("click", async () => {
-      const name = (byId("newMemberName").value||"").trim();
-      const kind = byId("newMemberKind").value;
-      if(!name) return setError("멤버 이름을 입력해줘");
-      await addMember(name, kind);
-      byId("newMemberName").value = "";
-    });
-
-    await refreshUI();
-  }catch(e){
-    console.error(e);
-    setError(e?.message || String(e));
-  }
-});
-
-
+          try { await refreshUI(); }
+          catch (err) { setError(err?.message || String(err)); }
+        });
 
         // 이벤트 바인딩
         byId("btnSendLink").addEventListener("click", async () => {
