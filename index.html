@@ -113,7 +113,8 @@
     async function sendMagicLink(email){
       assertHttp();
       // ✅ 같은 파일로 돌아오되, auth=confirm 플래그를 달아둠 (라우팅 필요 없음)
-      const redirectTo = window.location.origin + window.location.pathname + "?auth=confirm";
+      const redirectTo = window.location.origin + "/";
+
 
       await apiFetch("/auth/v1/otp", {
         method: "POST",
