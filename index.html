@@ -78,16 +78,9 @@
         }
       }
 
-      const headers = {
-        "apikey": SUPABASE_KEY,
-        "Content-Type": "application/json",
-      };
-      if(auth && session?.access_token){
-        headers["Authorization"] = "Bearer " + session.access_token;
-      }
-      if(preferReturn && (method==="POST" || method==="PATCH")){
-        headers["Prefer"] = "return=representation";
-      }
+      const headers = { "apikey": SUPABASE_KEY, "Content-Type": "application/json" };
+      if(auth && session?.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+      if(preferReturn && (method==="POST" || method==="PATCH")) headers["Prefer"] = "return=representation";
 
       const doReq = () => fetch(url.toString(), {
         method,
@@ -101,11 +94,10 @@
       if(res.status === 401 && retryOn401 && session?.refresh_token){
         try{
           await refreshAccessToken();
-          // Authorization 갱신
           headers["Authorization"] = "Bearer " + session.access_token;
           res = await doReq();
         }catch(e){
-          // 갱신 실패면 그대로 아래에서 에러 처리
+          // 아래에서 그대로 에러 처리
         }
       }
 
@@ -114,8 +106,10 @@
       try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
 
       if(!res.ok){
-        const msg = typeof data === "object" && data ? (data.message || data.error_description || JSON.stringify(data)) : String(data);
-        throw new Error(msg || `HTTP ${res.status}`);
+        let msg = `HTTP ${res.status}`;
+        if (data && typeof data === "object") msg = data.msg || data.message || data.error_description || JSON.stringify(data);
+        else if (data) msg = String(data);
+        throw new Error(msg);
       }
       return data;
     }
@@ -123,39 +117,6 @@
     // ---------------------------
     // Auth: Email + Password (No Redirect)
     // ---------------------------
-    async function signUp(email, password){
-      // 가입
-      await apiFetch("/auth/v1/signup", {
-        method: "POST",
-        auth: false,
-        body: { email, password },
-        preferReturn: false,
-        retryOn401: false
-      });
-
-      // 가입 직후 바로 로그인 (가장 단순)
-      await loginWithPassword(email, password);
-    }
-
-    async function loginWithPassword(email, password){
-      // 로그인 (redirect 없음)
-      const data = await apiFetch("/auth/v1/token", {
-        method: "POST",
-        auth: false,
-        query: { grant_type: "password" },
-        body: { email, password },
-        preferReturn: false,
-        retryOn401: false
-      });
-
-      if(!data?.access_token) throw new Error("로그인 실패(토큰 없음)");
-      saveSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        user: data.user || null
-      });
-    }
-
     async function refreshAccessToken(){
       const data = await apiFetch("/auth/v1/token", {
         method: "POST",
@@ -178,12 +139,56 @@
       return await apiFetch("/auth/v1/user", { method:"GET", auth:true, preferReturn:false });
     }
 
+    async function loginWithPassword(email, password){
+      const data = await apiFetch("/auth/v1/token", {
+        method: "POST",
+        auth: false,
+        query: { grant_type: "password" },
+        body: { email, password },
+        preferReturn: false,
+        retryOn401: false
+      });
+
+      if(!data?.access_token) throw new Error("로그인 실패(토큰 없음)");
+
+      // token 응답에 user가 없을 수 있어서 fetchUser로 확정
+      saveSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user: null
+      });
+
+      const user = await fetchUser();
+      saveSession({ ...session, user });
+    }
+
+    async function signUp(email, password){
+      await apiFetch("/auth/v1/signup", {
+        method: "POST",
+        auth: false,
+        body: { email, password },
+        preferReturn: false,
+        retryOn401: false
+      });
+
+      // confirm email ON이면 여기서 자동 로그인 실패가 정상일 수 있으니 try/catch
+      try {
+        await loginWithPassword(email, password);
+        return { ok: true, autoLoggedIn: true };
+      } catch (e) {
+        return {
+          ok: true,
+          autoLoggedIn: false,
+          message: "회원가입 완료! (Confirm email이 켜져있으면 메일 인증 후) '로그인' 버튼을 눌러줘."
+        };
+      }
+    }
+
     async function logout(){
-      // 서버 로그아웃을 굳이 안 해도 되지만, 해두면 깔끔함
       try{
         await apiFetch("/auth/v1/logout", { method:"POST", auth:true, preferReturn:false, retryOn401:false });
       }catch(e){
-        // 실패해도 로컬 세션 삭제가 핵심이라 무시
+        // 무시
       }
       saveSession(null);
     }
@@ -240,7 +245,7 @@
         return;
       }
 
-      // 장부 생성
+      // 장부 생성 (DB 트리거가 owner + 공통 멤버 생성해주는 전제)
       const createdArr = await apiFetch("/rest/v1/ledgers", {
         method:"POST",
         body: { name: DEFAULT_LEDGER_NAME, created_by: session.user.id }
@@ -250,22 +255,6 @@
 
       currentLedgerId = created.id;
       byId("ledgerName").textContent = DEFAULT_LEDGER_NAME;
-
-      // ✅ 추천: DB 트리거로 owner 등록 + '공통' 멤버 생성 해두는 방식
-      // 트리거를 아직 안 만들었다면, 아래 2개를 임시로 켜도 됨.
-      // (하지만 RLS 부트스트랩 정책이 맞아야 함)
-
-      /*
-      await apiFetch("/rest/v1/ledger_members", {
-        method:"POST",
-        body: { ledger_id: currentLedgerId, user_id: session.user.id, role:"owner" }
-      });
-
-      await apiFetch("/rest/v1/members", {
-        method:"POST",
-        body: { ledger_id: currentLedgerId, name:"공통", kind:"common" }
-      });
-      */
     }
 
     async function loadMembers(){
@@ -523,14 +512,17 @@
           const email = (byId("email").value || "").trim();
           const password = (byId("password").value || "").trim();
           if(!email || !password) return setError("이메일/비밀번호를 입력해줘");
-          setError("");
-          setStatus("로그인 중...");
-          await loginWithPassword(email, password);
-          if (session?.access_token && !session.user) {
-            const user = await fetchUser();
-            saveSession({ ...session, user });
+
+          try{
+            setError("");
+            setStatus("로그인 중...");
+            await loginWithPassword(email, password);
+            setStatus("로그인 완료!");
+            await refreshUI();
+          } catch(e){
+            setError(e?.message || String(e));
+            setStatus("");
           }
-          await refreshUI();
         });
 
         // 회원가입 버튼
@@ -539,14 +531,23 @@
           const password = (byId("password").value || "").trim();
           if(!email || !password) return setError("이메일/비밀번호를 입력해줘");
           if(password.length < 6) return setError("비밀번호는 6자 이상으로 해줘");
-          setError("");
-          setStatus("회원가입 중...");
-          await signUp(email, password);
-          if (session?.access_token && !session.user) {
-            const user = await fetchUser();
-            saveSession({ ...session, user });
+
+          try{
+            setError("");
+            setStatus("회원가입 중...");
+            const r = await signUp(email, password);
+
+            if(r.autoLoggedIn){
+              setStatus("회원가입 + 로그인 완료!");
+              await refreshUI();
+            } else {
+              setStatus("");
+              setError(r.message || "회원가입 완료! 이메일 인증 후 로그인해줘.");
+            }
+          } catch(e){
+            setError(e?.message || String(e));
+            setStatus("");
           }
-          await refreshUI();
         });
 
         // 로그아웃
@@ -612,7 +613,7 @@
       <button class="primary" id="btnLogin">로그인</button>
       <button id="btnSignUp">회원가입</button>
     </div>
-    <div class="muted">메일 링크 없이 바로 로그인돼. (처음이면 회원가입 누르면 됨)</div>
+    <div class="muted">메일 링크 없이 바로 로그인돼. (Confirm email이 켜져있으면 가입 후 메일 인증하고 로그인)</div>
   </div>
 
   <!-- 앱 -->
@@ -742,4 +743,3 @@
   </div>
 </body>
 </html>
-
