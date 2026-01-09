@@ -456,25 +456,45 @@ function loadSession(){
       byId("sumNet").textContent = fmt(income - expense);
     }
 
-    window.addEventListener("DOMContentLoaded", async () => {
-      try{
-        // 1) 매직링크로 돌아온 경우 토큰 파싱
-        const tokens = parseTokensFromUrl();
-        if(tokens){
-          // 토큰 저장 후 hash 제거
-          saveSession({ ...tokens, user: null });
-          history.replaceState({}, document.title, window.location.pathname + window.location.search);
-        } else {
-          // 기존 세션 로드
-          const s = loadSession();
-          if(s) session = s;
-        }
+  window.addEventListener("DOMContentLoaded", async () => {
+  try{
+    // 1) 매직링크로 돌아온 경우 토큰 파싱
+    const tokens = parseTokensFromUrl();
+    if(tokens){
+      saveSession({ ...tokens, user: null });
+      history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    } else {
+      const s = loadSession();
+      if(s) session = s;
+    }
 
-        // 2) 토큰이 있으면 user 가져오기
-        if(session?.access_token && !session.user){
-          const user = await fetchUser();
-          saveSession({ ...session, user });
-        }
+    // 2) 토큰이 있으면 user 가져오기
+    if(session?.access_token && !session.user){
+      const user = await fetchUser();
+      saveSession({ ...session, user });
+    }
+
+    // ✅✅✅ 여기 추가 (이벤트 바인딩들 시작하기 전에)
+    window.addEventListener("storage", async (e) => {
+      if (e.key === SS_KEY) {
+        session = loadSession();
+        try { await refreshUI(); }
+        catch (err) { setError(err?.message || String(err)); }
+      }
+    });
+
+    // 이벤트 바인딩
+    byId("btnSendLink").addEventListener("click", async () => {
+      ...
+    });
+
+    await refreshUI();
+  }catch(e){
+    console.error(e);
+    setError(e?.message || String(e));
+  }
+});
+
 
         // 이벤트 바인딩
         byId("btnSendLink").addEventListener("click", async () => {
