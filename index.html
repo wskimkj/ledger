@@ -29,7 +29,8 @@
   </style>
 
   <!-- Supabase JS CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 
   <script>
     // ✅ 1) URL은 너가 찾은 걸로 이미 넣어둠
@@ -85,7 +86,12 @@
       if(!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes("PUT_YOUR")){
         throw new Error("SUPABASE_PUBLISHABLE_KEY 를 sb_publishable_... 값으로 교체해줘!");
       }
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+      const sb = window.supabase;
+if (!sb || typeof sb.createClient !== "function") {
+  throw new Error("Supabase 라이브러리 로딩 실패(차단/네트워크/광고차단 가능). 새로고침하거나 차단을 꺼줘.");
+}
+supabase = sb.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
       const { data } = await supabase.auth.getSession();
       session = data.session;
       bindAuthListener();
@@ -601,7 +607,8 @@
   </div>
 
   <!-- 로그인 -->
-  <div id="authCard" class="card hidden">
+<div id="authCard" class="card">
+
     <div class="toolbar">
       <span class="pill">1) 로그인</span>
       <input id="email" type="email" placeholder="이메일" style="min-width:260px;">
