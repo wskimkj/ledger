@@ -15,7 +15,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- xlsx -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <script src="./xlsx.full.min.js"></script>
 
   <style>
     /* subtle app bg */
@@ -412,6 +412,17 @@
 /** =========================
  * 0) Project config
  * ========================= */
+    // --- XLSX 로더 가드 ---
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+    async function waitForXLSX(timeoutMs = 8000){
+      const t0 = Date.now();
+      while(Date.now() - t0 < timeoutMs){
+        if (window.XLSX && window.XLSX.utils && window.XLSX.writeFile) return true;
+        await sleep(50);
+      }
+      return false;
+    }
+
 const SUPABASE_URL = "https://cqxpmfxwgrpdtxomxfiz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_srN_e_EFhBbMEnPHSyu2Eg_03Mw37jS";
 
@@ -862,7 +873,13 @@ const TEMPLATE_ROWS = [
   ["수입","주식매도",""]
 ];
 
-function downloadMonthlyTemplate(){
+async function downloadMonthlyTemplate(){
+      const ok = await waitForXLSX();
+      if(!ok){
+        setError("xlsx 라이브러리 로딩이 안 됐어. xlsx.full.min.js 파일이 index.html(이 파일)과 같은 폴더에 있는지 확인해줘.");
+        return;
+      }
+
   setError("");
   if(!window.XLSX) { setError("xlsx 라이브러리 로딩이 안 됐어. 인터넷 차단 여부 확인해줘."); return; }
 
@@ -908,6 +925,12 @@ function flowFromCategory(cat){
 }
 
 async function bulkUpload(){
+      const ok = await waitForXLSX();
+      if(!ok){
+        setError("xlsx 라이브러리 로딩이 안 됐어. xlsx.full.min.js 파일이 index.html(이 파일)과 같은 폴더에 있는지 확인해줘.");
+        return;
+      }
+
   setError("");
   const file = byId("bulkFile").files?.[0];
   if(!file) throw new Error("엑셀 파일을 선택해줘");
@@ -1458,4 +1481,3 @@ window.addEventListener("DOMContentLoaded", async ()=>{
 </script>
 </body>
 </html>
-
