@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>가계부 (Supabase)</title>
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
+    h1 { margin: 0 0 8px; }
+    .muted { color:#666; font-size:12px; }
+    .card { border:1px solid #e7e7e7; border-radius:16px; padding:14px; margin:12px 0; }
+    input, select, button { padding:10px; border:1px solid #ccc; border-radius:12px; font-size:14px; }
+    button { cursor:pointer; background:#f6f6f6; }
+    button.primary { background:#111; color:#fff; border-color:#111; }
+    button.danger { background:#fff1f1; border-color:#ffb3b3; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .row { display:grid; grid-template-columns: repeat(6, 1fr); gap:8px; align-items:end; }
+    .row > div { display:flex; flex-direction:column; gap:6px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border-bottom:1px solid #eee; padding:10px; text-align:left; }
+    td.right { text-align:right; }
+    .pill { display:inline-flex; padding:6px 10px; border:1px solid #e5e5e5; border-radius:999px; font-size:13px; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .hidden { display:none !important; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    @media (max-width: 900px){ .row{ grid-template-columns: repeat(2,1fr);} .grid2{grid-template-columns:1fr;} }
+  </style>
+
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ✅ 1) URL은 너가 찾은 걸로 이미 넣어둠
+    const SUPABASE_URL = "https://cqxpmfxwgrpdtxomxfiz.supabase.co";
+
+    // ✅ 2) 여기만 네 publishable key로 바꿔줘 (sb_publishable_... 로 시작)
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_srN_e_EFhBbMEnPHSyu2Eg_03Mw37jS";
+
+    // 기본값
+    const DEFAULT_LEDGER_NAME = "우리집";
+    const DEFAULT_MEMBERS = [
+      { name: "공통", kind: "common" },
+      // 필요하면 아래를 추가해도 됨 (나중에 UI로 추가 가능)
+      // { name: "돌프", kind: "person" },
+      // { name: "천사", kind: "person" },
+    ];
+    const DEFAULT_START_DATE = "2026-01-01";
+
+    let supabase;
+    let session = null;
+    let currentLedgerId = null;
+
+    function fmt(n){
+      const x = Number(n || 0);
+      return x.toLocaleString("ko-KR");
+    }
+    function todayISO(){
+      const d = new Date();
+      const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+      return z.toISOString().slice(0,10);
+    }
+    function byId(id){ return document.getElementById(id); }
+
+    function setStatus(msg){
+      byId("status").textContent = msg || "";
+    }
+    function setError(msg){
+      byId("error").textContent = msg || "";
+    }
+
+    async function safeCall(fn){
+      try{
+        setError("");
+        return await fn();
+      }catch(e){
+        console.error(e);
+        setError(e?.message || String(e));
+        throw e;
+      }
+    }
+
+    async function initSupabase(){
+      if(!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes("PUT_YOUR")){
+        throw new Error("SUPABASE_PUBLISHABLE_KEY 를 sb_publishable_... 값으로 교체해줘!");
+      }
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+      const { data } = await supabase.auth.getSession();
+      session = data.session;
+      bindAuthListener();
+      await refreshUI();
+    }
+
+    function bindAuthListener(){
+      supabase.auth.onAuthStateChange(async (_event, newSession) => {
+        session = newSession;
+        await refreshUI();
+      });
+    }
+
+    async function sendLoginLink(email){
+      // GitHub Pages에서도 동작하도록 redirect URL을 현재 페이지로
+      const redirectTo = window.location.href;
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo }
+      });
+      if(error) throw error;
+    }
+
+    async function logout(){
+      const { error } = await supabase.auth.signOut();
+      if(error) throw error;
+    }
+
+    function show(el, yes){
+      if(yes) el.classList.remove("hidden");
+      else el.classList.add("hidden");
+    }
+
+    async function refreshUI(){
+      const authed = !!session?.user;
+      show(byId("authCard"), !authed);
+      show(byId("appCard"), authed);
+      show(byId("setupCard"), authed);
+
+      if(!authed){
+        byId("who").textContent = "";
+        setStatus("로그인 상태가 아니야.");
+        return;
+      }
+
+      byId("who").textContent = `로그인: ${session.user.email}`;
+      setStatus("로그인됨. 장부/데이터를 불러오는 중...");
+
+      // 기본 날짜 세팅
+      if(!byId("filterFrom").value) byId("filterFrom").value = DEFAULT_START_DATE;
+      if(!byId("filterTo").value) byId("filterTo").value = todayISO();
+      if(!byId("entryDate").value) byId("entryDate").value = todayISO();
+
+      // ledger 찾고 없으면 만들기
+      await ensureDefaultLedger();
+
+      // 멤버/데이터 로드
+      await loadMembers();
+      await loadEntries();
+      await refreshSummary();
+      setStatus("준비 완료!");
+    }
+
+    async function ensureDefaultLedger(){
+      // 내가 속한 ledger 1개를 가져오고, 없으면 생성 + self-join owner
+      // 1) 내 ledger 목록 조회
+      const { data: ledgers, error: selErr } = await supabase
+        .from("ledgers")
+        .select("id,name,created_at")
+        .order("created_at", { ascending: true });
+
+      if(selErr) throw selErr;
+
+      if(ledgers && ledgers.length > 0){
+        currentLedgerId = ledgers[0].id;
+        byId("ledgerName").textContent = ledgers[0].name;
+        return;
+      }
+
+      // 2) ledger 생성
+      const { data: created, error: insErr } = await supabase
+        .from("ledgers")
+        .insert({ name: DEFAULT_LEDGER_NAME, created_by: session.user.id })
+        .select("id,name")
+        .single();
+
+      if(insErr) throw insErr;
+
+      currentLedgerId = created.id;
+      byId("ledgerName").textContent = created.name;
+
+      // 3) 내가 owner로 ledger_members에 들어가기
+      // ⚠️ 이게 되려면: 내가 전에 준 "creator can self-join as owner" 정책이 필요!
+      const { error: joinErr } = await supabase
+        .from("ledger_members")
+        .insert({ ledger_id: currentLedgerId, user_id: session.user.id, role: "owner" });
+
+      if(joinErr) throw joinErr;
+
+      // 4) 기본 members 생성 (공통)
+      for(const m of DEFAULT_MEMBERS){
+        await supabase.from("members").insert({
+          ledger_id: currentLedgerId,
+          name: m.name,
+          kind: m.kind
+        });
+      }
+    }
+
+    async function loadMembers(){
+      const { data, error } = await supabase
+        .from("members")
+        .select("id,name,kind,is_active")
+        .eq("ledger_id", currentLedgerId)
+        .eq("is_active", true)
+        .order("kind", { ascending: false }) // common 먼저 보고 싶으면 false/true 바꿔도 됨
+        .order("name", { ascending: true });
+
+      if(error) throw error;
+
+      const sel = byId("memberSelect");
+      sel.innerHTML = "";
+      for(const m of data){
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = `${m.name}${m.kind === "common" ? " (공통)" : ""}`;
+        sel.appendChild(opt);
+      }
+
+      // 멤버 관리 리스트
+      const list = byId("memberList");
+      list.innerHTML = "";
+      for(const m of data){
+        const li = document.createElement("div");
+        li.className = "toolbar";
+        li.style.justifyContent = "space-between";
+        li.innerHTML = `
+          <span class="pill">${m.name} <span class="muted">${m.kind}</span></span>
+          <button class="danger" data-id="${m.id}">비활성화</button>
+        `;
+        li.querySelector("button").addEventListener("click", async () => {
+          await safeCall(async () => {
+            const { error } = await supabase
+              .from("members")
+              .update({ is_active: false })
+              .eq("id", m.id);
+            if(error) throw error;
+            await loadMembers();
+          });
+        });
+        list.appendChild(li);
+      }
+    }
+
+    async function addMember(name, kind){
+      const { error } = await supabase.from("members").insert({
+        ledger_id: currentLedgerId,
+        name,
+        kind
+      });
+      if(error) throw error;
+      await loadMembers();
+    }
+
+    function getFilters(){
+      return {
+        from: byId("filterFrom").value || DEFAULT_START_DATE,
+        to: byId("filterTo").value || todayISO(),
+        flow: byId("filterFlow").value,
+        memberId: byId("filterMember").value,
+        q: (byId("filterQ").value || "").trim(),
+      };
+    }
+
+    async function loadEntries(){
+      const f = getFilters();
+
+      let q = supabase
+        .from("entries")
+        .select("id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id,members(name)")
+        .eq("ledger_id", currentLedgerId)
+        .gte("entry_date", f.from)
+        .lte("entry_date", f.to)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if(f.flow !== "all") q = q.eq("flow_type", f.flow);
+      if(f.memberId !== "all") q = q.eq("member_id", f.memberId);
+
+      // 텍스트 검색은 간단히 detail/memo에 ilike (OR)
+      if(f.q){
+        q = q.or(`detail.ilike.%${f.q}%,memo.ilike.%${f.q}%`);
+      }
+
+      const { data, error } = await q;
+      if(error) throw error;
+
+      renderEntries(data || []);
+      // 필터 멤버 드롭다운 동기화(한 번만)
+      await syncFilterMembers();
+    }
+
+    async function syncFilterMembers(){
+      // 필터 멤버 목록 로드
+      const { data, error } = await supabase
+        .from("members")
+        .select("id,name,kind,is_active")
+        .eq("ledger_id", currentLedgerId)
+        .eq("is_active", true)
+        .order("kind", { ascending: false })
+        .order("name", { ascending: true });
+
+      if(error) throw error;
+
+      const filterMember = byId("filterMember");
+      const prev = filterMember.value || "all";
+      filterMember.innerHTML = `<option value="all">전체 멤버</option>`;
+      for(const m of data){
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = `${m.name}${m.kind === "common" ? " (공통)" : ""}`;
+        filterMember.appendChild(opt);
+      }
+      filterMember.value = prev;
+    }
+
+    function renderEntries(rows){
+      const tbody = byId("entriesTbody");
+      tbody.innerHTML = "";
+
+      for(const r of rows){
+        const tr = document.createElement("tr");
+
+        const who = r.members?.name || "-";
+        tr.innerHTML = `
+          <td class="mono">${r.entry_date}</td>
+          <td>${who}</td>
+          <td>${r.flow_type}</td>
+          <td>${escapeHtml(r.detail || "")}</td>
+          <td>${escapeHtml(r.category || "")} <span class="muted">${escapeHtml(r.subcategory || "")}</span></td>
+          <td class="right mono">${fmt(r.amount)}</td>
+          <td>${escapeHtml(r.memo || "")}</td>
+          <td style="white-space:nowrap;">
+            <button data-act="edit">수정</button>
+            <button class="danger" data-act="del">삭제</button>
+          </td>
+        `;
+
+        tr.querySelector('[data-act="edit"]').addEventListener("click", () => startEdit(r));
+        tr.querySelector('[data-act="del"]').addEventListener("click", async () => {
+          if(!confirm("삭제할까?")) return;
+          await safeCall(async () => {
+            const { error } = await supabase.from("entries").delete().eq("id", r.id);
+            if(error) throw error;
+            await loadEntries();
+            await refreshSummary();
+          });
+        });
+
+        tbody.appendChild(tr);
+      }
+
+      byId("count").textContent = `${rows.length}건`;
+    }
+
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function startEdit(r){
+      byId("editId").value = r.id;
+      byId("entryDate").value = r.entry_date;
+      byId("flowType").value = r.flow_type;
+      byId("amount").value = r.amount;
+      byId("detail").value = r.detail || "";
+      byId("memo").value = r.memo || "";
+      byId("memberSelect").value = r.member_id;
+
+      byId("btnSubmit").textContent = "수정 저장";
+      show(byId("btnCancelEdit"), true);
+    }
+
+    function cancelEdit(){
+      byId("editId").value = "";
+      byId("btnSubmit").textContent = "추가";
+      show(byId("btnCancelEdit"), false);
+    }
+
+    async function resolveCategory(detail){
+      // 엑셀: 상세항목 -> 소분류 -> 대분류 (VLOOKUP 2번)
+      // 1) detail_map에서 subcategory 찾기
+      const { data: dm, error: dmErr } = await supabase
+        .from("detail_map")
+        .select("subcategory")
+        .eq("ledger_id", currentLedgerId)
+        .eq("detail", detail)
+        .maybeSingle();
+
+      if(dmErr) throw dmErr;
+
+      const subcategory = dm?.subcategory || null;
+      if(!subcategory) return { subcategory: null, category: null };
+
+      // 2) subcategory_map에서 category 찾기
+      const { data: sm, error: smErr } = await supabase
+        .from("subcategory_map")
+        .select("category")
+        .eq("ledger_id", currentLedgerId)
+        .eq("subcategory", subcategory)
+        .maybeSingle();
+
+      if(smErr) throw smErr;
+
+      return { subcategory, category: sm?.category || null };
+    }
+
+    async function upsertEntry(){
+      const id = byId("editId").value || null;
+      const entry_date = byId("entryDate").value;
+      const member_id = byId("memberSelect").value;
+      const flow_type = byId("flowType").value;
+      const amount = Number(byId("amount").value || 0);
+      const detail = (byId("detail").value || "").trim();
+      const memo = (byId("memo").value || "").trim();
+
+      if(!entry_date) throw new Error("날짜를 선택해줘");
+      if(!member_id) throw new Error("멤버를 선택해줘");
+      if(!detail) throw new Error("상세항목을 입력해줘");
+      if(!Number.isFinite(amount) || amount < 0) throw new Error("금액을 확인해줘");
+
+      const cat = await resolveCategory(detail);
+
+      if(!id){
+        const { error } = await supabase.from("entries").insert({
+          ledger_id: currentLedgerId,
+          entry_date,
+          member_id,
+          flow_type,
+          amount,
+          detail,
+          memo,
+          subcategory: cat.subcategory,
+          category: cat.category,
+          created_by: session.user.id
+        });
+        if(error) throw error;
+      }else{
+        const { error } = await supabase.from("entries").update({
+          entry_date,
+          member_id,
+          flow_type,
+          amount,
+          detail,
+          memo,
+          subcategory: cat.subcategory,
+          category: cat.category
+        }).eq("id", id);
+        if(error) throw error;
+      }
+
+      byId("entryForm").reset();
+      byId("entryDate").value = todayISO();
+      cancelEdit();
+
+      await loadEntries();
+      await refreshSummary();
+    }
+
+    async function refreshSummary(){
+      const f = getFilters();
+      // entries에서 필터 조건으로 집계 (expense/income/saving)
+      let q = supabase
+        .from("entries")
+        .select("flow_type,amount,entry_date,ledger_id")
+        .eq("ledger_id", currentLedgerId)
+        .gte("entry_date", f.from)
+        .lte("entry_date", f.to);
+
+      if(f.memberId !== "all") q = q.eq("member_id", f.memberId);
+
+      const { data, error } = await q;
+      if(error) throw error;
+
+      let expense = 0, income = 0, saving = 0;
+      for(const r of (data||[])){
+        if(r.flow_type === "expense") expense += Number(r.amount||0);
+        else if(r.flow_type === "income") income += Number(r.amount||0);
+        else if(r.flow_type === "saving") saving += Number(r.amount||0);
+      }
+      byId("sumExpense").textContent = fmt(expense);
+      byId("sumIncome").textContent = fmt(income);
+      byId("sumSaving").textContent = fmt(saving);
+      byId("sumNet").textContent = fmt(income - expense);
+    }
+
+    async function addMapping(detail, subcategory, category){
+      // 상세항목->소분류 upsert
+      const { error: e1 } = await supabase
+        .from("detail_map")
+        .upsert({ ledger_id: currentLedgerId, detail, subcategory }, { onConflict: "ledger_id,detail" });
+      if(e1) throw e1;
+
+      // 소분류->대분류 upsert
+      if(category){
+        const { error: e2 } = await supabase
+          .from("subcategory_map")
+          .upsert({ ledger_id: currentLedgerId, subcategory, category }, { onConflict: "ledger_id,subcategory" });
+        if(e2) throw e2;
+      }
+    }
+
+    async function ensureWiring(){
+      // 버튼으로 "미분류를 매핑" 쉽게 만드는 옵션
+      const detail = (byId("mapDetail").value||"").trim();
+      const sub = (byId("mapSub").value||"").trim();
+      const cat = (byId("mapCat").value||"").trim();
+      if(!detail || !sub) throw new Error("상세항목과 소분류는 필수야.");
+      await addMapping(detail, sub, cat || null);
+      byId("mapDetail").value = "";
+      byId("mapSub").value = "";
+      byId("mapCat").value = "";
+      setStatus("매핑 저장 완료. 이제 해당 상세항목 입력 시 자동분류돼.");
+    }
+
+    async function listUnmapped(){
+      // entries 중 subcategory가 null인 것들의 detail 목록 보여주기
+      const { data, error } = await supabase
+        .from("entries")
+        .select("detail,subcategory")
+        .eq("ledger_id", currentLedgerId);
+      if(error) throw error;
+
+      const set = new Set();
+      for(const r of (data||[])){
+        if(!r.subcategory && r.detail) set.add(r.detail);
+      }
+      const arr = Array.from(set).sort((a,b)=>a.localeCompare(b, "ko"));
+      byId("unmapped").textContent = arr.length ? arr.join("\n") : "(미분류 없음)";
+    }
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      byId("btnSendLink").addEventListener("click", async () => {
+        const email = (byId("email").value||"").trim();
+        if(!email) return setError("이메일을 입력해줘");
+        await safeCall(async () => {
+          byId("btnSendLink").disabled = true;
+          await sendLoginLink(email);
+          setStatus("로그인 링크를 이메일로 보냈어. 메일에서 링크를 눌러줘!");
+        }).finally(() => byId("btnSendLink").disabled = false);
+      });
+
+      byId("btnLogout").addEventListener("click", async () => {
+        await safeCall(async () => logout());
+      });
+
+      byId("entryForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await safeCall(async () => upsertEntry());
+      });
+
+      byId("btnCancelEdit").addEventListener("click", () => cancelEdit());
+
+      byId("btnReload").addEventListener("click", async () => {
+        await safeCall(async () => { await loadEntries(); await refreshSummary(); });
+      });
+
+      byId("btnApplyFilter").addEventListener("click", async () => {
+        await safeCall(async () => { await loadEntries(); await refreshSummary(); });
+      });
+
+      byId("btnAddMember").addEventListener("click", async () => {
+        const name = (byId("newMemberName").value||"").trim();
+        const kind = byId("newMemberKind").value;
+        if(!name) return setError("멤버 이름을 입력해줘");
+        await safeCall(async () => {
+          await addMember(name, kind);
+          byId("newMemberName").value = "";
+        });
+      });
+
+      byId("btnSaveMap").addEventListener("click", async () => {
+        await safeCall(async () => ensureWiring());
+      });
+
+      byId("btnUnmapped").addEventListener("click", async () => {
+        await safeCall(async () => listUnmapped());
+      });
+
+      // 시작
+      await safeCall(async () => initSupabase());
+    });
+  </script>
+</head>
+<body>
+  <h1>가계부</h1>
+  <div class="muted">
+    Supabase 동기화 · 지출/수입/저축(saving) 분리 집계 · 기본 기간 2026-01-01
+  </div>
+
+  <div class="card">
+    <div class="toolbar" style="justify-content:space-between;">
+      <div id="who" class="muted"></div>
+      <button id="btnLogout">로그아웃</button>
+    </div>
+    <div class="muted">현재 장부: <span id="ledgerName" class="mono"></span></div>
+    <div id="status" class="muted"></div>
+    <div id="error" class="muted" style="color:#b00020;"></div>
+  </div>
+
+  <!-- 로그인 -->
+  <div id="authCard" class="card hidden">
+    <div class="toolbar">
+      <span class="pill">1) 로그인</span>
+      <input id="email" type="email" placeholder="이메일" style="min-width:260px;">
+      <button class="primary" id="btnSendLink">로그인 링크 보내기(메일)</button>
+    </div>
+    <div class="muted">
+      메일로 온 링크를 누르면 로그인돼. (GitHub Pages에서도 동작)
+    </div>
+    <div class="muted">
+      ⚠️ 만약 로그인 후 빈 화면이면, 같은 브라우저 탭에서 다시 주소를 열어봐.
+    </div>
+  </div>
+
+  <!-- 앱 -->
+  <div id="appCard" class="card hidden">
+    <div class="toolbar">
+      <span class="pill">2) 필터</span>
+      <label class="muted">From</label>
+      <input id="filterFrom" type="date" value="2026-01-01" />
+      <label class="muted">To</label>
+      <input id="filterTo" type="date" />
+      <select id="filterFlow">
+        <option value="all">전체 흐름</option>
+        <option value="expense">지출</option>
+        <option value="income">수입</option>
+        <option value="saving">저축</option>
+      </select>
+      <select id="filterMember">
+        <option value="all">전체 멤버</option>
+      </select>
+      <input id="filterQ" placeholder="검색(상세/메모)" />
+      <button id="btnApplyFilter" class="primary">적용</button>
+      <button id="btnReload">새로고침</button>
+      <span class="muted" id="count"></span>
+    </div>
+
+    <div class="grid2" style="margin-top:10px;">
+      <div class="card" style="margin:0;">
+        <div class="muted">지출 합계</div>
+        <div class="mono" style="font-size:22px;"><span id="sumExpense">0</span> 원</div>
+      </div>
+      <div class="card" style="margin:0;">
+        <div class="muted">수입 합계</div>
+        <div class="mono" style="font-size:22px;"><span id="sumIncome">0</span> 원</div>
+      </div>
+      <div class="card" style="margin:0;">
+        <div class="muted">저축 합계</div>
+        <div class="mono" style="font-size:22px;"><span id="sumSaving">0</span> 원</div>
+      </div>
+      <div class="card" style="margin:0;">
+        <div class="muted">순현금흐름 (수입-지출)</div>
+        <div class="mono" style="font-size:22px;"><span id="sumNet">0</span> 원</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <span class="pill">3) 거래 입력/수정</span>
+      </div>
+
+      <form id="entryForm" class="row">
+        <input type="hidden" id="editId" value="" />
+
+        <div>
+          <label class="muted">날짜</label>
+          <input id="entryDate" type="date" required />
+        </div>
+
+        <div>
+          <label class="muted">멤버(구분)</label>
+          <select id="memberSelect" required></select>
+        </div>
+
+        <div>
+          <label class="muted">흐름</label>
+          <select id="flowType" required>
+            <option value="expense">지출</option>
+            <option value="income">수입</option>
+            <option value="saving">저축</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="muted">금액</label>
+          <input id="amount" type="number" min="0" step="1" inputmode="numeric" required />
+        </div>
+
+        <div>
+          <label class="muted">상세항목</label>
+          <input id="detail" placeholder="예: 마트, 교통카드" required />
+          <div class="muted">※ 분류표에 있으면 소/대분류 자동</div>
+        </div>
+
+        <div>
+          <label class="muted">메모</label>
+          <input id="memo" placeholder="선택" />
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button id="btnSubmit" class="primary" type="submit">추가</button>
+          <button id="btnCancelEdit" type="button" class="hidden">수정 취소</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <span class="pill">4) 거래 목록</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>멤버</th>
+            <th>흐름</th>
+            <th>상세</th>
+            <th>분류</th>
+            <th class="right">금액</th>
+            <th>메모</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="entriesTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 설정/관리 -->
+  <div id="setupCard" class="card hidden">
+    <div class="toolbar">
+      <span class="pill">5) 멤버 관리</span>
+      <input id="newMemberName" placeholder="멤버 이름(예: 돌프, 천사, 엄마)" />
+      <select id="newMemberKind">
+        <option value="person">person</option>
+        <option value="common">common</option>
+      </select>
+      <button id="btnAddMember" class="primary">멤버 추가</button>
+    </div>
+    <div id="memberList" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+    <hr style="border:none; border-top:1px solid #eee; margin:14px 0;">
+
+    <div class="toolbar">
+      <span class="pill">6) 분류(매핑) 추가</span>
+      <input id="mapDetail" placeholder="상세항목 (예: 마트)" />
+      <input id="mapSub" placeholder="소분류 (예: 식비)" />
+      <input id="mapCat" placeholder="대분류 (예: 생활)" />
+      <button id="btnSaveMap" class="primary">매핑 저장</button>
+      <button id="btnUnmapped">미분류 목록 보기</button>
+    </div>
+
+    <pre id="unmapped" class="card mono" style="white-space:pre-wrap; margin:10px 0 0;">(여기에 미분류 상세항목이 표시됨)</pre>
+
+    <div class="muted">
+      팁: “미분류 목록 보기”로 나온 상세항목들을 위 매핑에 추가하면, 이후 자동 분류돼.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="muted">
+      ⚠️ 만약 "첫 로그인에서 장부 생성이 안 된다"면, Supabase SQL Editor에서 아래 정책을 추가로 실행했는지 확인해줘:<br>
+      <span class="mono">ledger_members: creator can self-join as owner</span>
+    </div>
+  </div>
+</body>
+</html>
