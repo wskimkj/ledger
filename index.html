@@ -23,7 +23,10 @@
     td.right { text-align:right; }
     .pill { display:inline-flex; padding:6px 10px; border:1px solid #e5e5e5; border-radius:999px; font-size:13px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
-    @media (max-width: 900px){ .row{ grid-template-columns: repeat(2,1fr);} .grid2{grid-template-columns:1fr;} }
+    @media (max-width: 900px){
+      .row{ grid-template-columns: repeat(2,1fr);}
+      .grid2{grid-template-columns:1fr;}
+    }
   </style>
 
   <script>
@@ -37,11 +40,11 @@
     // 세션 저장 키 (localStorage)
     const SS_KEY = "ledger_session_v1";
     let session = null; // { access_token, refresh_token, user }
-
     let currentLedgerId = null;
 
     const byId = (id) => document.getElementById(id);
     const fmt = (n) => Number(n||0).toLocaleString("ko-KR");
+
     const todayISO = () => {
       const d = new Date();
       const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
@@ -89,8 +92,8 @@
         body: body ? JSON.stringify(body) : undefined
       });
 
-      let data = null;
       const text = await res.text();
+      let data = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
 
       if(!res.ok){
@@ -102,7 +105,7 @@
 
     // ---------- Auth (No SDK) ----------
     async function sendMagicLink(email){
-      const redirectTo = window.location.origin + window.location.pathname; // 현재 페이지로
+      const redirectTo = window.location.origin + window.location.pathname;
       await apiFetch("/auth/v1/otp", {
         method: "POST",
         auth: false,
@@ -116,9 +119,19 @@
     }
 
     function parseTokensFromUrl(){
+      // 매직링크 클릭 후 URL hash: #access_token=...&refresh_token=...&type=magiclink
       const hash = window.location.hash || "";
       if(!hash.startsWith("#")) return null;
+
       const params = new URLSearchParams(hash.slice(1));
+      // 에러로 오는 경우: #error=access_denied&error_code=otp_expired...
+      const err = params.get("error");
+      if(err){
+        const desc = params.get("error_description") || "";
+        const code = params.get("error_code") || "";
+        return { error: `${err}${code ? ` (${code})` : ""}: ${desc}` };
+      }
+
       const access_token = params.get("access_token");
       const refresh_token = params.get("refresh_token");
       if(!access_token) return null;
@@ -231,7 +244,7 @@
         const row = document.createElement("div");
         row.className = "toolbar";
         row.innerHTML = `
-          <span class="pill">${m.name} <span class="muted">${m.kind}</span></span>
+          <span class="pill">${escapeHtml(m.name)} <span class="muted">${escapeHtml(m.kind)}</span></span>
           <button class="danger">비활성화</button>
         `;
         row.querySelector("button").addEventListener("click", async () => {
@@ -278,7 +291,7 @@
       const f = getFilters();
 
       const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-      url.searchParams.set("select", "id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id");
+      url.searchParams.set("select", "id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id,created_at");
       url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
       url.searchParams.set("entry_date", `gte.${f.from}`);
       url.searchParams.append("entry_date", `lte.${f.to}`);
@@ -309,8 +322,8 @@
       for(const r of rows){
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td class="mono">${r.entry_date}</td>
-          <td class="mono">${r.flow_type}</td>
+          <td class="mono">${escapeHtml(r.entry_date)}</td>
+          <td class="mono">${escapeHtml(r.flow_type)}</td>
           <td>${escapeHtml(r.detail || "")}</td>
           <td>${escapeHtml(r.category || "")} <span class="muted">${escapeHtml(r.subcategory || "")}</span></td>
           <td class="right mono">${fmt(r.amount)}</td>
@@ -395,96 +408,131 @@
       await loadEntries();
       await refreshSummary();
     }
-// ✅ 앱 시작 (이 블록은 딱 1개만 있어야 함)
-window.addEventListener("DOMContentLoaded", async () => {
-  try {
-    // 1) 매직링크로 돌아온 경우 토큰 파싱
-    const tokens = parseTokensFromUrl();
-    if (tokens) {
-      saveSession({ ...tokens, user: null });
-      // 토큰이 URL에 남지 않게 해시 제거
-      history.replaceState({}, document.title, window.location.pathname + window.location.search);
-    } else {
-      // 기존 세션 로드
-      const s = loadSession();
-      if (s) session = s;
+
+    async function refreshSummary(){
+      const f = getFilters();
+
+      const url = new URL(SUPABASE_URL + "/rest/v1/entries");
+      url.searchParams.set("select", "flow_type,amount");
+      url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
+      url.searchParams.set("entry_date", `gte.${f.from}`);
+      url.searchParams.append("entry_date", `lte.${f.to}`);
+      if(f.memberId !== "all") url.searchParams.set("member_id", `eq.${f.memberId}`);
+
+      const headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + session.access_token,
+      };
+      const res = await fetch(url.toString(), { headers });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
+
+      let expense=0, income=0, saving=0;
+      for(const r of data){
+        if(r.flow_type==="expense") expense += Number(r.amount||0);
+        else if(r.flow_type==="income") income += Number(r.amount||0);
+        else if(r.flow_type==="saving") saving += Number(r.amount||0);
+      }
+      byId("sumExpense").textContent = fmt(expense);
+      byId("sumIncome").textContent = fmt(income);
+      byId("sumSaving").textContent = fmt(saving);
+      byId("sumNet").textContent = fmt(income - expense);
     }
 
-    // 2) 토큰이 있으면 user 가져오기
-    if (session?.access_token && !session.user) {
-      const user = await fetchUser();
-      saveSession({ ...session, user });
-    }
+    // ✅ 앱 시작 (이 블록은 딱 1개만 있어야 함)
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // 0) hash에 에러가 있으면 표시
+        const parsed = parseTokensFromUrl();
+        if(parsed?.error){
+          setError(parsed.error);
+          // 에러 해시도 지워버리자
+          history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        }
 
-    // ✅ 다른 탭(메일 탭)에서 로그인되면 이 탭도 자동 갱신
-    window.addEventListener("storage", async (e) => {
-      if (e.key !== SS_KEY) return;
+        // 1) 매직링크로 돌아온 경우 토큰 파싱
+        if(parsed?.access_token){
+          saveSession({ access_token: parsed.access_token, refresh_token: parsed.refresh_token, user: null });
+          history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        } else {
+          const s = loadSession();
+          if (s) session = s;
+        }
 
-      session = loadSession();
-
-      if (session?.access_token && !session.user) {
-        try {
+        // 2) 토큰이 있으면 user 가져오기
+        if (session?.access_token && !session.user) {
           const user = await fetchUser();
           saveSession({ ...session, user });
-        } catch (err) {
-          setError(err?.message || String(err));
         }
-      }
 
-      try {
+        // ✅ 다른 탭에서 로그인되면 이 탭도 자동 갱신
+        window.addEventListener("storage", async (e) => {
+          if (e.key !== SS_KEY) return;
+
+          session = loadSession();
+
+          if (session?.access_token && !session.user) {
+            try {
+              const user = await fetchUser();
+              saveSession({ ...session, user });
+            } catch (err) {
+              setError(err?.message || String(err));
+            }
+          }
+
+          try {
+            await refreshUI();
+          } catch (err) {
+            setError(err?.message || String(err));
+          }
+        });
+
+        // 이벤트 바인딩
+        byId("btnSendLink").addEventListener("click", async () => {
+          const email = (byId("email").value || "").trim();
+          if (!email) return setError("이메일을 입력해줘");
+          setError("");
+          setStatus("메일 보내는 중...");
+          await sendMagicLink(email);
+          setStatus("로그인 링크를 이메일로 보냈어. 메일에서 링크를 눌러줘!");
+        });
+
+        byId("btnLogout").addEventListener("click", async () => {
+          await logout();
+          await refreshUI();
+        });
+
+        byId("entryForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          setError("");
+          await upsertEntry();
+        });
+
+        byId("btnCancelEdit").addEventListener("click", () => cancelEdit());
+        byId("btnReload").addEventListener("click", async () => {
+          await loadEntries();
+          await refreshSummary();
+        });
+        byId("btnApplyFilter").addEventListener("click", async () => {
+          await loadEntries();
+          await refreshSummary();
+        });
+
+        byId("btnAddMember").addEventListener("click", async () => {
+          const name = (byId("newMemberName").value || "").trim();
+          const kind = byId("newMemberKind").value;
+          if (!name) return setError("멤버 이름을 입력해줘");
+          await addMember(name, kind);
+          byId("newMemberName").value = "";
+        });
+
         await refreshUI();
-      } catch (err) {
-        setError(err?.message || String(err));
+      } catch (e) {
+        console.error(e);
+        setError(e?.message || String(e));
       }
     });
-
-    // 이벤트 바인딩 (전부 DOMContentLoaded 안에서만!)
-    byId("btnSendLink").addEventListener("click", async () => {
-      const email = (byId("email").value || "").trim();
-      if (!email) return setError("이메일을 입력해줘");
-      setError("");
-      setStatus("메일 보내는 중...");
-      await sendMagicLink(email);
-      setStatus("로그인 링크를 이메일로 보냈어. 메일에서 링크를 눌러줘!");
-    });
-
-    byId("btnLogout").addEventListener("click", async () => {
-      await logout();
-      await refreshUI();
-    });
-
-    byId("entryForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      setError("");
-      await upsertEntry();
-    });
-
-    byId("btnCancelEdit").addEventListener("click", () => cancelEdit());
-    byId("btnReload").addEventListener("click", async () => {
-      await loadEntries();
-      await refreshSummary();
-    });
-    byId("btnApplyFilter").addEventListener("click", async () => {
-      await loadEntries();
-      await refreshSummary();
-    });
-
-    byId("btnAddMember").addEventListener("click", async () => {
-      const name = (byId("newMemberName").value || "").trim();
-      const kind = byId("newMemberKind").value;
-      if (!name) return setError("멤버 이름을 입력해줘");
-      await addMember(name, kind);
-      byId("newMemberName").value = "";
-    });
-
-    await refreshUI();
-  } catch (e) {
-    console.error(e);
-    setError(e?.message || String(e));
-  }
-});
-
-    
+  </script>
 </head>
 
 <body>
