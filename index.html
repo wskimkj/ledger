@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>가계부 (Supabase · Password Login · No SDK)</title>
+  <title>가계부 (Supabase · 월별 기록 업로드)</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
     h1 { margin: 0 0 8px; }
@@ -29,6 +29,9 @@
     }
   </style>
 
+  <!-- XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
   <script>
     // ✅ 너 프로젝트 값
     const SUPABASE_URL = "https://cqxpmfxwgrpdtxomxfiz.supabase.co";
@@ -37,11 +40,11 @@
     const DEFAULT_LEDGER_NAME = "우리집";
     const DEFAULT_START_DATE = "2026-01-01";
 
-    // 세션 저장 키 (localStorage)
     const SS_KEY = "ledger_session_v1";
     let session = null; // { access_token, refresh_token, user }
     let currentLedgerId = null;
 
+    let cachedMembers = []; // active members
     const byId = (id) => document.getElementById(id);
     const fmt = (n) => Number(n||0).toLocaleString("ko-KR");
 
@@ -66,10 +69,7 @@
       try { return JSON.parse(raw); } catch { return null; }
     }
 
-    // ---------------------------
-    // HTTP helper (No SDK)
-    // ---------------------------
-    async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true, retryOn401=true } = {}){
+    async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true, extraHeaders=null } = {}){
       const url = new URL(SUPABASE_URL + path);
       if(query){
         for(const [k,v] of Object.entries(query)){
@@ -78,63 +78,37 @@
         }
       }
 
-      const headers = { "apikey": SUPABASE_KEY, "Content-Type": "application/json" };
+      const headers = { "apikey": SUPABASE_KEY };
+      if(body) headers["Content-Type"] = "application/json";
       if(auth && session?.access_token) headers["Authorization"] = "Bearer " + session.access_token;
-      if(preferReturn && (method==="POST" || method==="PATCH")) headers["Prefer"] = "return=representation";
 
-      const doReq = () => fetch(url.toString(), {
+      if(preferReturn && (method==="POST" || method==="PATCH")){
+        headers["Prefer"] = "return=representation";
+      }
+      if(extraHeaders){
+        for(const [k,v] of Object.entries(extraHeaders)) headers[k] = v;
+      }
+
+      const res = await fetch(url.toString(), {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined
       });
-
-      let res = await doReq();
-
-      // ✅ 토큰 만료 등으로 401이면 refresh_token으로 1회 갱신 후 재시도
-      if(res.status === 401 && retryOn401 && session?.refresh_token){
-        try{
-          await refreshAccessToken();
-          headers["Authorization"] = "Bearer " + session.access_token;
-          res = await doReq();
-        }catch(e){
-          // 아래에서 그대로 에러 처리
-        }
-      }
 
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
 
       if(!res.ok){
-        let msg = `HTTP ${res.status}`;
-        if (data && typeof data === "object") msg = data.msg || data.message || data.error_description || JSON.stringify(data);
-        else if (data) msg = String(data);
+        const msg = (data && typeof data === "object")
+          ? (data.msg || data.message || data.error_description || JSON.stringify(data))
+          : String(data || `HTTP ${res.status}`);
         throw new Error(msg);
       }
       return data;
     }
 
-    // ---------------------------
-    // Auth: Email + Password (No Redirect)
-    // ---------------------------
-    async function refreshAccessToken(){
-      const data = await apiFetch("/auth/v1/token", {
-        method: "POST",
-        auth: false,
-        query: { grant_type: "refresh_token" },
-        body: { refresh_token: session.refresh_token },
-        preferReturn: false,
-        retryOn401: false
-      });
-
-      if(!data?.access_token) throw new Error("토큰 갱신 실패");
-      saveSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token || session.refresh_token,
-        user: data.user || session.user
-      });
-    }
-
+    // ---------- Auth (email+password) ----------
     async function fetchUser(){
       return await apiFetch("/auth/v1/user", { method:"GET", auth:true, preferReturn:false });
     }
@@ -145,72 +119,26 @@
         auth: false,
         query: { grant_type: "password" },
         body: { email, password },
-        preferReturn: false,
-        retryOn401: false
+        preferReturn: false
       });
 
-      if(!data?.access_token) throw new Error("로그인 실패(토큰 없음)");
-
-      // token 응답에 user가 없을 수 있어서 fetchUser로 확정
-      saveSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        user: null
-      });
-
+      saveSession({ access_token: data.access_token, refresh_token: data.refresh_token, user: null });
       const user = await fetchUser();
       saveSession({ ...session, user });
     }
 
-    async function signUp(email, password){
-      await apiFetch("/auth/v1/signup", {
-        method: "POST",
-        auth: false,
-        body: { email, password },
-        preferReturn: false,
-        retryOn401: false
-      });
-
-      // confirm email ON이면 여기서 자동 로그인 실패가 정상일 수 있으니 try/catch
-      try {
-        await loginWithPassword(email, password);
-        return { ok: true, autoLoggedIn: true };
-      } catch (e) {
-        return {
-          ok: true,
-          autoLoggedIn: false,
-          message: "회원가입 완료! (Confirm email이 켜져있으면 메일 인증 후) '로그인' 버튼을 눌러줘."
-        };
-      }
-    }
-
     async function logout(){
-      try{
-        await apiFetch("/auth/v1/logout", { method:"POST", auth:true, preferReturn:false, retryOn401:false });
-      }catch(e){
-        // 무시
-      }
       saveSession(null);
     }
 
-    // ---------------------------
-    // App logic
-    // ---------------------------
-    function escapeHtml(s){
-      return String(s)
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
+    // ---------- App ----------
     async function refreshUI(){
       const authed = !!(session?.access_token);
 
       show(byId("authCard"), !authed);
       show(byId("appCard"), authed);
       show(byId("setupCard"), authed);
+      show(byId("monthlyCard"), authed);
 
       byId("who").textContent = authed ? `로그인: ${session.user?.email || ""}` : "";
       byId("ledgerName").textContent = "";
@@ -220,11 +148,11 @@
         return;
       }
 
-      setStatus("로그인됨. 장부 확인 중...");
-
       if(!byId("filterFrom").value) byId("filterFrom").value = DEFAULT_START_DATE;
       if(!byId("filterTo").value) byId("filterTo").value = todayISO();
       if(!byId("entryDate").value) byId("entryDate").value = todayISO();
+
+      if(!byId("monthPick").value) byId("monthPick").value = todayISO().slice(0,7);
 
       await ensureDefaultLedger();
       await loadMembers();
@@ -245,7 +173,6 @@
         return;
       }
 
-      // 장부 생성 (DB 트리거가 owner + 공통 멤버 생성해주는 전제)
       const createdArr = await apiFetch("/rest/v1/ledgers", {
         method:"POST",
         body: { name: DEFAULT_LEDGER_NAME, created_by: session.user.id }
@@ -266,46 +193,15 @@
           order:"kind.desc,name.asc"
         }
       });
+      cachedMembers = members || [];
 
       const sel = byId("memberSelect");
       sel.innerHTML = "";
-      for(const m of members){
+      for(const m of cachedMembers){
         const opt = document.createElement("option");
         opt.value = m.id;
         opt.textContent = `${m.name}${m.kind==="common" ? " (공통)" : ""}`;
         sel.appendChild(opt);
-      }
-
-      const filterMember = byId("filterMember");
-      const prev = filterMember.value || "all";
-      filterMember.innerHTML = `<option value="all">전체 멤버</option>`;
-      for(const m of members){
-        const opt = document.createElement("option");
-        opt.value = m.id;
-        opt.textContent = `${m.name}${m.kind==="common" ? " (공통)" : ""}`;
-        filterMember.appendChild(opt);
-      }
-      filterMember.value = prev;
-
-      const list = byId("memberList");
-      list.innerHTML = "";
-      for(const m of members){
-        const row = document.createElement("div");
-        row.className = "toolbar";
-        row.innerHTML = `
-          <span class="pill">${escapeHtml(m.name)} <span class="muted">${escapeHtml(m.kind)}</span></span>
-          <button class="danger">비활성화</button>
-        `;
-        row.querySelector("button").addEventListener("click", async () => {
-          if(!confirm("비활성화 할까?")) return;
-          await apiFetch("/rest/v1/members", {
-            method:"PATCH",
-            query: { id:`eq.${m.id}` },
-            body: { is_active:false }
-          });
-          await loadMembers();
-        });
-        list.appendChild(row);
       }
     }
 
@@ -322,7 +218,6 @@
         from: byId("filterFrom").value || DEFAULT_START_DATE,
         to: byId("filterTo").value || todayISO(),
         flow: byId("filterFlow").value,
-        memberId: byId("filterMember").value,
         q: (byId("filterQ").value || "").trim(),
       };
     }
@@ -336,14 +231,9 @@
       url.searchParams.set("entry_date", `gte.${f.from}`);
       url.searchParams.append("entry_date", `lte.${f.to}`);
       if(f.flow !== "all") url.searchParams.set("flow_type", `eq.${f.flow}`);
-      if(f.memberId !== "all") url.searchParams.set("member_id", `eq.${f.memberId}`);
       url.searchParams.set("order", "entry_date.desc,created_at.desc");
 
-      const headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + session.access_token,
-      };
-
+      const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
       const res = await fetch(url.toString(), { headers });
       const data = await res.json();
       if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
@@ -352,101 +242,20 @@
         ? data.filter(r => (r.detail||"").includes(f.q) || (r.memo||"").includes(f.q))
         : data;
 
-      renderEntries(rows);
-      byId("count").textContent = `${rows.length}건`;
-    }
-
-    function renderEntries(rows){
       const tbody = byId("entriesTbody");
       tbody.innerHTML = "";
       for(const r of rows){
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td class="mono">${escapeHtml(r.entry_date)}</td>
-          <td class="mono">${escapeHtml(r.flow_type)}</td>
-          <td>${escapeHtml(r.detail || "")}</td>
-          <td>${escapeHtml(r.category || "")} <span class="muted">${escapeHtml(r.subcategory || "")}</span></td>
+          <td class="mono">${r.entry_date}</td>
+          <td class="mono">${r.flow_type}</td>
+          <td>${r.detail||""}</td>
+          <td>${(r.category||"") + " "}<span class="muted">${r.subcategory||""}</span></td>
           <td class="right mono">${fmt(r.amount)}</td>
-          <td>${escapeHtml(r.memo || "")}</td>
-          <td style="white-space:nowrap;">
-            <button data-act="edit">수정</button>
-            <button class="danger" data-act="del">삭제</button>
-          </td>
+          <td>${r.memo||""}</td>
         `;
-        tr.querySelector('[data-act="edit"]').addEventListener("click", () => startEdit(r));
-        tr.querySelector('[data-act="del"]').addEventListener("click", async () => {
-          if(!confirm("삭제할까?")) return;
-          await apiFetch("/rest/v1/entries", {
-            method:"DELETE",
-            query: { id:`eq.${r.id}` },
-            preferReturn:false
-          });
-          await loadEntries();
-          await refreshSummary();
-        });
         tbody.appendChild(tr);
       }
-    }
-
-    function startEdit(r){
-      byId("editId").value = r.id;
-      byId("entryDate").value = r.entry_date;
-      byId("flowType").value = r.flow_type;
-      byId("amount").value = r.amount;
-      byId("detail").value = r.detail || "";
-      byId("memo").value = r.memo || "";
-      byId("memberSelect").value = r.member_id;
-      byId("btnSubmit").textContent = "수정 저장";
-      show(byId("btnCancelEdit"), true);
-    }
-
-    function cancelEdit(){
-      byId("editId").value = "";
-      byId("btnSubmit").textContent = "추가";
-      show(byId("btnCancelEdit"), false);
-    }
-
-    async function upsertEntry(){
-      const id = byId("editId").value || null;
-      const entry_date = byId("entryDate").value;
-      const member_id = byId("memberSelect").value;
-      const flow_type = byId("flowType").value;
-      const amount = Number(byId("amount").value || 0);
-      const detail = (byId("detail").value || "").trim();
-      const memo = (byId("memo").value || "").trim();
-
-      if(!entry_date) throw new Error("날짜를 선택해줘");
-      if(!member_id) throw new Error("멤버를 선택해줘");
-      if(!detail) throw new Error("상세항목을 입력해줘");
-      if(!Number.isFinite(amount) || amount < 0) throw new Error("금액을 확인해줘");
-
-      const payload = {
-        ledger_id: currentLedgerId,
-        entry_date,
-        member_id,
-        flow_type,
-        amount,
-        detail,
-        memo,
-        created_by: session.user.id
-      };
-
-      if(!id){
-        await apiFetch("/rest/v1/entries", { method:"POST", body: payload });
-      }else{
-        await apiFetch("/rest/v1/entries", {
-          method:"PATCH",
-          query: { id:`eq.${id}` },
-          body: payload
-        });
-      }
-
-      byId("entryForm").reset();
-      byId("entryDate").value = todayISO();
-      cancelEdit();
-
-      await loadEntries();
-      await refreshSummary();
     }
 
     async function refreshSummary(){
@@ -457,12 +266,8 @@
       url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
       url.searchParams.set("entry_date", `gte.${f.from}`);
       url.searchParams.append("entry_date", `lte.${f.to}`);
-      if(f.memberId !== "all") url.searchParams.set("member_id", `eq.${f.memberId}`);
 
-      const headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + session.access_token,
-      };
+      const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
       const res = await fetch(url.toString(), { headers });
       const data = await res.json();
       if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
@@ -479,98 +284,234 @@
       byId("sumNet").textContent = fmt(income - expense);
     }
 
-    // ✅ 앱 시작
+    // =========================================
+    // ✅ 월별 "기록" 템플릿 업/다운 (monthly_records)
+    // =========================================
+
+    // v3.xlsx의 '기록'에서 읽은 카테고리 정의(대분류/소분류/설명)만 코드로 박아둠
+    // (원하면 이걸 DB(detail_map/subcategory_map)에서 동적으로 가져오게도 가능)
+    const RECORD_ROWS = [
+      // expense
+      { flow:"expense", category:"식비", sub:"식재료", note:"" },
+      { flow:"expense", category:"식비", sub:"외식", note:"" },
+      { flow:"expense", category:"식비", sub:"배달", note:"" },
+      { flow:"expense", category:"식비", sub:"중식", note:"" },
+      { flow:"expense", category:"식비", sub:"카페/간식", note:"" },
+
+      { flow:"expense", category:"소비 생활", sub:"쇼핑", note:"의류, 잡화, 가방, 신발,화장품" },
+      { flow:"expense", category:"소비 생활", sub:"미용", note:"미용실, 네일,미용시술" },
+      { flow:"expense", category:"소비 생활", sub:"구독", note:"넷플릭스, 유튜브프리미엄, 음악스트리밍, 클라우드,멤버십" },
+      { flow:"expense", category:"소비 생활", sub:"생활편의", note:"생필품,가전제품, 인테리어 소품,가구" },
+
+      { flow:"expense", category:"문화여가", sub:"여행", note:"항공권, 숙박, 교통, 입장권" },
+      { flow:"expense", category:"문화여가", sub:"취미", note:"" },
+      { flow:"expense", category:"문화여가", sub:"도서", note:"" },
+
+      { flow:"expense", category:"건강·관리", sub:"운동", note:"" },
+      { flow:"expense", category:"건강·관리", sub:"병원", note:"" },
+      { flow:"expense", category:"건강·관리", sub:"약/영양제", note:"" },
+
+      { flow:"expense", category:"인간관계", sub:"선물", note:"" },
+      { flow:"expense", category:"인간관계", sub:"경조사", note:"" },
+      { flow:"expense", category:"인간관계", sub:"모임", note:"" },
+
+      { flow:"expense", category:"예비/기타", sub:"예비비", note:"" },
+      { flow:"expense", category:"예비/기타", sub:"기타", note:"" },
+
+      { flow:"expense", category:"필수 생활", sub:"주거/관리비", note:"" },
+      { flow:"expense", category:"필수 생활", sub:"통신", note:"" },
+      { flow:"expense", category:"필수 생활", sub:"교통", note:"" },
+
+      // saving
+      { flow:"saving", category:"금융·저축", sub:"적금", note:"" },
+      { flow:"saving", category:"금융·저축", sub:"투자", note:"" },
+      { flow:"saving", category:"금융·저축", sub:"대출상환", note:"" },
+
+      // income
+      { flow:"income", category:"수입", sub:"급여", note:"" },
+      { flow:"income", category:"수입", sub:"부수입", note:"" },
+      { flow:"income", category:"수입", sub:"환급/기타", note:"" },
+      { flow:"income", category:"수입", sub:"이자/배당", note:"" },
+    ];
+
+    function monthToDate(monthYYYYMM){
+      // "2026-01" -> "2026-01-01"
+      return `${monthYYYYMM}-01`;
+    }
+
+    function getMemberIdByName(name){
+      const m = cachedMembers.find(x => x.name === name);
+      return m ? m.id : null;
+    }
+
+    async function downloadRecordTemplate(){
+      const month = byId("monthPick").value;
+      if(!month) throw new Error("월을 선택해줘");
+
+      // 필요한 멤버(돌프/천사/공통)가 없으면 안내
+      const need = ["돌프","천사","공통"];
+      const missing = need.filter(n => !getMemberIdByName(n));
+      if(missing.length){
+        throw new Error(`members에 ${missing.join(", ")} 가 없어. 먼저 멤버 추가해줘.`);
+      }
+
+      // 기록 시트 템플릿 (간단 입력용)
+      const aoa = [];
+      aoa.push([`월`, month, "", "", "", ""]);
+      aoa.push(["대분류(B)", "소분류(C)", "설명(D)", "돌프", "천사", "공통"]);
+
+      for(const r of RECORD_ROWS){
+        aoa.push([r.category, r.sub, r.note || "", "", "", ""]);
+      }
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "기록");
+
+      // meta sheet(업로드 안정화)
+      const meta = XLSX.utils.aoa_to_sheet([["month", month], ["ledger_id", currentLedgerId]]);
+      XLSX.utils.book_append_sheet(wb, meta, "_meta");
+
+      XLSX.writeFile(wb, `기록_${month}.xlsx`);
+      setStatus("기록 템플릿 다운로드 완료!");
+    }
+
+    async function uploadRecordFile(file){
+      if(!file) return;
+
+      setError("");
+      setStatus("기록 엑셀 읽는 중...");
+
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type:"array", cellDates:true });
+
+      const ws = wb.Sheets["기록"] || wb.Sheets[wb.SheetNames[0]];
+      const metaWs = wb.Sheets["_meta"];
+
+      const rows = XLSX.utils.sheet_to_json(ws, { defval:"", raw:false });
+      if(!rows.length) throw new Error("기록 시트에 데이터가 없어");
+
+      // 월 결정: meta > 화면선택
+      let month = byId("monthPick").value;
+      if(metaWs){
+        const meta = XLSX.utils.sheet_to_json(metaWs, { defval:"" });
+        const mrow = meta.find(x => (x.month || x.Month || x.MONTH));
+        if(mrow){
+          const v = mrow.month || mrow.Month || mrow.MONTH;
+          if(typeof v === "string" && /^\d{4}-\d{2}$/.test(v)) month = v;
+        }
+      }
+      if(!month) throw new Error("월을 알 수 없어(월 선택 또는 _meta 필요)");
+
+      const monthDate = monthToDate(month);
+
+      await loadMembers();
+
+      const memberMap = {
+        "돌프": getMemberIdByName("돌프"),
+        "천사": getMemberIdByName("천사"),
+        "공통": getMemberIdByName("공통"),
+      };
+      for(const [k,v] of Object.entries(memberMap)){
+        if(!v) throw new Error(`멤버 '${k}'가 members에 없어. 먼저 멤버 추가해줘.`);
+      }
+
+      // 업로드 payload 만들기
+      const payload = [];
+      let skippedBlankCells = 0;
+
+      for(let i=0;i<rows.length;i++){
+        const r = rows[i];
+
+        // 헤더 이름이 "대분류(B)"같이 들어올 수 있어서 유연하게 처리
+        const category = (r["대분류(B)"] ?? r["대분류"] ?? r["category"] ?? "").toString().trim();
+        const subcategory = (r["소분류(C)"] ?? r["소분류"] ?? r["subcategory"] ?? "").toString().trim();
+        const note = (r["설명(D)"] ?? r["설명"] ?? r["note"] ?? "").toString().trim();
+
+        if(!category && !subcategory) continue;
+
+        // flow_type 추정: RECORD_ROWS 기준으로 찾음(없으면 expense로)
+        const def = RECORD_ROWS.find(x => x.category===category && x.sub===subcategory);
+        const flow_type = def ? def.flow : "expense";
+
+        // 사람별 셀 3개: 공란이면 “그냥 스킵”(업로드 가능)
+        const cells = [
+          { name:"돌프", val:r["돌프"] },
+          { name:"천사", val:r["천사"] },
+          { name:"공통", val:r["공통"] },
+        ];
+
+        for(const c of cells){
+          const raw = (c.val ?? "").toString().replaceAll(",","").trim();
+          if(raw === ""){
+            skippedBlankCells++;
+            continue; // ✅ 공란 업로드 허용: 그냥 저장 안 함
+          }
+          const amount = Number(raw);
+          if(!Number.isFinite(amount) || amount < 0) throw new Error(`(${i+3}행 ${c.name}) 금액이 이상해: ${raw}`);
+
+          payload.push({
+            ledger_id: currentLedgerId,
+            month: monthDate,
+            member_id: memberMap[c.name],
+            flow_type,
+            category,
+            subcategory,
+            note: note || null,
+            amount,
+            created_by: session.user.id
+          });
+        }
+      }
+
+      if(!payload.length){
+        setStatus("");
+        setError("업로드할 값이 없어(전부 공란이었음). 공란 업로드는 허용되지만 저장할 게 없음.");
+        return;
+      }
+
+      // upsert (unique키 기준)
+      setStatus(`DB 저장 중... (${payload.length}개 저장, 공란 ${skippedBlankCells}개 스킵)`);
+      await apiFetch("/rest/v1/monthly_records", {
+        method:"POST",
+        query:{ on_conflict:"ledger_id,month,member_id,flow_type,category,subcategory" },
+        body: payload,
+        preferReturn:false,
+        extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
+      });
+
+      setStatus("월별 기록 업로드 완료!");
+    }
+
+    // ---------- start ----------
     window.addEventListener("DOMContentLoaded", async () => {
       try {
-        // 저장된 세션 로드
         const s = loadSession();
         if (s) session = s;
 
-        // 토큰은 있는데 user가 없으면 가져오기
         if (session?.access_token && !session.user) {
           const user = await fetchUser();
           saveSession({ ...session, user });
         }
 
-        // 다른 탭 로그인/로그아웃 동기화
-        window.addEventListener("storage", async (e) => {
-          if (e.key !== SS_KEY) return;
-          session = loadSession();
-          if (session?.access_token && !session.user) {
-            try {
-              const user = await fetchUser();
-              saveSession({ ...session, user });
-            } catch (err) {
-              setError(err?.message || String(err));
-            }
-          }
-          try { await refreshUI(); } catch (err) { setError(err?.message || String(err)); }
-        });
-
-        // 로그인 버튼
         byId("btnLogin").addEventListener("click", async () => {
-          const email = (byId("email").value || "").trim();
-          const password = (byId("password").value || "").trim();
-          if(!email || !password) return setError("이메일/비밀번호를 입력해줘");
-
           try{
-            setError("");
-            setStatus("로그인 중...");
+            const email = (byId("email").value || "").trim();
+            const password = (byId("password").value || "").trim();
+            if(!email || !password) return setError("이메일/비번 입력해줘");
+            setError(""); setStatus("로그인 중...");
             await loginWithPassword(email, password);
-            setStatus("로그인 완료!");
             await refreshUI();
-          } catch(e){
+          }catch(e){
             setError(e?.message || String(e));
+          }finally{
             setStatus("");
           }
         });
 
-        // 회원가입 버튼
-        byId("btnSignUp").addEventListener("click", async () => {
-          const email = (byId("email").value || "").trim();
-          const password = (byId("password").value || "").trim();
-          if(!email || !password) return setError("이메일/비밀번호를 입력해줘");
-          if(password.length < 6) return setError("비밀번호는 6자 이상으로 해줘");
-
-          try{
-            setError("");
-            setStatus("회원가입 중...");
-            const r = await signUp(email, password);
-
-            if(r.autoLoggedIn){
-              setStatus("회원가입 + 로그인 완료!");
-              await refreshUI();
-            } else {
-              setStatus("");
-              setError(r.message || "회원가입 완료! 이메일 인증 후 로그인해줘.");
-            }
-          } catch(e){
-            setError(e?.message || String(e));
-            setStatus("");
-          }
-        });
-
-        // 로그아웃
         byId("btnLogout").addEventListener("click", async () => {
           await logout();
           await refreshUI();
-        });
-
-        // 엔트리 폼
-        byId("entryForm").addEventListener("submit", async (e) => {
-          e.preventDefault();
-          setError("");
-          await upsertEntry();
-        });
-
-        byId("btnCancelEdit").addEventListener("click", () => cancelEdit());
-        byId("btnReload").addEventListener("click", async () => {
-          await loadEntries();
-          await refreshSummary();
-        });
-        byId("btnApplyFilter").addEventListener("click", async () => {
-          await loadEntries();
-          await refreshSummary();
         });
 
         byId("btnAddMember").addEventListener("click", async () => {
@@ -579,6 +520,21 @@
           if (!name) return setError("멤버 이름을 입력해줘");
           await addMember(name, kind);
           byId("newMemberName").value = "";
+        });
+
+        // 월별 기록 템플릿 업/다운
+        byId("btnRecordDownload").addEventListener("click", async () => {
+          try{ setError(""); setStatus("템플릿 생성 중..."); await downloadRecordTemplate(); }
+          catch(e){ setError(e?.message || String(e)); }
+          finally{ setStatus(""); }
+        });
+
+        byId("recordFile").addEventListener("change", async (e) => {
+          const file = e.target.files?.[0];
+          if(!file) return;
+          try{ setError(""); setStatus("업로드 중..."); await uploadRecordFile(file); }
+          catch(err){ setError(err?.message || String(err)); }
+          finally{ setStatus(""); e.target.value=""; }
         });
 
         await refreshUI();
@@ -592,7 +548,7 @@
 
 <body>
   <h1>가계부</h1>
-  <div class="muted">Supabase 동기화 · 이메일+비밀번호 로그인(리다이렉트 없음) · (SDK 없이 fetch로만 동작)</div>
+  <div class="muted">월별 "기록" 템플릿 다운로드 → 입력 → 업로드 → monthly_records에 저장</div>
 
   <div class="card">
     <div class="toolbar">
@@ -604,42 +560,34 @@
     <div id="error" class="muted" style="color:#b00020;"></div>
   </div>
 
-  <!-- 로그인 -->
   <div id="authCard" class="card hidden">
     <div class="toolbar" style="justify-content:flex-start;">
-      <span class="pill">1) 로그인</span>
+      <span class="pill">로그인</span>
       <input id="email" type="email" placeholder="이메일" style="min-width:260px;">
-      <input id="password" type="password" placeholder="비밀번호(6자+)" style="min-width:220px;">
+      <input id="password" type="password" placeholder="비밀번호" style="min-width:220px;">
       <button class="primary" id="btnLogin">로그인</button>
-      <button id="btnSignUp">회원가입</button>
     </div>
-    <div class="muted">메일 링크 없이 바로 로그인돼. (Confirm email이 켜져있으면 가입 후 메일 인증하고 로그인)</div>
   </div>
 
-  <!-- 앱 -->
-  <div id="appCard" class="card hidden">
+  <div id="monthlyCard" class="card hidden">
     <div class="toolbar" style="justify-content:flex-start;">
-      <span class="pill">2) 필터</span>
-      <label class="muted">From</label>
-      <input id="filterFrom" type="date" value="2026-01-01" />
-      <label class="muted">To</label>
-      <input id="filterTo" type="date" />
-      <select id="filterFlow">
-        <option value="all">전체 흐름</option>
-        <option value="expense">지출</option>
-        <option value="income">수입</option>
-        <option value="saving">저축</option>
-      </select>
-      <select id="filterMember">
-        <option value="all">전체 멤버</option>
-      </select>
-      <input id="filterQ" placeholder="검색(상세/메모)" />
-      <button id="btnApplyFilter" class="primary">적용</button>
-      <button id="btnReload">새로고침</button>
-      <span class="muted" id="count"></span>
+      <span class="pill">월별 기록 업/다운</span>
+      <label class="muted">월</label>
+      <input id="monthPick" type="month" />
+      <button class="primary" id="btnRecordDownload">기록 템플릿 다운로드</button>
+      <label class="pill" style="cursor:pointer;">
+        기록 업로드
+        <input id="recordFile" type="file" accept=".xlsx,.xls" style="display:none;">
+      </label>
     </div>
+    <div class="muted">
+      - B열=대분류, C열=소분류, D열=설명, 돌프/천사/공통 금액 입력<br/>
+      - 공란은 업로드해도 에러 안 나고 그냥 스킵(저장 안 함)
+    </div>
+  </div>
 
-    <div class="grid2" style="margin-top:10px;">
+  <div id="appCard" class="card hidden">
+    <div class="grid2">
       <div class="card" style="margin:0;">
         <div class="muted">지출 합계</div>
         <div class="mono" style="font-size:22px;"><span id="sumExpense">0</span> 원</div>
@@ -653,74 +601,19 @@
         <div class="mono" style="font-size:22px;"><span id="sumSaving">0</span> 원</div>
       </div>
       <div class="card" style="margin:0;">
-        <div class="muted">순현금흐름 (수입-지출)</div>
+        <div class="muted">순현금흐름</div>
         <div class="mono" style="font-size:22px;"><span id="sumNet">0</span> 원</div>
       </div>
     </div>
 
     <div class="card">
       <div class="toolbar" style="justify-content:flex-start;">
-        <span class="pill">3) 거래 입력/수정</span>
-      </div>
-
-      <form id="entryForm" class="row">
-        <input type="hidden" id="editId" value="" />
-
-        <div>
-          <label class="muted">날짜</label>
-          <input id="entryDate" type="date" required />
-        </div>
-
-        <div>
-          <label class="muted">멤버(구분)</label>
-          <select id="memberSelect" required></select>
-        </div>
-
-        <div>
-          <label class="muted">흐름</label>
-          <select id="flowType" required>
-            <option value="expense">지출</option>
-            <option value="income">수입</option>
-            <option value="saving">저축</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="muted">금액</label>
-          <input id="amount" type="number" min="0" step="1" inputmode="numeric" required />
-        </div>
-
-        <div>
-          <label class="muted">상세항목</label>
-          <input id="detail" placeholder="예: 마트, 교통카드" required />
-        </div>
-
-        <div>
-          <label class="muted">메모</label>
-          <input id="memo" placeholder="선택" />
-        </div>
-
-        <div style="display:flex; gap:8px;">
-          <button id="btnSubmit" class="primary" type="submit">추가</button>
-          <button id="btnCancelEdit" type="button" class="hidden">수정 취소</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="card">
-      <div class="toolbar" style="justify-content:flex-start;">
-        <span class="pill">4) 거래 목록</span>
+        <span class="pill">거래 목록(entries)</span>
       </div>
       <table>
         <thead>
           <tr>
-            <th>날짜</th>
-            <th>흐름</th>
-            <th>상세</th>
-            <th>분류</th>
-            <th class="right">금액</th>
-            <th>메모</th>
-            <th>관리</th>
+            <th>날짜</th><th>흐름</th><th>상세</th><th>분류</th><th class="right">금액</th><th>메모</th>
           </tr>
         </thead>
         <tbody id="entriesTbody"></tbody>
@@ -728,18 +621,16 @@
     </div>
   </div>
 
-  <!-- 설정/관리 -->
   <div id="setupCard" class="card hidden">
     <div class="toolbar" style="justify-content:flex-start;">
-      <span class="pill">5) 멤버 관리</span>
-      <input id="newMemberName" placeholder="멤버 이름(예: 돌프, 천사, 엄마)" />
+      <span class="pill">멤버 관리</span>
+      <input id="newMemberName" placeholder="멤버 이름(예: 돌프, 천사, 공통)" />
       <select id="newMemberKind">
         <option value="person">person</option>
         <option value="common">common</option>
       </select>
       <button id="btnAddMember" class="primary">멤버 추가</button>
     </div>
-    <div id="memberList" style="display:flex; flex-direction:column; gap:8px;"></div>
   </div>
 </body>
 </html>
