@@ -1068,7 +1068,8 @@ function startCellEdit3(td){
     const category = td.dataset.category || "";
     const subcategory = td.dataset.subcategory || "";
     const detail = td.dataset.detail || "";
-    const entry_date = `${year}-${mm}-01`;
+   const entry_date = String(`${year}-${mm}-01`);
+
 
     try{
       setStatus("저장 중...");
