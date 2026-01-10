@@ -968,8 +968,7 @@ function renderMatrixTable3({ year, flow_type, rows }){
     <tr>
       <th class="border-b sticky left-0 bg-white/70 backdrop-blur z-30"></th>
       <th class="border-b sticky left-[160px] bg-white/70 backdrop-blur z-30"></th>
-      <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>
-      ${months.map(()=> members3.map(m=>`<th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">${escapeHtmlText(m.name)}</th>`).join("")).join("")}
+      <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>${escapeHtml(m.name)}${escapeHtmlText(m.name)}</th>`).join("")).join("")}
     </tr>
   `;
 
