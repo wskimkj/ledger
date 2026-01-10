@@ -17,7 +17,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- xlsx -->
-  <script src="./xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
     /* Light pastel + glass (purple) */
@@ -2141,9 +2141,20 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     });
 
 // bulk
-    byId("btnDownloadTemplate").addEventListener("click", ()=>{
-      try{ downloadMonthlyTemplate(); }catch(e){ setError(e.message); }
-    });
+    byId("btnDownloadTemplate").addEventListener("click", async ()=>{
+  try{
+    setError("");
+    setStatus("템플릿 생성 중...");
+    await downloadMonthlyTemplate();
+    setStatus("다운로드 시작!");
+  }catch(e){
+    const msg = e?.message || String(e);
+    setError(msg);
+    setStatus("");
+    alert("템플릿 다운로드 실패: " + msg);
+  }
+});
+
     byId("btnBulkUpload").addEventListener("click", async ()=>{
       try{
         setError("");
