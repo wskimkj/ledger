@@ -1298,62 +1298,110 @@ async function refreshMatrix(){
  *    - Amount blank => skip (keep existing)
  *    - Amount present => UPSERT (overwrite amount)
  * ========================= */
-const TEMPLATE_ROWS = [
-  // category, subcategory, detail
-  ["식비","식재료",""],
-  ["식비","외식",""],
-  ["식비","배달",""],
-  ["식비","중식",""],
-  ["식비","카페/간식",""],
-  ["소비 생활","쇼핑","의류, 잡화, 가방, 신발,화장품"],
-  ["소비 생활","미용","미용실, 네일,미용시술"],
-  ["소비 생활","구독","넷플릭스, 유튜브프리미엄, 음악스트리밍, 클라우드,멤버십"],
-  ["소비 생활","생활편의","생필품,가전제품, 인테리어 소품,가구"],
-  ["문화여가","여행","항공권, 숙박, 교통, 입장권"],
-  ["문화여가","문화생활","영화, 공연, 전시, 도서, 게임"],
-  ["문화여가","운동","헬스장, PT, 요가, 필라테스, 수영"],
-  ["건강·관리","보험","생명보험, 건강보험, 자동차보험"],
-  ["건강·관리","병원·약국","진료비, 약값, 건강검진"],
-  ["건강·관리","건강식품","비타민, 단백질보충제, 건강보조제"],
-  ["인간관계","회비","동호회,가족회비,동창"],
-  ["인간관계","경조/선물","추의금, 조의금, 행사참석비 / 생일선물, 기념일선물"],
-  ["인간관계","친목","친목회식"],
-  ["예비/기타","기부","후원"],
-  ["예비/기타","기타","비정기적 장비구매, 이벤트성 지출"],
-  ["필수 생활","주거/통신","전세이자, 관리비, 수도세, 전기세, 가스비, 휴대폰요금, 인터넷, IPTV"],
-  ["필수 생활","교통","대중교통(버스/지하철), 택시, 자가용유지(주유, 주차, 하이패스, 정비)"],
-  ["필수 생활","공과금","공과금, 재활용비,지방세 등"],
-  ["금융·저축","저축","정기적금, 비상금적금, CMA,주택청약"],
-  ["금융·저축","투자","주식, 펀드, 코인, 부동산, ETF"],
-  ["금융·저축","부채상환","카드값, 대출원리금, 이자"],
-  ["수입","월급","월급"],
-  ["수입","기타수입",""],
-  ["수입","금융이자","상여금,"],
-  ["수입","주식매도",""]
-];
+async function fetchActiveTemplates(){
+  // 활성 템플릿만, 정렬순으로 가져오기
+  const rows = await apiFetch("/rest/v1/entry_templates", {
+    query:{
+      select:"id,category,subcategory,detail,sort_order,is_active",
+      ledger_id:`eq.${currentLedgerId}`,
+      is_active:"eq.true",
+      order:"sort_order.asc,id.asc",
+      limit:"5000"
+    }
+  });
+  return rows || [];
+}
+
+async function seedDefaultTemplatesIfEmpty(){
+  // entry_templates가 비어 있으면, 기존 TEMPLATE_ROWS(하드코딩) 값을 최초 1회 삽입
+  const existing = await apiFetch("/rest/v1/entry_templates", {
+    query:{
+      select:"id",
+      ledger_id:`eq.${currentLedgerId}`,
+      limit:"1"
+    }
+  });
+  if(existing?.length) return;
+
+  // ✅ 네가 기존에 쓰던 TEMPLATE_ROWS를 여기에서만 1회 seed 용으로 사용
+  const DEFAULT_SEED = [
+    ["식비","식재료",""],
+    ["식비","외식",""],
+    ["식비","배달",""],
+    ["식비","중식",""],
+    ["식비","카페/간식",""],
+    ["소비 생활","쇼핑","의류, 잡화, 가방, 신발,화장품"],
+    ["소비 생활","미용","미용실, 네일,미용시술"],
+    ["소비 생활","구독","넷플릭스, 유튜브프리미엄, 음악스트리밍, 클라우드,멤버십"],
+    ["소비 생활","생활편의","생필품,가전제품, 인테리어 소품,가구"],
+    ["문화여가","여행","항공권, 숙박, 교통, 입장권"],
+    ["문화여가","문화생활","영화, 공연, 전시, 도서, 게임"],
+    ["문화여가","운동","헬스장, PT, 요가, 필라테스, 수영"],
+    ["건강·관리","보험","생명보험, 건강보험, 자동차보험"],
+    ["건강·관리","병원·약국","진료비, 약값, 건강검진"],
+    ["건강·관리","건강식품","비타민, 단백질보충제, 건강보조제"],
+    ["인간관계","회비","동호회,가족회비,동창"],
+    ["인간관계","경조/선물","추의금, 조의금, 행사참석비 / 생일선물, 기념일선물"],
+    ["인간관계","친목","친목회식"],
+    ["예비/기타","기부","후원"],
+    ["예비/기타","기타","비정기적 장비구매, 이벤트성 지출"],
+    ["필수 생활","주거/통신","전세이자, 관리비, 수도세, 전기세, 가스비, 휴대폰요금, 인터넷, IPTV"],
+    ["필수 생활","교통","대중교통(버스/지하철), 택시, 자가용유지(주유, 주차, 하이패스, 정비)"],
+    ["필수 생활","공과금","공과금, 재활용비,지방세 등"],
+    ["금융·저축","저축","정기적금, 비상금적금, CMA,주택청약"],
+    ["금융·저축","투자","주식, 펀드, 코인, 부동산, ETF"],
+    ["금융·저축","부채상환","카드값, 대출원리금, 이자"],
+    ["수입","월급","월급"],
+    ["수입","기타수입",""],
+    ["수입","금융이자","상여금,"],
+    ["수입","주식매도",""]
+  ];
+
+  const payload = DEFAULT_SEED.map((x, i)=>({
+    ledger_id: currentLedgerId,
+    category: x[0] || "",
+    subcategory: x[1] || "",
+    detail: x[2] || "",
+    sort_order: i,
+    is_active: true,
+    created_by: session.user.id
+  }));
+
+  // 대량 insert
+  await apiFetch("/rest/v1/entry_templates", {
+    method:"POST",
+    body: payload,
+    preferReturn:false
+  });
+}
 
 async function downloadMonthlyTemplate(){
-      const ok = await waitForXLSX();
-      if(!ok){
-        setError("xlsx 라이브러리 로딩이 안 됐어. xlsx.full.min.js 파일이 index.html(이 파일)과 같은 폴더에 있는지 확인해줘.");
-        return;
-      }
-
+  const ok = await waitForXLSX();
+  if(!ok){
+    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx.full.min.js 파일이 index.html(이 파일)과 같은 폴더에 있는지 확인해줘.");
+    return;
+  }
   setError("");
-  if(!window.XLSX) { setError("xlsx 라이브러리 로딩이 안 됐어. 인터넷 차단 여부 확인해줘."); return; }
+
+  // ✅ 최초 1회 seed (비어있을 때만)
+  await seedDefaultTemplatesIfEmpty();
+
+  // ✅ 현재 DB 상태를 기반으로 템플릿 생성
+  const templates = await fetchActiveTemplates();
+
+  if(!templates.length){
+    setError("활성화된 템플릿 항목이 없어. (카테고리 관리에서 추가하거나, 기본 템플릿을 다시 시드해야 해)");
+    return;
+  }
 
   const ym = ymFromInput() || new Date().toISOString().slice(0,7);
   const sheetRows = [];
 
-  // Row1 안내문
-  sheetRows.push(["사용법: 업로드 화면에서 월을 선택하면 '날짜'는 빈칸이어도 해당 월로 자동 반영됩니다. 금액 공란은 스킵(기존 값 유지)."]);
-
-  // Row2 headers (YOUR TEMPLATE)
+  sheetRows.push(["사용법: '날짜'는 가능하면 YYYY-MM-DD로 입력. 금액 공란은 스킵(기존 값 유지)."]);
   sheetRows.push(["날짜","대분류","소분류","설명","돌프","천사","공통"]);
 
-  // Rows
-  for(const [cat, sub, desc] of TEMPLATE_ROWS){
-    sheetRows.push(["", cat, sub, desc || "", "", "", ""]);
+  for(const r of templates){
+    sheetRows.push(["", r.category || "", r.subcategory || "", r.detail || "", "", "", ""]);
   }
 
   const ws = XLSX.utils.aoa_to_sheet(sheetRows);
@@ -1361,9 +1409,11 @@ async function downloadMonthlyTemplate(){
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "기록");
+
   const fname = `record_template_${ym.replace("-","")}.xlsx`;
   XLSX.writeFile(wb, fname);
 }
+
 
 function detectHeaderRow(rows){
   // find a row that contains required headers
