@@ -1591,12 +1591,13 @@ function pad2(n){ return String(n).padStart(2,"0"); }
 
 function normalizeDate(v, ym){
   // ✅ 1) Date 객체면 로컬 기준으로 YYYY-MM-DD 만들기 (타임존 보정 X)
-  if(v instanceof Date && !isNaN(v.getTime())){
-    const y = v.getFullYear();
-    const m = pad2(v.getMonth() + 1);
-    const d = pad2(v.getDate());
-    return `${y}-${m}-${d}`;
-  }
+if(v instanceof Date && !isNaN(v.getTime())){
+  // ✅ 엑셀 날짜는 UTC 기준으로 읽어야 하루 안 밀림
+  const y = v.getUTCFullYear();
+  const m = pad2(v.getUTCMonth() + 1);
+  const d = pad2(v.getUTCDate());
+  return `${y}-${m}-${d}`;
+}
 
   // 2) Excel serial number
   if(typeof v === "number" && Number.isFinite(v)){
