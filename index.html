@@ -1237,24 +1237,25 @@ async function bulkUpload(){
 
       const flow_type = flowFromCategory(category);
 
-      const pushIfAmount = (member_id, amtRaw)=>{
-        const s = String(amtRaw ?? "").trim();
-        if(s === "") return; // 공란 스킵
-        const amount = Number(s.replaceAll(",",""));
-        if(!Number.isFinite(amount) || amount < 0) return;
+const pushIfAmount = (member_id, amtRaw) => {
+  const s = String(amtRaw ?? "").trim();
+  if (s === "") return; // 공란 스킵
+  const amount = Number(s.replaceAll(",", ""));
+  if (!Number.isFinite(amount) || amount < 0) return;
 
-        toUpsert.push({
-          ledger_id: currentLedgerId,
-          entry_date,
-          member_id,
-          flow_type,
-          amount,
-          detail: detail || "(미입력)",
-          category: category || null,
-          subcategory: subcategory || null,
-          created_by: session.user.id
-        });
-      };
+  toUpsert.push({
+    ledger_id: currentLedgerId,
+    entry_date,
+    member_id,
+    flow_type,
+    amount,
+    detail: detail || "",          // 키 안정성
+    category: category || "",      // null 금지
+    subcategory: subcategory || "",// null 금지
+    created_by: session.user.id
+  });
+};
+
 
       pushIfAmount(dolId, dolRaw);
       pushIfAmount(angId, angRaw);
