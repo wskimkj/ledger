@@ -963,12 +963,12 @@ function renderMatrixTable3({ year, flow_type, rows }){
       <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30">대분류</th>
       <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-30">소분류</th>
       <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-30">설명</th>
-      ${months.map(m=>`<th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">${Number(m)}월</th>`).join("")}
+${months.map(()=>members3.map(m=>`<th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">${escapeHtml(m.name)}</th>`).join("")).join("")}
     </tr>
     <tr>
       <th class="border-b sticky left-0 bg-white/70 backdrop-blur z-30"></th>
       <th class="border-b sticky left-[160px] bg-white/70 backdrop-blur z-30"></th>
-      <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>${escapeHtml(m.name)}${escapeHtmlText(m.name)}</th>`).join("")).join("")}
+      <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>${escapeHtml(m.name)}</th>`).join("")).join("")}
     </tr>
   `;
 
