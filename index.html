@@ -885,8 +885,8 @@ async function upsertEntryFromForm(){
     flow_type,
     amount,
     detail,
-    category: category || null,
-    subcategory: subcategory || null,
+   category: category || "",
+subcategory: subcategory || "",
     created_by: session.user.id
   };
   if(memo) payload.memo = memo;
