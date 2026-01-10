@@ -437,7 +437,6 @@ let memberNameToId = new Map();
 
 const byId = (id) => document.getElementById(id);
 const fmt = (n) => Number(n||0).toLocaleString("ko-KR");
-const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
 
 function setStatus(msg){ byId("status").textContent = msg || ""; }
 function setError(msg){ byId("error").textContent = msg || ""; }
