@@ -106,7 +106,24 @@
     .text-white\/60{ color: rgba(15,23,42,.60) !important; }
     .text-white\/50{ color: rgba(15,23,42,.50) !important; }
     .text-red-300{ color: rgba(220,38,38,.90) !important; }
-  </style>
+  
+    .chip{
+      border:1px solid rgba(17,24,39,.12);
+      background: rgba(255,255,255,.65);
+      color: rgba(17,24,39,.85);
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(17,24,39,.06);
+      backdrop-filter: blur(10px);
+      transition: transform .08s ease, background .12s ease, border-color .12s ease;
+      user-select:none;
+    }
+    .chip:hover{ background: rgba(255,255,255,.85); transform: translateY(-1px); }
+    .chip[data-active="true"]{
+      background: rgba(124,58,237,.14);
+      border-color: rgba(124,58,237,.35);
+      color: rgba(76,29,149,.95);
+    }
+</style>
 </head>
 
 <body class="text-white">
@@ -176,65 +193,56 @@
       <!-- DASHBOARD -->
       <section id="tab-dash" class="mt-4">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          
           <!-- slicers -->
           <div class="glass rounded-2xl p-4 lg:col-span-3">
-            <div class="text-sm font-semibold mb-3">슬라이서</div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-sm font-semibold">필터</div>
+              <button id="btnDashRefetch" class="btn rounded-xl px-3 py-2 text-xs">
+                <i class="fa-solid fa-rotate mr-2"></i>데이터 새로고침
+              </button>
+            </div>
 
-            <div class="space-y-3">
+            <div class="space-y-4">
               <div>
-                <div class="text-xs text-white/60 mb-1">구분</div>
-                <select id="slMember" class="w-full rounded-xl px-3 py-2 text-sm">
-                  <option value="all">전체</option>
-                </select>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <div class="text-xs text-white/60 mb-1">연도</div>
-                  <select id="slYear" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-                </div>
-                <div>
-                  <div class="text-xs text-white/60 mb-1">월</div>
-                  <select id="slMonth" class="w-full rounded-xl px-3 py-2 text-sm">
-                    <option value="all">전체</option>
-                    <option value="01">1월</option><option value="02">2월</option><option value="03">3월</option>
-                    <option value="04">4월</option><option value="05">5월</option><option value="06">6월</option>
-                    <option value="07">7월</option><option value="08">8월</option><option value="09">9월</option>
-                    <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
-                  </select>
-                </div>
+                <div class="text-xs text-black/60 mb-2">구분 (중복 선택 가능)</div>
+                <div id="dashBtnsMember" class="flex flex-wrap gap-2"></div>
               </div>
 
               <div>
-                <div class="text-xs text-white/60 mb-1">대분류</div>
-                <select id="slCategory" class="w-full rounded-xl px-3 py-2 text-sm">
-                  <option value="all">전체</option>
-                </select>
+                <div class="text-xs text-black/60 mb-2">연도 (중복 선택 가능)</div>
+                <div id="dashBtnsYear" class="flex flex-wrap gap-2"></div>
               </div>
 
               <div>
-                <div class="text-xs text-white/60 mb-1">소분류</div>
-                <select id="slSubcategory" class="w-full rounded-xl px-3 py-2 text-sm">
-                  <option value="all">전체</option>
-                </select>
+                <div class="text-xs text-black/60 mb-2">월 (중복 선택 가능)</div>
+                <div id="dashBtnsMonth" class="flex flex-wrap gap-2"></div>
+              </div>
+
+              <div>
+                <div class="text-xs text-black/60 mb-2">대분류 (중복 선택 가능)</div>
+                <div id="dashBtnsCategory" class="flex flex-wrap gap-2 max-h-40 overflow-auto thin-scroll pr-1"></div>
+              </div>
+
+              <div>
+                <div class="text-xs text-black/60 mb-2">소분류 (중복 선택 가능)</div>
+                <div id="dashBtnsSubcategory" class="flex flex-wrap gap-2 max-h-44 overflow-auto thin-scroll pr-1"></div>
               </div>
 
               <div class="flex gap-2 pt-1">
-                <button id="btnDashApply" class="btn btn-primary rounded-xl px-4 py-2 text-sm w-full">
-                  적용
-                </button>
-                <button id="btnDashReset" class="btn rounded-xl px-4 py-2 text-sm w-full">
-                  초기화
+                <button id="btnDashClear" class="btn rounded-xl px-4 py-2 text-sm w-full">
+                  전체 해제
                 </button>
               </div>
 
-              <div class="text-xs text-white/60">
-                * 커버 느낌: 슬라이서 선택 → 모든 카드/그래프가 같이 바뀜
+              <div id="dashSelectionHint" class="text-xs text-black/50">
+                * 버튼을 누르면 즉시 반영돼. (중복 선택은 합산)
               </div>
             </div>
           </div>
 
           <!-- main dashboard -->
+
           <div class="lg:col-span-9 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="glass rounded-2xl p-4">
               <div class="text-xs text-white/60">저축 현황</div>
@@ -271,7 +279,26 @@
               </div>
             </div>
 
-            <div class="glass rounded-2xl p-4 md:col-span-3">
+            
+            <div class="glass rounded-2xl p-4 md:col-span-1">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold"><i class="fa-solid fa-chart-pie mr-2"></i>흐름 비중</div>
+              </div>
+              <div class="mt-3 h-[260px]">
+                <canvas id="chartFlowShare"></canvas>
+              </div>
+            </div>
+
+            <div class="glass rounded-2xl p-4 md:col-span-2">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold"><i class="fa-solid fa-layer-group mr-2"></i>월별 합계(스택)</div>
+                <div class="text-xs text-black/50">지출/수입/저축</div>
+              </div>
+              <div class="mt-3 h-[260px]">
+                <canvas id="chartMonthlyStack"></canvas>
+              </div>
+            </div>
+<div class="glass rounded-2xl p-4 md:col-span-3">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-regular fa-calendar mr-2"></i>월별 지출/수입/저축 추이</div>
                 <div class="text-xs text-white/50">연도=전체면 전체기간</div>
@@ -437,40 +464,50 @@
         </div>
       </section>
 
-      <!-- ALL DATA GRID -->
+      <!-- ALL DATA GRID (월별 매트릭스 편집) -->
       <section id="tab-all" class="mt-4 hidden">
         <div class="glass rounded-2xl p-4">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div class="text-sm font-semibold">전체 데이터(축적) + 빠른 수정</div>
-              <div class="text-xs text-white/60 mt-1">
-                엑셀의 DB 시트처럼 전체를 쭉 보면서, 필요한 행을 찾아 수정/삭제할 수 있어.
+              <div class="text-sm font-semibold">월별 매트릭스(전체) · 셀 더블클릭 수정</div>
+              <div class="text-xs text-black/60 mt-1">
+                대분류/소분류/설명을 세로로 고정하고, 월을 가로축으로 펼쳐서 한 번에 보고 수정할 수 있어.
               </div>
             </div>
-            <button id="btnAllReload" class="btn rounded-xl px-4 py-2 text-sm">
-              <i class="fa-solid fa-rotate mr-2"></i>새로고침
-            </button>
+
+            <div class="flex flex-wrap gap-2 items-center">
+              <div class="text-xs text-black/60">연도</div>
+              <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
+
+              <div class="text-xs text-black/60 ml-1">구분</div>
+              <select id="mxMember" class="rounded-xl px-3 py-2 text-sm"></select>
+
+              <div class="text-xs text-black/60 ml-1">흐름</div>
+              <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
+                <option value="expense">지출</option>
+                <option value="income">수입</option>
+                <option value="saving">저축</option>
+              </select>
+
+              <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
+                <i class="fa-solid fa-rotate mr-2"></i>새로고침
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-4 glass2 rounded-2xl p-3">
+            <div class="text-xs text-black/60">
+              * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (구분을 ‘전체’로 두면 수정이 잠겨)
+            </div>
           </div>
 
           <div class="mt-4 overflow-auto thin-scroll">
-            <table class="w-full text-sm border-separate border-spacing-0">
-              <thead class="text-white/70">
-                <tr>
-                  <th class="text-left py-3 px-3 border-b">날짜</th>
-                  <th class="text-left py-3 px-3 border-b">구분</th>
-                  <th class="text-left py-3 px-3 border-b">흐름</th>
-                  <th class="text-left py-3 px-3 border-b">대분류</th>
-                  <th class="text-left py-3 px-3 border-b">소분류</th>
-                  <th class="text-left py-3 px-3 border-b">설명</th>
-                  <th class="text-right py-3 px-3 border-b">금액</th>
-                  <th class="text-left py-3 px-3 border-b">메모</th>
-                  <th class="text-left py-3 px-3 border-b">관리</th>
-                </tr>
-              </thead>
-              <tbody id="allTbody"></tbody>
+            <table class="w-full text-sm border-separate border-spacing-0" id="mxTable">
+              <thead id="mxThead" class="text-black/70 sticky top-0 bg-white/60 backdrop-blur"></thead>
+              <tbody id="mxTbody"></tbody>
             </table>
           </div>
-          <div class="text-xs text-white/60 mt-3">총 <span id="allCount">0</span></div>
+          <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
         </div>
       </section>
     </div>
@@ -685,19 +722,6 @@ async function loadMembers(){
     filterMember.appendChild(opt);
   }
   filterMember.value = prev;
-
-  // dashboard slicer member
-  const slMember = byId("slMember");
-  const prevM = slMember.value || "all";
-  slMember.innerHTML = `<option value="all">전체</option>`;
-  for(const m of membersCache){
-    // 대시보드에서는 공통도 보여야 함
-    const opt = document.createElement("option");
-    opt.value = m.id;
-    opt.textContent = m.name;
-    slMember.appendChild(opt);
-  }
-  slMember.value = prevM;
 }
 
 /** =========================
@@ -847,58 +871,242 @@ async function upsertEntryFromForm(){
 }
 
 /** =========================
- * 5) ALL DATA GRID
+ * 5) ALL DATA GRID → 월별 매트릭스 편집
+ *    - 세로: (대분류/소분류/설명)
+ *    - 가로: 월
+ *    - 셀 더블클릭: 금액 수정(upsert)
  * ========================= */
-async function refreshAllDataGrid(){
+function monthLabels(){ return Array.from({length:12}, (_,i)=>String(i+1).padStart(2,"0")); }
+
+function buildMatrixKey(flow_type, category, subcategory, detail){
+  return [flow_type, category||"", subcategory||"", detail||""].join("||");
+}
+
+async function fetchEntriesForMatrix(year, flow_type, member_id){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id,created_at");
+  url.searchParams.set("select", "entry_date,flow_type,amount,category,subcategory,detail,member_id,created_at");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("order", "entry_date.desc,created_at.desc");
-  url.searchParams.set("limit", "2000"); // safety
+  url.searchParams.set("flow_type", `eq.${flow_type}`);
+  url.searchParams.set("entry_date", `gte.${year}-01-01`);
+  url.searchParams.append("entry_date", `lte.${year}-12-31`);
+  if(member_id && member_id !== "all") url.searchParams.set("member_id", `eq.${member_id}`);
+  url.searchParams.set("order", "entry_date.asc,created_at.asc");
+  url.searchParams.set("limit", "8000");
 
   const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
   const res = await fetch(url.toString(), { headers });
   const data = await res.json();
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-
-  byId("allCount").textContent = `${data.length}건`;
-  const tbody = byId("allTbody");
-  tbody.innerHTML = "";
-  for(const r of data){
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.entry_date)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(memberNameById(r.member_id))}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.flow_type)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.category||"")}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.subcategory||"")}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.detail||"")}</td>
-      <td class="py-2 px-3 border-b text-right font-semibold">${fmt(r.amount)}</td>
-      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.memo||"")}</td>
-      <td class="py-2 px-3 border-b">
-        <div class="flex gap-2">
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="edit">수정</button>
-          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="del">삭제</button>
-        </div>
-      </td>
-    `;
-    tr.querySelector('[data-act="edit"]').addEventListener("click", () => {
-      // jump to edit tab with prefilled form
-      switchTab("edit");
-      startEdit(r);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-    tr.querySelector('[data-act="del"]').addEventListener("click", async () => {
-      if(!confirm("삭제할까?")) return;
-      await apiFetch("/rest/v1/entries", { method:"DELETE", query:{ id:`eq.${r.id}` }, preferReturn:false });
-      await refreshEverything();
-    });
-    tbody.appendChild(tr);
-  }
+  return data || [];
 }
 
-/** =========================
- * 6) BULK TEMPLATE + UPLOAD (YOUR TEMPLATE FORMAT)
+function fillMatrixFilters(years){
+  // year
+  const ySel = byId("mxYear");
+  const prevY = ySel.value || "";
+  ySel.innerHTML = years.map(y=>`<option value="${y}">${y}년</option>`).join("");
+  ySel.value = years.includes(prevY) ? prevY : (years.at(-1) || new Date().getFullYear().toString());
+
+  // member
+  const mSel = byId("mxMember");
+  const prevM = mSel.value || "all";
+  mSel.innerHTML = `<option value="all">전체(보기 전용)</option>` + membersCache.map(m=>`<option value="${m.id}">${escapeHtmlAttr(m.name)}</option>`).join("");
+  mSel.value = (prevM==="all" || membersCache.some(m=>m.id===prevM)) ? prevM : "all";
+}
+
+function renderMatrixTable({ year, flow_type, member_id, rows }){
+  const months = monthLabels();
+
+  // Build pivot: rowKey -> {meta, month->sum}
+  const map = new Map();
+  for(const r of rows){
+    const mk = (r.entry_date||"").slice(5,7);
+    if(!months.includes(mk)) continue;
+
+    const cat = (r.category || "");
+    const sub = (r.subcategory || "");
+    const det = (r.detail || "");
+    const key = buildMatrixKey(flow_type, cat, sub, det);
+
+    const obj = map.get(key) || { flow_type, category: cat, subcategory: sub, detail: det, months: Object.fromEntries(months.map(m=>[m,0])) };
+    obj.months[mk] += Number(r.amount||0);
+    map.set(key, obj);
+  }
+
+  // Sort: category/sub/detail
+  const arr = [...map.values()].sort((a,b)=>{
+    const A = `${a.category}||${a.subcategory}||${a.detail}`;
+    const B = `${b.category}||${b.subcategory}||${b.detail}`;
+    return A.localeCompare(B, "ko");
+  });
+
+  // THEAD
+  const thead = byId("mxThead");
+  thead.innerHTML = `
+    <tr>
+      <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-20">대분류</th>
+      <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-20">소분류</th>
+      <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-20">설명</th>
+      ${months.map(m=>`<th class="text-right py-3 px-3 border-b min-w-[110px]">${Number(m)}월</th>`).join("")}
+    </tr>
+  `;
+
+  // TBODY
+  const tbody = byId("mxTbody");
+  tbody.innerHTML = "";
+
+  let cellCount = 0;
+
+  for(const row of arr){
+    const tr = document.createElement("tr");
+
+    const tdCat = document.createElement("td");
+    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-10 min-w-[160px] max-w-[160px] truncate";
+    tdCat.textContent = row.category || "미분류";
+
+    const tdSub = document.createElement("td");
+    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-10 min-w-[160px] max-w-[160px] truncate";
+    tdSub.textContent = row.subcategory || "";
+
+    const tdDet = document.createElement("td");
+    tdDet.className = "py-2 px-3 border-b sticky left-[320px] bg-white/60 backdrop-blur z-10 min-w-[260px] max-w-[360px] truncate";
+    tdDet.textContent = row.detail || "";
+
+    tr.appendChild(tdCat);
+    tr.appendChild(tdSub);
+    tr.appendChild(tdDet);
+
+    for(const mm of months){
+      const td = document.createElement("td");
+      td.className = "py-2 px-3 border-b text-right font-medium hover:bg-black/5 rounded-lg cursor-pointer";
+      td.dataset.month = mm;
+      td.dataset.flow = flow_type;
+      td.dataset.category = row.category || "";
+      td.dataset.subcategory = row.subcategory || "";
+      td.dataset.detail = row.detail || "";
+      td.textContent = fmt(row.months[mm] || 0);
+      cellCount++;
+
+      // edit by dblclick
+      td.addEventListener("dblclick", ()=> startCellEdit(td, { year, mm, flow_type, member_id }));
+      tr.appendChild(td);
+    }
+
+    tbody.appendChild(tr);
+  }
+
+  byId("mxRowCount").textContent = String(arr.length);
+  byId("mxCellCount").textContent = String(cellCount);
+}
+
+function startCellEdit(td, { year, mm, flow_type, member_id }){
+  if(member_id === "all"){
+    setError("매트릭스에서 수정하려면 '구분'을 특정 멤버로 선택해줘. (전체=보기 전용)");
+    return;
+  }
+  setError("");
+
+  // prevent re-enter
+  if(td.querySelector("input")) return;
+
+  const prevText = td.textContent;
+  const prevVal = Number(String(prevText).replaceAll(",","")) || 0;
+
+  const inp = document.createElement("input");
+  inp.type = "number";
+  inp.min = "0";
+  inp.step = "1";
+  inp.value = String(prevVal);
+  inp.className = "w-full rounded-lg px-2 py-1 text-sm text-right";
+
+  td.innerHTML = "";
+  td.appendChild(inp);
+  inp.focus();
+  inp.select();
+
+  const commit = async ()=>{
+    const v = inp.value.trim();
+    if(v === ""){
+      td.textContent = prevText;
+      return;
+    }
+    const amount = Number(v);
+    if(!Number.isFinite(amount) || amount < 0){
+      td.textContent = prevText;
+      setError("금액을 확인해줘 (0 이상의 숫자)");
+      return;
+    }
+
+    const payload = {
+      ledger_id: currentLedgerId,
+      entry_date: `${year}-${mm}-01`,
+      member_id,
+      flow_type,
+      amount,
+      detail: td.dataset.detail || "",
+      category: td.dataset.category || "",
+      subcategory: td.dataset.subcategory || "",
+      created_by: session.user.id
+    };
+
+    try{
+      setStatus("저장 중...");
+      const onConflict = "ledger_id,entry_date,member_id,flow_type,category,subcategory,detail";
+      await apiFetch("/rest/v1/entries", {
+        method:"POST",
+        query:{ on_conflict: onConflict },
+        body: [payload],
+        preferReturn:false,
+        extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
+      });
+      td.textContent = fmt(amount);
+      setStatus("저장 완료!");
+    }catch(e){
+      td.textContent = prevText;
+      setStatus("");
+      setError(e?.message || String(e));
+    }
+  };
+
+  inp.addEventListener("keydown", async (e)=>{
+    if(e.key === "Enter"){ e.preventDefault(); await commit(); }
+    if(e.key === "Escape"){ td.textContent = prevText; }
+  });
+  inp.addEventListener("blur", async ()=>{ await commit(); });
+}
+
+async function refreshMatrix(){
+  // year candidates from DB quickly: use dashRowsCache if already loaded, else fetch minimal.
+  let years = [];
+  try{
+    if(dashRowsCache?.length){
+      years = [...new Set(dashRowsCache.map(r=>r.entry_date.slice(0,4)))].sort();
+    }else{
+      const url = new URL(SUPABASE_URL + "/rest/v1/entries");
+      url.searchParams.set("select", "entry_date");
+      url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
+      url.searchParams.set("order", "entry_date.asc");
+      url.searchParams.set("limit", "8000");
+      const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
+      const res = await fetch(url.toString(), { headers });
+      const data = await res.json();
+      if(res.ok) years = [...new Set((data||[]).map(r=>String(r.entry_date||"").slice(0,4)))].filter(Boolean).sort();
+    }
+  }catch(_){}
+  if(!years.length) years = [String(new Date().getFullYear())];
+
+  fillMatrixFilters(years);
+
+  const year = byId("mxYear").value;
+  const flow_type = byId("mxFlow").value;
+  const member_id = byId("mxMember").value;
+
+  setStatus("매트릭스 로딩 중...");
+  const rows = await fetchEntriesForMatrix(year, flow_type, member_id);
+  renderMatrixTable({ year, flow_type, member_id, rows });
+  setStatus("준비 완료!");
+}
+ BULK TEMPLATE + UPLOAD (YOUR TEMPLATE FORMAT)
  *    - Sheet: 기록
  *    - Row1: 안내문(옵션)
  *    - Row2: 헤더 [날짜, 대분류, 소분류, 설명, 돌프, 천사, 공통]
@@ -1186,45 +1394,180 @@ function normalizeDate(v, ym){
 }
 
 /** =========================
- * 7) Dashboard (cover-like)
+ * 7) Dashboard (instant multi-filter buttons)
  * ========================= */
 let chartCategory = null;
 let chartTop10 = null;
 let chartMonthly = null;
+let chartFlowShare = null;
+let chartMonthlyStack = null;
 
-function dashFilters(){
-  return {
-    memberId: byId("slMember").value,
-    year: byId("slYear").value,
-    month: byId("slMonth").value,
-    category: byId("slCategory").value,
-    subcategory: byId("slSubcategory").value
-  };
+let dashRowsCache = [];
+const dashState = {
+  members: new Set(),
+  years: new Set(),
+  months: new Set(),
+  categories: new Set(),
+  subcategories: new Set(),
+};
+
+function clearDashState(){
+  dashState.members.clear();
+  dashState.years.clear();
+  dashState.months.clear();
+  dashState.categories.clear();
+  dashState.subcategories.clear();
 }
 
-function buildDashPredicate(f){
+function isAllSelected(set){ return set.size === 0; }
+
+function buildDashPredicate(){
+  const mem = dashState.members;
+  const yrs = dashState.years;
+  const mos = dashState.months;
+  const cats = dashState.categories;
+  const subs = dashState.subcategories;
+
   return (r)=>{
-    // r: entry row
     const d = r.entry_date;
     const y = d.slice(0,4);
     const m = d.slice(5,7);
 
-    if(f.memberId !== "all" && r.member_id !== f.memberId) return false;
-    if(f.year !== "all" && y !== f.year) return false;
-    if(f.month !== "all" && m !== f.month) return false;
-    if(f.category !== "all" && (r.category||"") !== f.category) return false;
-    if(f.subcategory !== "all" && (r.subcategory||"") !== f.subcategory) return false;
+    if(mem.size && !mem.has(r.member_id)) return false;
+    if(yrs.size && !yrs.has(y)) return false;
+    if(mos.size && !mos.has(m)) return false;
+    if(cats.size && !cats.has((r.category||""))) return false;
+    if(subs.size && !subs.has((r.subcategory||""))) return false;
     return true;
   };
 }
 
+function mkBtn(label, { active=false, onClick, title="" } = {}){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip px-3 py-2 text-xs";
+  b.dataset.active = active ? "true" : "false";
+  b.textContent = label;
+  if(title) b.title = title;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderDashButtons(){
+  // member buttons (from membersCache)
+  const wrapM = byId("dashBtnsMember");
+  wrapM.innerHTML = "";
+  // "전체" means no filter => empty set
+  wrapM.appendChild(mkBtn("전체", {
+    active: dashState.members.size === 0,
+    onClick: ()=>{ dashState.members.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+    title:"구분 전체"
+  }));
+  for(const m of membersCache){
+    const active = dashState.members.has(m.id);
+    wrapM.appendChild(mkBtn(m.name, {
+      active,
+      onClick: ()=>{
+        if(dashState.members.size===0){ /* from all -> start selecting */ }
+        if(active) dashState.members.delete(m.id); else dashState.members.add(m.id);
+        // if all removed => treat as 전체
+        if(dashState.members.size===0){ /* ok */ }
+        refreshDashboardFromCache(); renderDashButtons();
+      }
+    }));
+  }
+
+  // years from data
+  const years = [...new Set(dashRowsCache.map(r=>r.entry_date.slice(0,4)))].sort();
+  const wrapY = byId("dashBtnsYear");
+  wrapY.innerHTML = "";
+  wrapY.appendChild(mkBtn("전체", {
+    active: dashState.years.size === 0,
+    onClick: ()=>{ dashState.years.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+  }));
+  for(const y of years){
+    const active = dashState.years.has(y);
+    wrapY.appendChild(mkBtn(`${y}년`, {
+      active,
+      onClick: ()=>{
+        if(active) dashState.years.delete(y); else dashState.years.add(y);
+        refreshDashboardFromCache(); renderDashButtons();
+      }
+    }));
+  }
+
+  // months fixed
+  const wrapMo = byId("dashBtnsMonth");
+  wrapMo.innerHTML = "";
+  wrapMo.appendChild(mkBtn("전체", {
+    active: dashState.months.size === 0,
+    onClick: ()=>{ dashState.months.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+  }));
+  for(let i=1;i<=12;i++){
+    const mm = String(i).padStart(2,"0");
+    const active = dashState.months.has(mm);
+    wrapMo.appendChild(mkBtn(`${i}월`, {
+      active,
+      onClick: ()=>{
+        if(active) dashState.months.delete(mm); else dashState.months.add(mm);
+        refreshDashboardFromCache(); renderDashButtons();
+      }
+    }));
+  }
+
+  // categories/subcategories from data
+  const cats = [...new Set(dashRowsCache.map(r=>(r.category||"").trim()))].filter(Boolean).sort();
+  const wrapC = byId("dashBtnsCategory");
+  wrapC.innerHTML = "";
+  wrapC.appendChild(mkBtn("전체", {
+    active: dashState.categories.size === 0,
+    onClick: ()=>{ dashState.categories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+  }));
+  for(const c of cats){
+    const active = dashState.categories.has(c);
+    wrapC.appendChild(mkBtn(c, {
+      active,
+      onClick: ()=>{
+        if(active) dashState.categories.delete(c); else dashState.categories.add(c);
+        refreshDashboardFromCache(); renderDashButtons();
+      }
+    }));
+  }
+
+  const subs = [...new Set(dashRowsCache.map(r=>(r.subcategory||"").trim()))].filter(Boolean).sort();
+  const wrapS = byId("dashBtnsSubcategory");
+  wrapS.innerHTML = "";
+  wrapS.appendChild(mkBtn("전체", {
+    active: dashState.subcategories.size === 0,
+    onClick: ()=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+  }));
+  for(const s of subs){
+    const active = dashState.subcategories.has(s);
+    wrapS.appendChild(mkBtn(s, {
+      active,
+      onClick: ()=>{
+        if(active) dashState.subcategories.delete(s); else dashState.subcategories.add(s);
+        refreshDashboardFromCache(); renderDashButtons();
+      }
+    }));
+  }
+
+  // hint text
+  const parts = [];
+  if(dashState.members.size) parts.push(`구분 ${dashState.members.size}개`);
+  if(dashState.years.size) parts.push(`연도 ${dashState.years.size}개`);
+  if(dashState.months.size) parts.push(`월 ${dashState.months.size}개`);
+  if(dashState.categories.size) parts.push(`대분류 ${dashState.categories.size}개`);
+  if(dashState.subcategories.size) parts.push(`소분류 ${dashState.subcategories.size}개`);
+  byId("dashSelectionHint").textContent = parts.length ? `선택됨: ${parts.join(" · ")}` : "* 버튼을 누르면 즉시 반영돼. (중복 선택은 합산)";
+}
+
 async function fetchAllEntriesForDash(){
-  // Pull enough data for dashboard (limit)
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
   url.searchParams.set("select", "entry_date,flow_type,amount,category,subcategory,detail,member_id");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("order", "entry_date.asc");
-  url.searchParams.set("limit", "5000");
+  url.searchParams.set("limit", "8000");
 
   const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
   const res = await fetch(url.toString(), { headers });
@@ -1234,7 +1577,6 @@ async function fetchAllEntriesForDash(){
 }
 
 function computeMonthlyBuckets(rows, pred){
-  // monthKey -> {expense,income,saving}
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
@@ -1258,8 +1600,10 @@ function computeKpis(rows, pred){
     else if(r.flow_type==="saving") saving += Number(r.amount||0);
   }
   const months = Math.max(1, monthsSet.size);
+  const net = income - expense - saving;
+  const savingRate = income > 0 ? Math.round((saving/income)*100) : 0;
   return {
-    expense, income, saving,
+    expense, income, saving, net, savingRate,
     expenseAvg: Math.round(expense/months),
     incomeAvg: Math.round(income/months),
     savingAvg: Math.round(saving/months),
@@ -1274,12 +1618,10 @@ function computeCategoryExpense(rows, pred){
     const k = (r.category || "미분류");
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
-  const arr = [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
-  return arr;
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
 }
 
 function computeTop10(rows, pred){
-  // by subcategory+detail
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
@@ -1287,43 +1629,24 @@ function computeTop10(rows, pred){
     const k = (r.subcategory || "미분류") + (r.detail ? ` · ${r.detail}` : "");
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
-  const arr = [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
-  return arr;
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
 }
 
-function updateDashDropdowns(rows){
-  // build year options from data
-  const years = [...new Set(rows.map(r => r.entry_date.slice(0,4)))].sort();
-  const slYear = byId("slYear");
-  const prev = slYear.value || "all";
-  slYear.innerHTML = `<option value="all">전체</option>` + years.map(y=>`<option value="${y}">${y}년</option>`).join("");
-  slYear.value = years.includes(prev) ? prev : "all";
-
-  // categories/subcategories based on current data (not filtered by month to keep stable)
-  const cats = [...new Set(rows.map(r => (r.category||"").trim()).filter(Boolean))].sort();
-  const slCategory = byId("slCategory");
-  const prevC = slCategory.value || "all";
-  slCategory.innerHTML = `<option value="all">전체</option>` + cats.map(c=>`<option value="${escapeHtmlAttr(c)}">${escapeHtmlText(c)}</option>`).join("");
-  slCategory.value = cats.includes(prevC) ? prevC : "all";
-
-  const subs = [...new Set(rows.map(r => (r.subcategory||"").trim()).filter(Boolean))].sort();
-  const slSub = byId("slSubcategory");
-  const prevS = slSub.value || "all";
-  slSub.innerHTML = `<option value="all">전체</option>` + subs.map(s=>`<option value="${escapeHtmlAttr(s)}">${escapeHtmlText(s)}</option>`).join("");
-  slSub.value = subs.includes(prevS) ? prevS : "all";
+function computeFlowShare(rows, pred){
+  let e=0,i=0,s=0;
+  for(const r of rows){
+    if(!pred(r)) continue;
+    if(r.flow_type==="expense") e += Number(r.amount||0);
+    else if(r.flow_type==="income") i += Number(r.amount||0);
+    else if(r.flow_type==="saving") s += Number(r.amount||0);
+  }
+  return { e,i,s };
 }
-function escapeHtmlAttr(s){ return String(s).replaceAll('"','&quot;'); }
-function escapeHtmlText(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
 
-async function refreshDashboard(){
-  const rows = await fetchAllEntriesForDash();
-  updateDashDropdowns(rows);
+function refreshDashboardFromCache(){
+  const pred = buildDashPredicate();
 
-  const f = dashFilters();
-  const pred = buildDashPredicate(f);
-
-  // KPIs
-  const k = computeKpis(rows, pred);
+  const k = computeKpis(dashRowsCache, pred);
   byId("kpiExpense").textContent = fmt(k.expense);
   byId("kpiIncome").textContent = fmt(k.income);
   byId("kpiSaving").textContent = fmt(k.saving);
@@ -1331,78 +1654,104 @@ async function refreshDashboard(){
   byId("kpiIncomeAvg").textContent = fmt(k.incomeAvg);
   byId("kpiSavingAvg").textContent = fmt(k.savingAvg);
 
-  // Category bar
-  const catArr = computeCategoryExpense(rows, pred);
+  // Category
+  const catArr = computeCategoryExpense(dashRowsCache, pred);
   const catLabels = catArr.map(x=>x[0]);
   const catVals = catArr.map(x=>x[1]);
-
   if(chartCategory) chartCategory.destroy();
   chartCategory = new Chart(byId("chartCategory"), {
     type:"bar",
     data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals }] },
     options:{
-      responsive:true,
-      maintainAspectRatio:false,
+      responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } } },
-      scales:{
-        x:{ ticks:{ color:"rgba(15,23,42,.72)" }, grid:{ color:"rgba(15,23,42,.08)" } },
-        y:{ ticks:{ color:"rgba(15,23,42,.72)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(15,23,42,.08)" } }
-      }
+      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
+               y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
   });
 
-  // Top10 horizontal bar
-  const topArr = computeTop10(rows, pred);
+  // Top10
+  const topArr = computeTop10(dashRowsCache, pred);
   const topLabels = topArr.map(x=>x[0]).reverse();
   const topVals = topArr.map(x=>x[1]).reverse();
-
   if(chartTop10) chartTop10.destroy();
   chartTop10 = new Chart(byId("chartTop10"), {
     type:"bar",
     data:{ labels: topLabels, datasets:[{ label:"지출", data: topVals }] },
     options:{
       indexAxis:"y",
-      responsive:true,
-      maintainAspectRatio:false,
+      responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } } },
-      scales:{
-        x:{ ticks:{ color:"rgba(15,23,42,.72)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(15,23,42,.08)" } },
-        y:{ ticks:{ color:"rgba(15,23,42,.72)" }, grid:{ color:"rgba(15,23,42,.08)" } }
+      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } },
+               y:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } } }
+    }
+  });
+
+  // Monthly line (3 series)
+  const { keys, map } = computeMonthlyBuckets(dashRowsCache, pred);
+  const exp = keys.map(k=> (map.get(k)?.expense)||0);
+  const inc = keys.map(k=> (map.get(k)?.income)||0);
+  const sav = keys.map(k=> (map.get(k)?.saving)||0);
+  if(chartMonthly) chartMonthly.destroy();
+  chartMonthly = new Chart(byId("chartMonthly"), {
+    type:"line",
+    data:{ labels: keys, datasets:[
+      { label:"지출", data: exp, tension:.25 },
+      { label:"수입", data: inc, tension:.25 },
+      { label:"저축", data: sav, tension:.25 },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
+      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
+               y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
+    }
+  });
+
+  // Flow share doughnut
+  const share = computeFlowShare(dashRowsCache, pred);
+  if(chartFlowShare) chartFlowShare.destroy();
+  chartFlowShare = new Chart(byId("chartFlowShare"), {
+    type:"doughnut",
+    data:{ labels:["지출","수입","저축"], datasets:[{ data:[share.e, share.i, share.s] }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.label}: ${fmt(ctx.raw)} 원` } }
       }
     }
   });
 
-  // Monthly trend
-  const { keys, map } = computeMonthlyBuckets(rows, pred);
-  const exp = keys.map(k=> (map.get(k)?.expense)||0);
-  const inc = keys.map(k=> (map.get(k)?.income)||0);
-  const sav = keys.map(k=> (map.get(k)?.saving)||0);
-
-  if(chartMonthly) chartMonthly.destroy();
-  chartMonthly = new Chart(byId("chartMonthly"), {
-    type:"line",
-    data:{
-      labels: keys,
-      datasets:[
-        { label:"지출", data: exp, tension:.25 },
-        { label:"수입", data: inc, tension:.25 },
-        { label:"저축", data: sav, tension:.25 },
-      ]
-    },
+  // Monthly stacked bar
+  if(chartMonthlyStack) chartMonthlyStack.destroy();
+  chartMonthlyStack = new Chart(byId("chartMonthlyStack"), {
+    type:"bar",
+    data:{ labels: keys, datasets:[
+      { label:"지출", data: exp, stack:"sum" },
+      { label:"수입", data: inc, stack:"sum" },
+      { label:"저축", data: sav, stack:"sum" },
+    ]},
     options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(15,23,42,.72)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
       scales:{
-        x:{ ticks:{ color:"rgba(15,23,42,.72)" }, grid:{ color:"rgba(15,23,42,.08)" } },
-        y:{ ticks:{ color:"rgba(15,23,42,.72)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(15,23,42,.08)" } }
+        x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
+        y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
       }
     }
   });
 }
 
+async function refreshDashboard(){
+  dashRowsCache = await fetchAllEntriesForDash();
+  renderDashButtons();
+  refreshDashboardFromCache();
+}
+
 /** =========================
  * 8) Tabs
+ * ========================= */
  * ========================= */
 function switchTab(tab){
   for(const b of document.querySelectorAll(".tab-btn")){
@@ -1427,7 +1776,7 @@ async function refreshEverything(){
   await loadMembers();
   await loadEntries();
   await refreshDashboard();
-  await refreshAllDataGrid();
+  await refreshMatrix();
 }
 
 async function refreshUI(){
@@ -1535,18 +1884,26 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     byId("btnReload").addEventListener("click", async ()=>{ try{ setError(""); await loadEntries(); }catch(e){ setError(e.message); } });
     byId("btnApplyFilter").addEventListener("click", async ()=>{ try{ setError(""); await loadEntries(); }catch(e){ setError(e.message); } });
 
-    // dashboard actions
-    byId("btnDashApply").addEventListener("click", async ()=>{ try{ setError(""); await refreshDashboard(); }catch(e){ setError(e.message); } });
-    byId("btnDashReset").addEventListener("click", async ()=>{
-      byId("slMember").value = "all";
-      byId("slYear").value = "all";
-      byId("slMonth").value = "all";
-      byId("slCategory").value = "all";
-      byId("slSubcategory").value = "all";
-      try{ setError(""); await refreshDashboard(); }catch(e){ setError(e.message); }
+    // dashboard actions (즉시 반영)
+    byId("btnDashClear").addEventListener("click", ()=>{
+      clearDashState();
+      refreshDashboardFromCache();
+      renderDashButtons();
     });
 
-    // bulk
+    byId("btnDashRefetch").addEventListener("click", async ()=>{
+      try{
+        setError("");
+        setStatus("대시보드 데이터 새로고침...");
+        await refreshDashboard(); // refetch + render
+        setStatus("준비 완료!");
+      }catch(e){
+        setError(e?.message || String(e));
+        setStatus("");
+      }
+    });
+
+// bulk
     byId("btnDownloadTemplate").addEventListener("click", ()=>{
       try{ downloadMonthlyTemplate(); }catch(e){ setError(e.message); }
     });
@@ -1559,10 +1916,13 @@ window.addEventListener("DOMContentLoaded", async ()=>{
       }
     });
 
-    // all tab
-    byId("btnAllReload").addEventListener("click", async ()=>{
-      try{ setError(""); await refreshAllDataGrid(); }catch(e){ setError(e.message); }
+    // matrix tab (월별 매트릭스)
+    byId("btnMxReload").addEventListener("click", async ()=>{
+      try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); setStatus(""); }
     });
+    byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
+    byId("mxMember").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
+    byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
 
     // sync across tabs
     window.addEventListener("storage", async (e)=>{
