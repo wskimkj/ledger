@@ -478,11 +478,7 @@
             <div class="flex flex-wrap gap-2 items-center">
               <div class="text-xs text-black/60">연도</div>
               <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
-
-              <div class="text-xs text-black/60 ml-1">구분</div>
-              <select id="mxMember" class="rounded-xl px-3 py-2 text-sm"></select>
-
-              <div class="text-xs text-black/60 ml-1">흐름</div>
+<div class="text-xs text-black/60 ml-1">흐름</div>
               <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
                 <option value="expense">지출</option>
                 <option value="income">수입</option>
@@ -497,7 +493,7 @@
 
           <div class="mt-4 glass2 rounded-2xl p-3">
             <div class="text-xs text-black/60">
-              * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (구분을 ‘전체’로 두면 수정이 잠겨)
+              * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
             </div>
           </div>
 
@@ -870,28 +866,40 @@ async function upsertEntryFromForm(){
   cancelEdit();
 }
 
+
 /** =========================
- * 5) ALL DATA GRID → 월별 매트릭스 편집
+ * 5) ALL DATA GRID → 월별 매트릭스 편집 (월×멤버 3컬럼)
  *    - 세로: (대분류/소분류/설명)
- *    - 가로: 월
- *    - 셀 더블클릭: 금액 수정(upsert)
+ *    - 가로: 1~12월 × (돌프/천사/공통)
+ *    - 셀 더블클릭: 금액 수정(upsert) / 빈칸 저장: 삭제
  * ========================= */
 function monthLabels(){ return Array.from({length:12}, (_,i)=>String(i+1).padStart(2,"0")); }
 
-function buildMatrixKey(flow_type, category, subcategory, detail){
+function buildMatrixRowKey(flow_type, category, subcategory, detail){
   return [flow_type, category||"", subcategory||"", detail||""].join("||");
 }
 
-async function fetchEntriesForMatrix(year, flow_type, member_id){
+function getMatrixMembers3(){
+  // 돌프/천사/공통 3개를 고정 노출 (없으면 가능한 것만)
+  const pick = (name)=>{
+    const list = membersCache.filter(m => m.name === name);
+    if(!list.length) return null;
+    if(name === "공통") return (list.find(m=>m.kind==="common") || list[0]);
+    return list[0];
+  };
+  const arr = [pick("돌프"), pick("천사"), pick("공통")].filter(Boolean);
+  return arr; // [{id,name,kind}, ...]
+}
+
+async function fetchEntriesForMatrix(year, flow_type){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
   url.searchParams.set("select", "entry_date,flow_type,amount,category,subcategory,detail,member_id,created_at");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("flow_type", `eq.${flow_type}`);
   url.searchParams.set("entry_date", `gte.${year}-01-01`);
   url.searchParams.append("entry_date", `lte.${year}-12-31`);
-  if(member_id && member_id !== "all") url.searchParams.set("member_id", `eq.${member_id}`);
   url.searchParams.set("order", "entry_date.asc,created_at.asc");
-  url.searchParams.set("limit", "8000");
+  url.searchParams.set("limit", "12000");
 
   const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
   const res = await fetch(url.toString(), { headers });
@@ -901,23 +909,20 @@ async function fetchEntriesForMatrix(year, flow_type, member_id){
 }
 
 function fillMatrixFilters(years){
-  // year
   const ySel = byId("mxYear");
   const prevY = ySel.value || "";
   ySel.innerHTML = years.map(y=>`<option value="${y}">${y}년</option>`).join("");
   ySel.value = years.includes(prevY) ? prevY : (years.at(-1) || new Date().getFullYear().toString());
-
-  // member
-  const mSel = byId("mxMember");
-  const prevM = mSel.value || "all";
-  mSel.innerHTML = `<option value="all">전체(보기 전용)</option>` + membersCache.map(m=>`<option value="${m.id}">${escapeHtmlAttr(m.name)}</option>`).join("");
-  mSel.value = (prevM==="all" || membersCache.some(m=>m.id===prevM)) ? prevM : "all";
 }
 
-function renderMatrixTable({ year, flow_type, member_id, rows }){
+function renderMatrixTable3({ year, flow_type, rows }){
   const months = monthLabels();
+  const members3 = getMatrixMembers3();
+  if(members3.length < 3){
+    setError("members 테이블에 '돌프/천사/공통'이 모두 있어야 3컬럼 매트릭스를 완전하게 표시할 수 있어. (일부만 있으면 있는 멤버만 표시함)");
+  }
 
-  // Build pivot: rowKey -> {meta, month->sum}
+  // Pivot: rowKey -> {meta, cell[mm][member_id]=sum}
   const map = new Map();
   for(const r of rows){
     const mk = (r.entry_date||"").slice(5,7);
@@ -926,50 +931,65 @@ function renderMatrixTable({ year, flow_type, member_id, rows }){
     const cat = (r.category || "");
     const sub = (r.subcategory || "");
     const det = (r.detail || "");
-    const key = buildMatrixKey(flow_type, cat, sub, det);
+    const key = buildMatrixRowKey(flow_type, cat, sub, det);
 
-    const obj = map.get(key) || { flow_type, category: cat, subcategory: sub, detail: det, months: Object.fromEntries(months.map(m=>[m,0])) };
-    obj.months[mk] += Number(r.amount||0);
-    map.set(key, obj);
+    if(!map.has(key)){
+      const cell = {};
+      for(const mm of months){
+        cell[mm] = {};
+        for(const m of members3){
+          cell[mm][m.id] = 0;
+        }
+      }
+      map.set(key, { flow_type, category: cat, subcategory: sub, detail: det, cell });
+    }
+
+    const obj = map.get(key);
+    if(obj.cell[mk] && obj.cell[mk][r.member_id] !== undefined){
+      obj.cell[mk][r.member_id] += Number(r.amount||0);
+    }
   }
 
-  // Sort: category/sub/detail
   const arr = [...map.values()].sort((a,b)=>{
     const A = `${a.category}||${a.subcategory}||${a.detail}`;
     const B = `${b.category}||${b.subcategory}||${b.detail}`;
     return A.localeCompare(B, "ko");
   });
 
-  // THEAD
+  // THEAD (2 rows: month colspans + member names)
   const thead = byId("mxThead");
   thead.innerHTML = `
     <tr>
-      <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-20">대분류</th>
-      <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-20">소분류</th>
-      <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-20">설명</th>
-      ${months.map(m=>`<th class="text-right py-3 px-3 border-b min-w-[110px]">${Number(m)}월</th>`).join("")}
+      <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30">대분류</th>
+      <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-30">소분류</th>
+      <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-30">설명</th>
+      ${months.map(m=>`<th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">${Number(m)}월</th>`).join("")}
+    </tr>
+    <tr>
+      <th class="border-b sticky left-0 bg-white/70 backdrop-blur z-30"></th>
+      <th class="border-b sticky left-[160px] bg-white/70 backdrop-blur z-30"></th>
+      <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>
+      ${months.map(()=> members3.map(m=>`<th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">${escapeHtmlText(m.name)}</th>`).join("")).join("")}
     </tr>
   `;
 
-  // TBODY
   const tbody = byId("mxTbody");
   tbody.innerHTML = "";
-
   let cellCount = 0;
 
   for(const row of arr){
     const tr = document.createElement("tr");
 
     const tdCat = document.createElement("td");
-    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-10 min-w-[160px] max-w-[160px] truncate";
+    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
     tdCat.textContent = row.category || "미분류";
 
     const tdSub = document.createElement("td");
-    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-10 min-w-[160px] max-w-[160px] truncate";
+    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
     tdSub.textContent = row.subcategory || "";
 
     const tdDet = document.createElement("td");
-    tdDet.className = "py-2 px-3 border-b sticky left-[320px] bg-white/60 backdrop-blur z-10 min-w-[260px] max-w-[360px] truncate";
+    tdDet.className = "py-2 px-3 border-b sticky left-[320px] bg-white/60 backdrop-blur z-20 min-w-[260px] max-w-[360px] truncate";
     tdDet.textContent = row.detail || "";
 
     tr.appendChild(tdCat);
@@ -977,19 +997,23 @@ function renderMatrixTable({ year, flow_type, member_id, rows }){
     tr.appendChild(tdDet);
 
     for(const mm of months){
-      const td = document.createElement("td");
-      td.className = "py-2 px-3 border-b text-right font-medium hover:bg-black/5 rounded-lg cursor-pointer";
-      td.dataset.month = mm;
-      td.dataset.flow = flow_type;
-      td.dataset.category = row.category || "";
-      td.dataset.subcategory = row.subcategory || "";
-      td.dataset.detail = row.detail || "";
-      td.textContent = fmt(row.months[mm] || 0);
-      cellCount++;
+      for(const m of members3){
+        const td = document.createElement("td");
+        td.className = "py-2 px-3 border-b text-right font-medium hover:bg-black/5 rounded-lg cursor-pointer";
+        td.dataset.year = year;
+        td.dataset.month = mm;
+        td.dataset.member_id = m.id;
+        td.dataset.member_name = m.name;
+        td.dataset.flow = flow_type;
+        td.dataset.category = row.category || "";
+        td.dataset.subcategory = row.subcategory || "";
+        td.dataset.detail = row.detail || "";
+        td.textContent = fmt((row.cell?.[mm]?.[m.id]) || 0);
+        cellCount++;
 
-      // edit by dblclick
-      td.addEventListener("dblclick", ()=> startCellEdit(td, { year, mm, flow_type, member_id }));
-      tr.appendChild(td);
+        td.addEventListener("dblclick", ()=> startCellEdit3(td));
+        tr.appendChild(td);
+      }
     }
 
     tbody.appendChild(tr);
@@ -999,14 +1023,8 @@ function renderMatrixTable({ year, flow_type, member_id, rows }){
   byId("mxCellCount").textContent = String(cellCount);
 }
 
-function startCellEdit(td, { year, mm, flow_type, member_id }){
-  if(member_id === "all"){
-    setError("매트릭스에서 수정하려면 '구분'을 특정 멤버로 선택해줘. (전체=보기 전용)");
-    return;
-  }
+function startCellEdit3(td){
   setError("");
-
-  // prevent re-enter
   if(td.querySelector("input")) return;
 
   const prevText = td.textContent;
@@ -1024,33 +1042,63 @@ function startCellEdit(td, { year, mm, flow_type, member_id }){
   inp.focus();
   inp.select();
 
+  const restore = ()=>{ td.textContent = prevText; };
+
   const commit = async ()=>{
     const v = inp.value.trim();
-    if(v === ""){
-      td.textContent = prevText;
-      return;
-    }
-    const amount = Number(v);
-    if(!Number.isFinite(amount) || amount < 0){
-      td.textContent = prevText;
-      setError("금액을 확인해줘 (0 이상의 숫자)");
-      return;
-    }
 
-    const payload = {
-      ledger_id: currentLedgerId,
-      entry_date: `${year}-${mm}-01`,
-      member_id,
-      flow_type,
-      amount,
-      detail: td.dataset.detail || "",
-      category: td.dataset.category || "",
-      subcategory: td.dataset.subcategory || "",
-      created_by: session.user.id
-    };
+    const year = td.dataset.year;
+    const mm = td.dataset.month;
+    const member_id = td.dataset.member_id;
+    const flow_type = td.dataset.flow;
+    const category = td.dataset.category || "";
+    const subcategory = td.dataset.subcategory || "";
+    const detail = td.dataset.detail || "";
+    const entry_date = `${year}-${mm}-01`;
 
     try{
       setStatus("저장 중...");
+
+      // 빈칸 저장: 삭제
+      if(v === ""){
+        await apiFetch("/rest/v1/entries", {
+          method:"DELETE",
+          preferReturn:false,
+          query:{
+            ledger_id:`eq.${currentLedgerId}`,
+            entry_date:`eq.${entry_date}`,
+            member_id:`eq.${member_id}`,
+            flow_type:`eq.${flow_type}`,
+            category:`eq.${category}`,
+            subcategory:`eq.${subcategory}`,
+            detail:`eq.${detail}`
+          }
+        });
+        td.textContent = fmt(0);
+        setStatus("삭제 완료!");
+        return;
+      }
+
+      const amount = Number(v);
+      if(!Number.isFinite(amount) || amount < 0){
+        restore();
+        setStatus("");
+        setError("금액을 확인해줘 (0 이상의 숫자)");
+        return;
+      }
+
+      const payload = {
+        ledger_id: currentLedgerId,
+        entry_date,
+        member_id,
+        flow_type,
+        amount,
+        detail,
+        category,
+        subcategory,
+        created_by: session.user.id
+      };
+
       const onConflict = "ledger_id,entry_date,member_id,flow_type,category,subcategory,detail";
       await apiFetch("/rest/v1/entries", {
         method:"POST",
@@ -1059,10 +1107,11 @@ function startCellEdit(td, { year, mm, flow_type, member_id }){
         preferReturn:false,
         extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
       });
+
       td.textContent = fmt(amount);
       setStatus("저장 완료!");
     }catch(e){
-      td.textContent = prevText;
+      restore();
       setStatus("");
       setError(e?.message || String(e));
     }
@@ -1070,7 +1119,7 @@ function startCellEdit(td, { year, mm, flow_type, member_id }){
 
   inp.addEventListener("keydown", async (e)=>{
     if(e.key === "Enter"){ e.preventDefault(); await commit(); }
-    if(e.key === "Escape"){ td.textContent = prevText; }
+    if(e.key === "Escape"){ restore(); }
   });
   inp.addEventListener("blur", async ()=>{ await commit(); });
 }
@@ -1086,7 +1135,7 @@ async function refreshMatrix(){
       url.searchParams.set("select", "entry_date");
       url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
       url.searchParams.set("order", "entry_date.asc");
-      url.searchParams.set("limit", "8000");
+      url.searchParams.set("limit", "12000");
       const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
       const res = await fetch(url.toString(), { headers });
       const data = await res.json();
@@ -1099,14 +1148,15 @@ async function refreshMatrix(){
 
   const year = byId("mxYear").value;
   const flow_type = byId("mxFlow").value;
-  const member_id = byId("mxMember").value;
 
   setStatus("매트릭스 로딩 중...");
-  const rows = await fetchEntriesForMatrix(year, flow_type, member_id);
-  renderMatrixTable({ year, flow_type, member_id, rows });
+  const rows = await fetchEntriesForMatrix(year, flow_type);
+  renderMatrixTable3({ year, flow_type, rows });
   setStatus("준비 완료!");
 }
- BULK TEMPLATE + UPLOAD (YOUR TEMPLATE FORMAT)
+
+/** =========================
+ * 6) BULK TEMPLATE + UPLOAD (YOUR TEMPLATE FORMAT)
  *    - Sheet: 기록
  *    - Row1: 안내문(옵션)
  *    - Row2: 헤더 [날짜, 대분류, 소분류, 설명, 돌프, 천사, 공통]
@@ -1921,7 +1971,6 @@ window.addEventListener("DOMContentLoaded", async ()=>{
       try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); setStatus(""); }
     });
     byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
-    byId("mxMember").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
     byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
 
     // sync across tabs
