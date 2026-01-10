@@ -958,33 +958,30 @@ function renderMatrixTable3({ year, flow_type, rows }){
   });
 
   // THEAD (2 rows: month colspans + member names)
-  const thead = byId("mxThead");
+const thead = byId("mxThead");
+thead.innerHTML = `
+  <tr>
+    <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30">대분류</th>
+    <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-30">소분류</th>
+    <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-30">설명</th>
+    ${months.map(mm => `
+      <th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">
+        ${Number(mm)}월
+      </th>
+    `).join("")}
+  </tr>
+  <tr>
+    <th class="border-b sticky left-0 bg-white/70 backdrop-blur z-30"></th>
+    <th class="border-b sticky left-[160px] bg-white/70 backdrop-blur z-30"></th>
+    <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>
+    ${months.map(()=>members3.map(m=>`
+      <th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">
+        ${escapeHtml(m.name)}
+      </th>
+    `).join("")).join("")}
+  </tr>
+`;
 
-  const monthRow = months
-    .map(mm => `<th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">${Number(mm)}월</th>`)
-    .join("");
-
-  const memberRow = months
-    .map(() => members3
-      .map(m => `<th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">${escapeHtml(m.name)}</th>`)
-      .join("")
-    )
-    .join("");
-
-  thead.innerHTML = `
-    <tr>
-      <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30">대분류</th>
-      <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-30">소분류</th>
-      <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-30">설명</th>
-      ${monthRow}
-    </tr>
-    <tr>
-      <th class="border-b sticky left-0 bg-white/70 backdrop-blur z-30"></th>
-      <th class="border-b sticky left-[160px] bg-white/70 backdrop-blur z-30"></th>
-      <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>
-      ${memberRow}
-    </tr>
-  `;
 
 
   const tbody = byId("mxTbody");
