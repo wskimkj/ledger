@@ -290,10 +290,7 @@ thead{ background: rgba(255,255,255,.86) !important; }
         <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="edit" data-active="false">
           <i class="fa-solid fa-pen-to-square mr-2"></i>기록/수정
         </button>
-        <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="bulk" data-active="false">
-          <i class="fa-solid fa-file-arrow-up mr-2"></i>대량 업로드
-        </button>
-        <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="all" data-active="false">
+<button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="all" data-active="false">
           <i class="fa-solid fa-table mr-2"></i>전체 데이터/수정
         </button>
       </div>
@@ -625,22 +622,6 @@ thead{ background: rgba(255,255,255,.86) !important; }
         </div>
       </div>
 </section>
-
-      <!-- BULK -->
-      <section id="tab-bulk" class="mt-4 hidden">
-        <div class="glass rounded-2xl p-4">
-          <div class="text-sm font-semibold">대량 업로드</div>
-          <div class="text-xs text-black/60 mt-1">
-            대량 업로드 기능은 <b>기록/수정</b> 탭 안으로 이동했어.
-          </div>
-          <div class="mt-3">
-            <button id="btnGoEditBulk" class="btn btn-primary rounded-xl px-4 py-2 text-sm">
-              <i class="fa-solid fa-arrow-right mr-2"></i>기록/수정 탭에서 열기
-            </button>
-          </div>
-        </div>
-      </section>
-
       <!-- ALL DATA GRID (월별 매트릭스 편집) -->
       <section id="tab-all" class="mt-4 hidden">
         <div class="glass rounded-2xl p-4">
@@ -683,6 +664,62 @@ thead{ background: rgba(255,255,255,.86) !important; }
           <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
         </div>
       </section>
+      <!-- CATEGORY MANAGEMENT -->
+      <section id="tab-cat" class="mt-4 hidden">
+        <div class="glass rounded-2xl p-4">
+          <div class="flex items-end justify-between gap-3 flex-wrap">
+            <div>
+              <div class="text-sm font-semibold">카테고리 관리 (대분류 → 소분류 → 상세항목)</div>
+              <div class="text-xs text-black/60 mt-1">
+                * 템플릿/드롭다운/대시보드에 즉시 반영돼. (권한: owner만 수정 가능)
+              </div>
+            </div>
+            <button id="btnCatReload" class="btn rounded-xl px-4 py-2 text-sm">
+              <i class="fa-solid fa-rotate mr-2"></i>새로고침
+            </button>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Groups -->
+            <div class="glass2 rounded-2xl p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold">대분류</div>
+              </div>
+              <div class="mt-3 flex gap-2">
+                <input id="catNewGroup" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="대분류 이름 (예: 소모 지출)" />
+                <button id="btnAddGroup" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
+              </div>
+              <div id="catGroupList" class="mt-3 space-y-2 text-sm"></div>
+            </div>
+
+            <!-- Subcategories -->
+            <div class="glass2 rounded-2xl p-4">
+              <div class="text-sm font-semibold">소분류</div>
+              <div class="mt-3 grid grid-cols-1 gap-2">
+                <select id="catPickGroup" class="rounded-xl px-3 py-2 text-sm"></select>
+                <div class="flex gap-2">
+                  <input id="catNewSub" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="소분류 이름 (예: 식비)" />
+                  <button id="btnAddSub" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
+                </div>
+              </div>
+              <div id="catSubList" class="mt-3 space-y-2 text-sm"></div>
+            </div>
+
+            <!-- Detail items -->
+            <div class="glass2 rounded-2xl p-4">
+              <div class="text-sm font-semibold">상세항목</div>
+              <div class="mt-3 grid grid-cols-1 gap-2">
+                <select id="catPickSub" class="rounded-xl px-3 py-2 text-sm"></select>
+                <input id="catNewDetail" class="rounded-xl px-3 py-2 text-sm" placeholder="상세항목 이름 (예: 외식)" />
+                <input id="catNewExample" class="rounded-xl px-3 py-2 text-sm" placeholder="설명(예시) (예: 점심/저녁, 스타벅스 등)" />
+                <button id="btnAddDetail" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
+              </div>
+              <div id="catDetailList" class="mt-3 space-y-2 text-sm"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   </div>
 
@@ -743,6 +780,7 @@ const SS_KEY = "ledger_session_v2";
 let session = null; // { access_token, refresh_token, user }
 let currentLedgerId = null;
 let membersCache = []; // {id,name,kind}
+let isOwner = false; // owner만 카테고리 관리
 let memberNameToId = new Map();
 
 const byId = (id) => document.getElementById(id);
@@ -1146,13 +1184,39 @@ async function loadMembers(){
 }
 
 
+async function loadMyMembership(){
+  isOwner = false;
+  try{
+    const rows = await apiFetch("/rest/v1/ledger_members", {
+      query:{
+        select:"role,status",
+        ledger_id:`eq.${currentLedgerId}`,
+        user_id:`eq.${session.user.id}`,
+        limit:"1"
+      }
+    });
+    const r = rows?.[0];
+    if(r?.role === "owner") isOwner = true;
+  }catch(_){}
+  // 카테고리 관리 탭 노출/숨김
+  const catBtn = document.querySelector('.tab-btn[data-tab="cat"]');
+  if(catBtn) catBtn.classList.toggle("hidden", !isOwner);
+}
+
+
+
 /** =========================
  * 3.5) Category master (대분류>소분류>상세항목) dropdown sources
  *   - DB: category_groups / subcategories / detail_items
  *   - entries에는 detail_item_id만 저장(표시는 join으로 이름 가져옴)
  * ========================= */
 
-let masterDetailItems = []; // [{id,name, subcategory:{name, group:{name}}}]
+let masterGroups = [];
+let masterSubcategories = [];
+let masterDetailItems = [];
+let groupById = new Map();
+let subById = new Map();
+let detailItemById = new Map(); // [{id,name, subcategory:{name, group:{name}}}]
 let groupToSubsMap = new Map(); // groupName -> Set(subName)
 let subToDetailsMap = new Map(); // subName -> Set(detailName)
 let detailKeyToId = new Map();   // `${group}||${sub}||${detail}` -> uuid
@@ -1187,12 +1251,32 @@ function fillSelectOptions(sel, arr, { includeBlank=false, blankLabel="(선택)"
   if(exists) sel.value = prev;
 }
 
+
 async function loadCategoryMaster(){
-  // detail_items를 기준으로 상위 조인까지 한 번에 가져옴
+  // 1) groups
+  const groups = await apiFetch("/rest/v1/category_groups", {
+    query:{
+      select:"id,name,sort_order,is_active",
+      ledger_id:`eq.${currentLedgerId}`,
+      order:"sort_order.asc,name.asc",
+      limit:"5000"
+    }
+  });
+
+  // 2) subcategories
+  const subs = await apiFetch("/rest/v1/subcategories", {
+    query:{
+      select:"id,name,group_id,sort_order,is_active",
+      ledger_id:`eq.${currentLedgerId}`,
+      order:"sort_order.asc,name.asc",
+      limit:"12000"
+    }
+  });
+
+  // 3) detail items + join (for dashboard/template)
   const url = new URL(SUPABASE_URL + "/rest/v1/detail_items");
-  url.searchParams.set("select", "id,name,subcategory_id,subcategories(name,category_groups(name))");
+  url.searchParams.set("select", "id,name,example_note,subcategory_id,is_active,sort_order,subcategories(id,name,group_id,category_groups(id,name))");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("is_active", "eq.true");
   url.searchParams.set("order", "sort_order.asc,name.asc");
   url.searchParams.set("limit", "12000");
 
@@ -1201,32 +1285,118 @@ async function loadCategoryMaster(){
   const data = await res.json();
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
 
-  masterDetailItems = (data || []).map(r=>{
-    const sub = r.subcategories || null;
-    const grp = sub?.category_groups || null;
-    return {
-      id: r.id,
-      name: r.name || "",
-      subcategory: { name: sub?.name || "", group: { name: grp?.name || "" } }
-    };
-  });
+  masterGroups = (groups || []).filter(g=>g.is_active!==false);
+  masterSubcategories = (subs || []).filter(s=>s.is_active!==false);
 
-  groupToSubsMap = new Map();
-  subToDetailsMap = new Map();
-  detailKeyToId = new Map();
+  masterDetailItems = (data || [])
+    .filter(r => r.is_active !== false)
+    .map(r=>{
+      const sub = r.subcategories || null;
+      const grp = sub?.category_groups || null;
+      return {
+        id: r.id,
+        name: r.name || "",
+        example_note: r.example_note || "",
+        sort_order: r.sort_order ?? 9999,
+        subcategory_id: r.subcategory_id,
+        subcategory: sub ? { id: sub.id, name: sub.name || "", group_id: sub.group_id, group: grp ? { id: grp.id, name: grp.name || "" } : null } : null
+      };
+    });
 
-  for(const r of masterDetailItems){
-    const g = r.subcategory?.group?.name || "";
-    const s = r.subcategory?.name || "";
-    const d = r.name || "";
-    mapAddSet(groupToSubsMap, g, s);
-    mapAddSet(subToDetailsMap, s, d);
-    detailKeyToId.set(`${g}||${s}||${d}`, r.id);
-  }
-
-  refreshEntryFormCategoryDropdowns();
-  refreshBatchRenameDropdowns();
+  // fast maps
+  detailItemById = new Map(masterDetailItems.map(d => [d.id, d]));
+  subById = new Map(masterSubcategories.map(s => [s.id, s]));
+  groupById = new Map(masterGroups.map(g => [g.id, g]));
 }
+
+
+function requireOwner(){
+  if(!isOwner) throw new Error("권한이 없어. (owner만 수정 가능)");
+}
+
+function renderCategoryAdmin(){
+  // group pick
+  const selG = byId("catPickGroup");
+  const selS = byId("catPickSub");
+  if(!selG || !selS) return;
+
+  selG.innerHTML = masterGroups.map(g=>`<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join("");
+  const gId = selG.value || masterGroups?.[0]?.id || "";
+  selG.value = gId;
+
+  const subs = masterSubcategories.filter(s => s.group_id === gId);
+  selS.innerHTML = subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
+  const sId = selS.value || subs?.[0]?.id || "";
+  selS.value = sId;
+
+  // group list
+  const wrapG = byId("catGroupList");
+  wrapG.innerHTML = masterGroups.map(g=>`
+    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
+      <div class="font-medium">${escapeHtml(g.name)}</div>
+      <div class="flex items-center gap-2">
+        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-up" data-id="${g.id}">↑</button>
+        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-down" data-id="${g.id}">↓</button>
+        <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="g-off" data-id="${g.id}">비활성</button>
+      </div>
+    </div>
+  `).join("");
+
+  // sub list (within selected group)
+  const wrapS = byId("catSubList");
+  wrapS.innerHTML = subs.map(s=>`
+    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
+      <div class="font-medium">${escapeHtml(s.name)}</div>
+      <div class="flex items-center gap-2">
+        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-up" data-id="${s.id}">↑</button>
+        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-down" data-id="${s.id}">↓</button>
+        <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="s-off" data-id="${s.id}">비활성</button>
+      </div>
+    </div>
+  `).join("");
+
+  // detail list (within selected sub)
+  const details = masterDetailItems.filter(d => d.subcategory_id === sId);
+  const wrapD = byId("catDetailList");
+  wrapD.innerHTML = details.map(d=>`
+    <div class="p-2 rounded-xl bg-white/60 border border-black/5">
+      <div class="flex items-center justify-between gap-2">
+        <div class="font-medium">${escapeHtml(d.name)}</div>
+        <div class="flex items-center gap-2">
+          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="d-up" data-id="${d.id}">↑</button>
+          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="d-down" data-id="${d.id}">↓</button>
+          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="d-off" data-id="${d.id}">비활성</button>
+        </div>
+      </div>
+      <div class="text-xs text-black/60 mt-1">예시: ${escapeHtml(d.example_note || "")}</div>
+    </div>
+  `).join("");
+}
+
+async function refreshCategoryAdmin(){
+  await loadCategoryMaster();
+  renderCategoryAdmin();
+  // 드롭다운/대시보드도 마스터 기반이라 같이 새로 렌더
+  renderMasterDropdowns?.();
+  renderDashButtons?.();
+  refreshDashboardFromCache?.();
+}
+
+async function bumpSort(table, id, dir){
+  requireOwner();
+  // 간단히 sort_order를 +-1 해서 재정렬 (충돌해도 큰 문제 없음)
+  const rows = await apiFetch(`/rest/v1/${table}`, { query:{ select:"id,sort_order", id:`eq.${id}`, limit:"1" }});
+  const cur = rows?.[0];
+  const next = (cur?.sort_order ?? 0) + (dir === "up" ? -1 : 1);
+  await apiFetch(`/rest/v1/${table}`, { method:"PATCH", query:{ id:`eq.${id}` }, body:{ sort_order: next }, preferReturn:false });
+}
+
+async function deactivateRow(table, id){
+  requireOwner();
+  await apiFetch(`/rest/v1/${table}`, { method:"PATCH", query:{ id:`eq.${id}` }, body:{ is_active:false }, preferReturn:false });
+}
+
+
 
 function getAllSubsSorted(){
   const set = new Set();
@@ -1334,7 +1504,7 @@ function getFilters(){
 async function loadEntries(){
   const f = getFilters();
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail_item_id,detail_note,memo,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
+  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail_item_id,detail,memo,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("entry_date", `gte.${f.from}`);
   url.searchParams.append("entry_date", `lte.${f.to}`);
@@ -1352,7 +1522,7 @@ async function loadEntries(){
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
 
   const rows = (f.q)
-    ? data.filter(r => ((r.detail_items?.name||"").includes(f.q) || (r.detail_note||"").includes(f.q) || (r.memo||"").includes(f.q)))
+    ? data.filter(r => ((r.detail_items?.name||"").includes(f.q) || (r.detail||"").includes(f.q) || (r.memo||"").includes(f.q)))
     : data;
 
   renderEntries(rows);
@@ -1389,7 +1559,7 @@ function renderEntries(rows){
       <td class="py-2 px-3 border-b text-white/80">${escapeHtml(g)}</td>
       <td class="py-2 px-3 border-b text-white/80">${escapeHtml(s)}</td>
       <td class="py-2 px-3 border-b text-white/80">${escapeHtml(d)}</td>
-      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.detail_note || "")}</td>
+      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.detail || "")}</td>
       <td class="py-2 px-3 border-b text-right font-semibold">${fmt(r.amount)}</td>
       <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.memo || "")}</td>
       <td class="py-2 px-3 border-b">
@@ -1415,7 +1585,7 @@ function startEdit(r){
   byId("entryDate").value = r.entry_date;
   byId("flowType").value = r.flow_type;
   byId("amount").value = r.amount;
-  byId("detailNote").value = r.detail_note || "";
+  byId("detailNote").value = r.detail || "";
   byId("memo").value = r.memo || "";
 
   const g = r.detail_items?.subcategories?.category_groups?.name || "";
@@ -1452,7 +1622,7 @@ async function upsertEntryFromForm(){
   const detailName = (byId("detail").value || "").trim();
   const detail_item_id = detailItemIdFromSelections(groupName, subName, detailName);
 
-  const detail_note = (byId("detailNote").value || "").trim();
+  const detail = (byId("detailNote").value || "").trim();
   const memo = (byId("memo").value || "").trim();
 
   if(!entry_date) throw new Error("날짜를 선택해줘");
@@ -1469,7 +1639,7 @@ async function upsertEntryFromForm(){
     detail_item_id,
     created_by: session.user.id
   };
-  if(detail_note) payload.detail_note = detail_note;
+  if(detail) payload.detail = detail;
   if(memo) payload.memo = memo;
 
   if(!id){
@@ -1958,7 +2128,8 @@ async function downloadMonthlyTemplate(){
     .map(x=>({
       group: x.subcategory?.group?.name || "",
       sub: x.subcategory?.name || "",
-      detail: x.name || ""
+      detail: x.name || "",
+      example: x.example_note || ""
     }))
     .filter(x=>x.group && x.sub && x.detail);
 
@@ -1970,14 +2141,14 @@ async function downloadMonthlyTemplate(){
   const ym = ymFromInput() || new Date().toISOString().slice(0,7);
   const sheetRows = [];
   sheetRows.push(["사용법: '날짜'는 가능하면 YYYY-MM-DD로 입력. 금액 공란은 스킵(기존 값 유지)."]);
-  sheetRows.push(["날짜","대분류","소분류","상세항목","돌프","천사","공통"]);
+  sheetRows.push(["날짜","대분류","소분류","상세항목","설명(예시)","돌프","천사","공통"]);
 
   for(const r of rowsMaster){
-    sheetRows.push(["", r.group, r.sub, r.detail, "", "", ""]);
+    sheetRows.push(["", r.group, r.sub, r.detail, r.example || "", "", "", ""]);
   }
 
   const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:22},{wch:12},{wch:12},{wch:12}];
+  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:22},{wch:28},{wch:12},{wch:12},{wch:12}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "기록");
@@ -2231,6 +2402,72 @@ if (window.ChartDataLabels) {
 }
 
 
+
+let categoryMaster = {
+  groups: [],   // [{id,name,sort_order,is_active}]
+  subs: [],     // [{id,name,group_id,sort_order,is_active}]
+  details: [],  // [{id,name,subcategory_id,sort_order,is_active}]
+  groupNameById: new Map(),
+  subById: new Map(),
+  subsByGroupId: new Map(),
+  detailsBySubId: new Map(),
+};
+
+async function loadCategoryMaster(){
+  // Pull full master (active) for dashboard dropdowns & edit dropdowns
+  // If RLS blocks, this will throw; caller should catch.
+  const groups = await apiFetch("/rest/v1/category_groups", {
+    query:{
+      select:"id,name,sort_order,is_active",
+      ledger_id:`eq.${currentLedgerId}`,
+      is_active:"eq.true",
+      order:"sort_order.asc,name.asc",
+      limit:"5000"
+    }
+  });
+
+  const subs = await apiFetch("/rest/v1/subcategories", {
+    query:{
+      select:"id,name,group_id,sort_order,is_active",
+      ledger_id:`eq.${currentLedgerId}`,
+      is_active:"eq.true",
+      order:"sort_order.asc,name.asc",
+      limit:"12000"
+    }
+  });
+
+  const details = await apiFetch("/rest/v1/detail_items", {
+    query:{
+      select:"id,name,subcategory_id,sort_order,is_active",
+      ledger_id:`eq.${currentLedgerId}`,
+      is_active:"eq.true",
+      order:"sort_order.asc,name.asc",
+      limit:"20000"
+    }
+  });
+
+  categoryMaster.groups = groups || [];
+  categoryMaster.subs = subs || [];
+  categoryMaster.details = details || [];
+
+  categoryMaster.groupNameById = new Map(categoryMaster.groups.map(g=>[g.id, g.name]));
+  categoryMaster.subById = new Map(categoryMaster.subs.map(s=>[s.id, s]));
+
+  categoryMaster.subsByGroupId = new Map();
+  for(const s of categoryMaster.subs){
+    const arr = categoryMaster.subsByGroupId.get(s.group_id) || [];
+    arr.push(s);
+    categoryMaster.subsByGroupId.set(s.group_id, arr);
+  }
+
+  categoryMaster.detailsBySubId = new Map();
+  for(const d of categoryMaster.details){
+    const arr = categoryMaster.detailsBySubId.get(d.subcategory_id) || [];
+    arr.push(d);
+    categoryMaster.detailsBySubId.set(d.subcategory_id, arr);
+  }
+}
+
 let dashRowsCache = [];
 const dashState = {
   members: new Set(),
@@ -2344,26 +2581,33 @@ function renderDashButtons(){
     }));
   }
 
-  // categories/subcategories from data
-  const cats = [...new Set(dashRowsCache.map(r=>(r.group_name||"").trim()))].filter(Boolean).sort();
+  // categories/subcategories from master
   const wrapC = byId("dashBtnsCategory");
   wrapC.innerHTML = "";
   wrapC.appendChild(mkBtn("전체", {
     active: dashState.categories.size === 0,
     onClick: ()=>{ dashState.categories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
-  for(const c of cats){
-    const active = dashState.categories.has(c);
-    wrapC.appendChild(mkBtn(c, {
+
+  const groups = (categoryMaster.groups || []).map(g=>g.name).filter(Boolean);
+  for(const gName of groups){
+    const active = dashState.categories.has(gName);
+    wrapC.appendChild(mkBtn(gName, {
       active,
       onClick: ()=>{
-        if(active) dashState.categories.delete(c); else dashState.categories.add(c);
+        if(active) dashState.categories.delete(gName); else dashState.categories.add(gName);
+        // when group filter changes, clear subcategory selections that no longer belong
+        if(dashState.categories.size){
+          const allowedSubs = new Set(getAllowedSubNamesForSelectedGroups());
+          for(const s of [...dashState.subcategories]){
+            if(!allowedSubs.has(s)) dashState.subcategories.delete(s);
+          }
+        }
         refreshDashboardFromCache(); renderDashButtons();
       }
     }));
   }
 
-  // subcategories: 선택된 대분류(전체 제외)에 속하는 소분류만 노출
   const wrapS = byId("dashBtnsSubcategory");
   wrapS.innerHTML = "";
   wrapS.appendChild(mkBtn("전체", {
@@ -2371,34 +2615,36 @@ function renderDashButtons(){
     onClick: ()=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
 
-  const allowedSubs = new Set();
-  const catsSelected = dashState.categories.size > 0;
-
-  for(const r of dashRowsCache){
-    const c = (r.group_name||"").trim();
-    const s = (r.sub_name||"").trim();
-    if(!s) continue;
-    if(catsSelected && !dashState.categories.has(c)) continue; // 대분류 선택 시 해당 대분류의 소분류만
-    allowedSubs.add(s);
-  }
-
-  // 대분류 선택이 바뀌면, 현재 선택된 소분류가 범위 밖이면 자동 해제(숨은 필터 방지)
-  if(catsSelected){
-    for(const s of [...dashState.subcategories]){
-      if(!allowedSubs.has(s)) dashState.subcategories.delete(s);
-    }
-  }
-
-  const subs = [...allowedSubs].sort((a,b)=>a.localeCompare(b,"ko"));
-  for(const s of subs){
-    const active = dashState.subcategories.has(s);
-    wrapS.appendChild(mkBtn(s, {
+  const subsToShow = getAllowedSubNamesForSelectedGroups();
+  for(const sName of subsToShow){
+    const active = dashState.subcategories.has(sName);
+    wrapS.appendChild(mkBtn(sName, {
       active,
       onClick: ()=>{
-        if(active) dashState.subcategories.delete(s); else dashState.subcategories.add(s);
+        if(active) dashState.subcategories.delete(sName); else dashState.subcategories.add(sName);
         refreshDashboardFromCache(); renderDashButtons();
       }
     }));
+  }
+
+  // helper: selected groups -> subs
+  function getAllowedSubNamesForSelectedGroups(){
+    const selected = dashState.categories;
+    const allSubs = [];
+    if(selected.size === 0){
+      for(const s of (categoryMaster.subs || [])) allSubs.push(s.name);
+    }else{
+      // map group name -> group id
+      const nameToId = new Map((categoryMaster.groups||[]).map(g=>[g.name, g.id]));
+      for(const gName of selected){
+        const gid = nameToId.get(gName);
+        if(!gid) continue;
+        for(const s of (categoryMaster.subsByGroupId.get(gid) || [])){
+          allSubs.push(s.name);
+        }
+      }
+    }
+    return [...new Set(allSubs)].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
   }
 
   // hint text
@@ -2676,7 +2922,7 @@ function switchTab(tab){
     const on = b.dataset.tab === tab;
     b.dataset.active = on ? "true" : "false";
   }
-  for(const sec of ["dash","edit","bulk","all"]){
+  for(const sec of ["dash","edit","all","cat"]){
     byId(`tab-${sec}`).classList.toggle("hidden", sec !== tab);
   }
 }
@@ -2702,12 +2948,10 @@ document.addEventListener("click", (e)=>{
  * ========================= */
 async function refreshEverything(){
   await loadMembers();
+  // category master (대분류>소분류>상세항목)
+  try{ await loadCategoryMaster(); }catch(e){ /* ignore; RLS may block until policies are set */ }
   await loadEntries();
   await refreshDashboard();
-
-  // category master (대분류>소분류>상세항목)
-  await loadCategoryMaster();
-
   await refreshMatrix();
 }
 
@@ -2742,7 +2986,8 @@ async function refreshUI(){
   // ✅ 승인 여부 분기
   byId("pendingBox").classList.add("hidden");
   try{
-    await ensureDefaultLedger(); // 승인 전이면 PENDING_APPROVAL throw
+    await ensureDefaultLedger();
+  await loadMyMembership(); // 승인 전이면 PENDING_APPROVAL throw
   }catch(e){
     if((e?.message || "") === "PENDING_APPROVAL"){
       byId("pendingBox").classList.remove("hidden");
@@ -2986,6 +3231,80 @@ byId("btnRenameClear").addEventListener("click", ()=>{
       }
     });
 
+
+
+    // category admin
+    const safeBind = (id, fn)=>{
+      const el = byId(id);
+      if(el) el.addEventListener("click", fn);
+    };
+
+    safeBind("btnCatReload", async ()=>{ try{ setError(""); setStatus("카테고리 새로고침..."); await refreshCategoryAdmin(); setStatus("준비 완료!"); }catch(e){ setError(e.message); setStatus(""); } });
+
+    safeBind("btnAddGroup", async ()=>{
+      try{
+        requireOwner();
+        const name = (byId("catNewGroup").value||"").trim();
+        if(!name) throw new Error("대분류 이름을 입력해줘");
+        await apiFetch("/rest/v1/category_groups", { method:"POST", body:{ ledger_id: currentLedgerId, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        byId("catNewGroup").value = "";
+        await refreshCategoryAdmin();
+      }catch(e){ setError(e.message); }
+    });
+
+    safeBind("btnAddSub", async ()=>{
+      try{
+        requireOwner();
+        const group_id = byId("catPickGroup").value;
+        const name = (byId("catNewSub").value||"").trim();
+        if(!group_id) throw new Error("대분류를 선택해줘");
+        if(!name) throw new Error("소분류 이름을 입력해줘");
+        await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, group_id, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        byId("catNewSub").value = "";
+        await refreshCategoryAdmin();
+      }catch(e){ setError(e.message); }
+    });
+
+    safeBind("btnAddDetail", async ()=>{
+      try{
+        requireOwner();
+        const subcategory_id = byId("catPickSub").value;
+        const name = (byId("catNewDetail").value||"").trim();
+        const example_note = (byId("catNewExample").value||"").trim();
+        if(!subcategory_id) throw new Error("소분류를 선택해줘");
+        if(!name) throw new Error("상세항목 이름을 입력해줘");
+        await apiFetch("/rest/v1/detail_items", { method:"POST", body:{ ledger_id: currentLedgerId, subcategory_id, name, example_note, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        byId("catNewDetail").value = "";
+        byId("catNewExample").value = "";
+        await refreshCategoryAdmin();
+      }catch(e){ setError(e.message); }
+    });
+
+    byId("catPickGroup")?.addEventListener("change", ()=> renderCategoryAdmin());
+    byId("catPickSub")?.addEventListener("change", ()=> renderCategoryAdmin());
+
+    // list actions (sort / deactivate)
+    byId("tab-cat")?.addEventListener("click", async (e)=>{
+      const b = e.target.closest("button[data-act]");
+      if(!b) return;
+      try{
+        const act = b.dataset.act;
+        const id = b.dataset.id;
+        if(act === "g-up") await bumpSort("category_groups", id, "up");
+        if(act === "g-down") await bumpSort("category_groups", id, "down");
+        if(act === "g-off") await deactivateRow("category_groups", id);
+
+        if(act === "s-up") await bumpSort("subcategories", id, "up");
+        if(act === "s-down") await bumpSort("subcategories", id, "down");
+        if(act === "s-off") await deactivateRow("subcategories", id);
+
+        if(act === "d-up") await bumpSort("detail_items", id, "up");
+        if(act === "d-down") await bumpSort("detail_items", id, "down");
+        if(act === "d-off") await deactivateRow("detail_items", id);
+
+        await refreshCategoryAdmin();
+      }catch(err){ setError(err.message); }
+    });
 
     // sync across tabs
     window.addEventListener("storage", async (e)=>{
