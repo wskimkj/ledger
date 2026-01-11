@@ -2646,8 +2646,7 @@ async function refreshUI(){
 
   byId("whoPill").textContent = `로그인: ${session.user.email}`;
 
-  // show owner badge if applicable
-  await refreshOwnerRequestBadge();
+  // show owner badge if applicable (after ledger access)
 
   // defaults
   if(!byId("filterFrom").value) byId("filterFrom").value = DEFAULT_START_DATE;
@@ -2672,6 +2671,9 @@ async function refreshUI(){
 
   // ✅ 승인된 경우에만 앱 로딩
   byId("appWrap").classList.remove("hidden");
+
+  // owner badge refresh (guarded)
+  try{ await refreshOwnerRequestBadge(); }catch(_){ /* ignore for non-owner / RLS */ }
   setStatus("데이터 로딩 중...");
   await refreshEverything();
   setStatus("준비 완료!");
