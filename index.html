@@ -140,6 +140,11 @@
       </div>
       <div class="flex items-center gap-2">
         <div id="whoPill" class="pill rounded-full px-3 py-2 text-sm text-white/80 hidden"></div>
+
+        <button id="btnRequests" class="btn rounded-xl px-3 py-2 text-sm hidden relative" title="승인 요청">
+          <i class="fa-regular fa-bell"></i>
+          <span id="reqBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
+        </button>
         <button id="btnLogout" class="btn btn-danger rounded-xl px-4 py-2 text-sm hidden">
           <i class="fa-solid fa-right-from-bracket mr-2"></i>로그아웃
         </button>
@@ -577,6 +582,36 @@
     </div>
   </div>
 
+
+  <!-- Owner Requests Modal -->
+  <div id="reqModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative max-w-2xl mx-auto mt-16 px-4">
+      <div class="glass rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-semibold"><i class="fa-solid fa-user-check mr-2"></i>승인 요청</div>
+            <div class="text-xs text-white/60 mt-1">요청을 승인하면 해당 계정이 장부에 प्रवेश할 수 있어.</div>
+          </div>
+          <button id="btnReqModalClose" class="btn rounded-xl px-3 py-2 text-sm">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="mt-3 glass2 rounded-2xl p-3">
+          <div id="reqList" class="space-y-2"></div>
+          <div id="reqEmpty" class="text-sm text-white/70 hidden">대기 중인 요청이 없어.</div>
+        </div>
+
+        <div class="mt-3 flex gap-2">
+          <button id="btnReqRefresh" class="btn rounded-xl px-4 py-2 text-sm w-full">
+            <i class="fa-solid fa-rotate mr-2"></i>새로고침
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 /** =========================
  * 0) Project config
@@ -669,6 +704,199 @@ async function apiFetch(path, { method="GET", query=null, body=null, auth=true, 
     throw new Error(msg || `HTTP ${res.status}`);
   }
   return data;
+}
+
+/** =========================
+ * 0.5) Approval Requests (Owner badge + modal)
+ * ========================= */
+async function fetchPendingRequests(){
+  // Owner only (RLS). If not owner, this will error or return empty based on policies.
+  return await apiFetch("/rest/v1/ledger_access_requests", {
+    query:{
+      select:"id,requester_user_id,status,created_at",
+      ledger_id:`eq.${MAIN_LEDGER_ID}`,
+      status:"eq.pending",
+      order:"created_at.asc",
+      limit:"200"
+    }
+  });
+}
+
+function shortId(id){
+  const s = String(id||"");
+  if(s.length <= 12) return s;
+  return s.slice(0,6) + "..." + s.slice(-4);
+}
+
+function fmtKST(iso){
+  try{
+    const d = new Date(iso);
+    return d.toLocaleString("ko-KR");
+  }catch(_){
+    return String(iso||"");
+  }
+}
+
+async function refreshOwnerRequestBadge(){
+  // Only when logged in
+  const authed = !!(session?.access_token && session?.user?.id);
+  if(!authed){
+    byId("btnRequests")?.classList.add("hidden");
+    byId("reqBadge")?.classList.add("hidden");
+    return;
+  }
+
+  try{
+    const list = await fetchPendingRequests();
+
+    // If we can read this table with ledger filter, we treat user as owner
+    byId("btnRequests")?.classList.remove("hidden");
+
+    const n = (list||[]).length;
+    const badge = byId("reqBadge");
+    if(badge){
+      badge.textContent = String(n);
+      badge.classList.toggle("hidden", n <= 0);
+    }
+  }catch(e){
+    // Not owner (or policies not ready) → hide icon entirely
+    byId("btnRequests")?.classList.add("hidden");
+    byId("reqBadge")?.classList.add("hidden");
+  }
+}
+
+function openReqModal(){
+  byId("reqModal")?.classList.remove("hidden");
+}
+
+function closeReqModal(){
+  byId("reqModal")?.classList.add("hidden");
+}
+
+function renderReqList(list){
+  const wrap = byId("reqList");
+  const empty = byId("reqEmpty");
+  if(!wrap) return;
+
+  wrap.innerHTML = "";
+  const arr = list || [];
+
+  if(empty) empty.classList.toggle("hidden", arr.length !== 0);
+
+  for(const r of arr){
+    const row = document.createElement("div");
+    row.className = "glass rounded-2xl p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2";
+
+    row.innerHTML = `
+      <div class="min-w-0">
+        <div class="text-sm font-semibold text-white/80">요청자: <span class="font-mono">${escapeHtml(shortId(r.requester_user_id))}</span></div>
+        <div class="text-xs text-white/60 mt-1">요청 시각: ${escapeHtml(fmtKST(r.created_at))}</div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button class="btn btn-primary rounded-xl px-3 py-2 text-sm" data-act="approve">
+          <i class="fa-solid fa-check mr-2"></i>승인
+        </button>
+        <button class="btn btn-danger rounded-xl px-3 py-2 text-sm" data-act="reject">
+          <i class="fa-solid fa-xmark mr-2"></i>거절
+        </button>
+      </div>
+    `;
+
+    row.querySelector('[data-act="approve"]').addEventListener("click", async ()=>{
+      await handleApproveRequest(r);
+    });
+    row.querySelector('[data-act="reject"]').addEventListener("click", async ()=>{
+      await handleRejectRequest(r);
+    });
+
+    wrap.appendChild(row);
+  }
+}
+
+async function loadReqModal(){
+  setError("");
+  setStatus("");
+
+  try{
+    setStatus("승인 요청 불러오는 중...");
+    const list = await fetchPendingRequests();
+    renderReqList(list);
+    setStatus("");
+  }catch(e){
+    setStatus("");
+    setError(e?.message || String(e));
+  }
+}
+
+async function handleApproveRequest(req){
+  try{
+    setError("");
+    setStatus("승인 처리 중...");
+
+    // 1) Prefer RPC if exists (recommended)
+    try{
+      await apiFetch("/rest/v1/rpc/approve_ledger_request", {
+        method:"POST",
+        auth:true,
+        preferReturn:false,
+        body:{ p_request_id: req.id }
+      });
+    }catch(rpcErr){
+      // 2) Fallback: update request + insert member (requires RLS policies)
+      await apiFetch("/rest/v1/ledger_access_requests", {
+        method:"PATCH",
+        preferReturn:false,
+        query:{ id:`eq.${req.id}` },
+        body:{
+          status:"approved",
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: session.user.id
+        }
+      });
+
+      await apiFetch("/rest/v1/ledger_members", {
+        method:"POST",
+        preferReturn:false,
+        body:{
+          ledger_id: MAIN_LEDGER_ID,
+          user_id: req.requester_user_id,
+          role: "member"
+        }
+      });
+    }
+
+    setStatus("승인 완료!");
+    await refreshOwnerRequestBadge();
+    await loadReqModal();
+  }catch(e){
+    setStatus("");
+    setError(e?.message || String(e));
+  }
+}
+
+async function handleRejectRequest(req){
+  try{
+    setError("");
+    setStatus("거절 처리 중...");
+
+    await apiFetch("/rest/v1/ledger_access_requests", {
+      method:"PATCH",
+      preferReturn:false,
+      query:{ id:`eq.${req.id}` },
+      body:{
+        status:"rejected",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: session.user.id
+      }
+    });
+
+    setStatus("거절 완료!");
+    await refreshOwnerRequestBadge();
+    await loadReqModal();
+  }catch(e){
+    setStatus("");
+    setError(e?.message || String(e));
+  }
 }
 
 /** =========================
@@ -2052,6 +2280,9 @@ async function refreshUI(){
 
   byId("whoPill").textContent = `로그인: ${session.user.email}`;
 
+  // show owner badge if applicable
+  await refreshOwnerRequestBadge();
+
   // defaults
   if(!byId("filterFrom").value) byId("filterFrom").value = DEFAULT_START_DATE;
   if(!byId("filterTo").value) byId("filterTo").value = todayISO();
@@ -2134,6 +2365,21 @@ window.addEventListener("DOMContentLoaded", async ()=>{
       await logout();
       await refreshUI();
     });
+
+    // owner approval requests (bell badge + modal)
+    byId("btnRequests")?.addEventListener("click", async ()=>{
+      openReqModal();
+      await loadReqModal();
+    });
+    byId("btnReqModalClose")?.addEventListener("click", ()=> closeReqModal());
+    byId("btnReqRefresh")?.addEventListener("click", async ()=>{ await loadReqModal(); });
+
+    // click outside modal content closes
+    byId("reqModal")?.addEventListener("click", (e)=>{
+      if(e.target?.id === "reqModal") closeReqModal();
+    });
+    // close when clicking backdrop
+    document.querySelector("#reqModal > div")?.addEventListener("click", ()=> closeReqModal());
 
     // edit form
     byId("entryForm").addEventListener("submit", async (e)=>{
@@ -2294,6 +2540,9 @@ byId("btnRenameClear").addEventListener("click", ()=>{
     });
 
     await refreshUI();
+
+    // periodically refresh owner request badge (owner only)
+    setInterval(()=>{ refreshOwnerRequestBadge(); }, 20000);
   }catch(e){
     console.error(e);
     setError(e?.message || String(e));
