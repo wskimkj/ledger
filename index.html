@@ -1488,7 +1488,9 @@ function refreshBatchRenameDropdowns(){
 function detailItemIdFromSelections(groupName, subName, detailName){
   const g = (groupName||"").trim();
   const s = (subName||"").trim();
-  const d = (detail
+  const d = (detailName||"").trim();
+  return detailKeyToId.get(`${g}||${s}||${d}`) || null;
+}
 
 function updateDetailExampleHint(){
   const gName = (byId("category")?.value || "").trim();
@@ -1509,9 +1511,6 @@ function updateDetailExampleHint(){
     hintEl.textContent = "";
     noteEl.placeholder = "선택";
   }
-}
-Name||"").trim();
-  return detailKeyToId.get(`${g}||${s}||${d}`) || null;
 }
 /** =========================
  * 4) Entries CRUD
