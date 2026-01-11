@@ -15,6 +15,7 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
   <!-- xlsx -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -314,6 +315,7 @@
               <div class="mt-3 h-[260px]">
                 <canvas id="chartFlowShare"></canvas>
               </div>
+              <div id="flowShareText" class="text-xs text-black/60 mt-2"></div>
             </div>
 
             <div class="glass rounded-2xl p-4 md:col-span-2">
@@ -372,14 +374,14 @@
               </div>
 
               <div>
-                <div class="text-xs text-white/60 mb-1">대분류</div>
-                <input id="category" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="예: 식비" />
-              </div>
+          <div class="text-xs text-white/60 mb-1">대분류</div>
+          <select id="category" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+        </div>
 
-              <div>
-                <div class="text-xs text-white/60 mb-1">소분류</div>
-                <input id="subcategory" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="예: 외식" />
-              </div>
+        <div>
+          <div class="text-xs text-white/60 mb-1">소분류</div>
+          <select id="subcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+        </div>
 
               <div>
                 <div class="text-xs text-white/60 mb-1">설명/상세</div>
@@ -410,18 +412,18 @@
     <div class="glass rounded-2xl p-3">
       <div class="text-xs font-semibold text-black/70 mb-2">기존값(찾을 조건)</div>
       <div class="space-y-2">
-        <input id="renameOldCategory" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="기존 대분류 (예: 식비)" />
-        <input id="renameOldSubcategory" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="기존 소분류 (예: 외식)" />
-        <input id="renameOldDetail" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="기존 설명 (예: 점심)" />
+        <select id="renameOldCategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+        <select id="renameOldSubcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+        <select id="renameOldDetail" class="w-full rounded-xl px-3 py-2 text-sm"></select>
       </div>
     </div>
 
     <div class="glass rounded-2xl p-3">
       <div class="text-xs font-semibold text-black/70 mb-2">변경값(바꿀 값)</div>
       <div class="space-y-2">
-        <input id="renameNewCategory" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="새 대분류 (예: 식비)" />
-        <input id="renameNewSubcategory" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="새 소분류 (예: 외식/배달)" />
-        <input id="renameNewDetail" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="새 설명 (예: 점심/저녁)" />
+        <select id="renameNewCategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+        <select id="renameNewSubcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+        <select id="renameNewDetail" class="w-full rounded-xl px-3 py-2 text-sm"></select>
       </div>
     </div>
   </div>
@@ -489,11 +491,11 @@
             <div class="text-xs text-white/60 mt-3">총 <span id="count">0</span></div>
           </div>
         </div>
-      </section>
+      
 
-      <!-- BULK -->
-      <section id="tab-bulk" class="mt-4 hidden">
-        <div class="glass rounded-2xl p-4">
+      <!-- BULK (moved into EDIT) -->
+      <div id="editBulkWrap" class="mt-6">
+<div class="glass rounded-2xl p-4">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <div class="text-sm font-semibold">대량 업로드</div>
@@ -533,6 +535,22 @@
                 <li>대분류가 <b>수입</b>이면 flow=income, <b>금융·저축/저축</b>이면 flow=saving, 그 외 expense</li>
               </ul>
             </div>
+          </div>
+        </div>
+      </div>
+</section>
+
+      <!-- BULK -->
+      <section id="tab-bulk" class="mt-4 hidden">
+        <div class="glass rounded-2xl p-4">
+          <div class="text-sm font-semibold">대량 업로드</div>
+          <div class="text-xs text-black/60 mt-1">
+            대량 업로드 기능은 <b>기록/수정</b> 탭 안으로 이동했어.
+          </div>
+          <div class="mt-3">
+            <button id="btnGoEditBulk" class="btn btn-primary rounded-xl px-4 py-2 text-sm">
+              <i class="fa-solid fa-arrow-right mr-2"></i>기록/수정 탭에서 열기
+            </button>
           </div>
         </div>
       </section>
@@ -1002,6 +1020,150 @@ async function loadMembers(){
   filterMember.value = prev;
 }
 
+
+/** =========================
+ * 3.5) Category/Subcategory dropdown sources (edit + batch rename)
+ *    - sources: entry_templates(active) + existing entries(dashRowsCache)
+ * ========================= */
+let catToSubsMap = new Map();               // category -> Set(subcategory)
+let catSubToDetailsMap = new Map();         // category||subcategory -> Set(detail)
+
+function mapAddSet(map, key, val){
+  if(!key) return;
+  if(!map.has(key)) map.set(key, new Set());
+  if(val !== undefined && val !== null && String(val).trim() !== ""){
+    map.get(key).add(String(val).trim());
+  }
+}
+
+async function rebuildCategoryMaps(){
+  catToSubsMap = new Map();
+  catSubToDetailsMap = new Map();
+
+  // 1) existing entries cache
+  for(const r of (dashRowsCache || [])){
+    const c = (r.category||"").trim();
+    const s = (r.subcategory||"").trim();
+    const d = (r.detail||"").trim();
+    if(c){
+      mapAddSet(catToSubsMap, c, s);
+      mapAddSet(catSubToDetailsMap, `${c}||${s}`, d);
+    }
+  }
+
+  // 2) templates(active)
+  try{
+    const templates = await fetchActiveTemplates();
+    for(const r of (templates || [])){
+      const c = (r.category||"").trim();
+      const s = (r.subcategory||"").trim();
+      const d = (r.detail||"").trim();
+      if(c){
+        mapAddSet(catToSubsMap, c, s);
+        mapAddSet(catSubToDetailsMap, `${c}||${s}`, d);
+      }
+    }
+  }catch(_){}
+}
+
+function fillSelectOptions(sel, items, { includeBlank=true, blankLabel="(선택)" } = {}){
+  if(!sel) return;
+  const prev = sel.value || "";
+  sel.innerHTML = "";
+  if(includeBlank){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = blankLabel;
+    sel.appendChild(opt);
+  }
+  for(const it of items){
+    const opt = document.createElement("option");
+    opt.value = it;
+    opt.textContent = it;
+    sel.appendChild(opt);
+  }
+  // restore if possible
+  sel.value = items.includes(prev) ? prev : "";
+}
+
+function getAllSubcategoriesSorted(){
+  const set = new Set();
+  for(const subs of catToSubsMap.values()){
+    for(const s of subs) if(s) set.add(s);
+  }
+  return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
+}
+
+function refreshEntryFormCategoryDropdowns(){
+  const selC = byId("category");
+  const selS = byId("subcategory");
+  if(!selC || !selS) return;
+
+  const cats = [...catToSubsMap.keys()].sort((a,b)=>a.localeCompare(b,"ko"));
+  fillSelectOptions(selC, cats, { includeBlank:true, blankLabel:"(대분류 선택)" });
+
+  const applySubs = ()=>{
+    const c = (selC.value||"").trim();
+    const subs = c ? [...(catToSubsMap.get(c) || new Set())] : getAllSubcategoriesSorted();
+    const arr = subs.filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
+    fillSelectOptions(selS, arr, { includeBlank:true, blankLabel:"(소분류 선택)" });
+  };
+
+  selC.addEventListener("change", ()=>{ applySubs(); });
+  applySubs();
+}
+
+function refreshRenameDropdowns(){
+  const oldC = byId("renameOldCategory");
+  const oldS = byId("renameOldSubcategory");
+  const oldD = byId("renameOldDetail");
+  const newC = byId("renameNewCategory");
+  const newS = byId("renameNewSubcategory");
+  const newD = byId("renameNewDetail");
+  if(!oldC || !oldS || !oldD || !newC || !newS || !newD) return;
+
+  const cats = [...catToSubsMap.keys()].sort((a,b)=>a.localeCompare(b,"ko"));
+  fillSelectOptions(oldC, cats, { includeBlank:true, blankLabel:"(조건 없음)" });
+  fillSelectOptions(newC, cats, { includeBlank:true, blankLabel:"(변경 안 함)" });
+
+  const fillSubs = (c, sel, blankLabel)=>{
+    const subs = c ? [...(catToSubsMap.get(c) || new Set())] : getAllSubcategoriesSorted();
+    const arr = subs.filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
+    fillSelectOptions(sel, arr, { includeBlank:true, blankLabel });
+  };
+
+  const fillDetails = (c, s, sel, blankLabel)=>{
+    const key = `${c}||${s}`;
+    const set = catSubToDetailsMap.get(key) || new Set();
+    const arr = [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
+    fillSelectOptions(sel, arr, { includeBlank:true, blankLabel });
+  };
+
+  const applyOld = ()=>{
+    const c = (oldC.value||"").trim();
+    const s = (oldS.value||"").trim();
+    fillSubs(c, oldS, "(조건 없음)");
+    fillDetails(c||"", s||"", oldD, "(조건 없음)");
+  };
+
+  const applyNew = ()=>{
+    const c = (newC.value||"").trim();
+    const s = (newS.value||"").trim();
+    fillSubs(c, newS, "(변경 안 함)");
+    fillDetails(c||"", s||"", newD, "(변경 안 함)");
+  };
+
+  oldC.addEventListener("change", applyOld);
+  oldS.addEventListener("change", applyOld);
+  newC.addEventListener("change", applyNew);
+  newS.addEventListener("change", applyNew);
+
+  // initial
+  applyOld();
+  applyNew();
+}
+
+
 /** =========================
  * 4) Entries CRUD
  * ========================= */
@@ -1095,8 +1257,15 @@ function startEdit(r){
   byId("amount").value = r.amount;
   byId("detail").value = r.detail || "";
   byId("memo").value = r.memo || "";
-  byId("category").value = r.category || "";
-  byId("subcategory").value = r.subcategory || "";
+
+  // dropdowns: category -> subcategory
+  const cat = r.category || "";
+  const sub = r.subcategory || "";
+  byId("category").value = cat;
+  // trigger subcategory refresh
+  try{ byId("category").dispatchEvent(new Event("change")); }catch(_){}
+  byId("subcategory").value = sub;
+
   byId("memberSelect").value = r.member_id;
   byId("btnSubmit").textContent = "수정 저장";
   byId("btnCancelEdit").classList.remove("hidden");
@@ -1885,6 +2054,12 @@ let chartMonthly = null;
 let chartFlowShare = null;
 let chartMonthlyStack = null;
 
+// Chart.js datalabels
+if (window.ChartDataLabels) {
+  Chart.register(ChartDataLabels);
+}
+
+
 let dashRowsCache = [];
 const dashState = {
   members: new Set(),
@@ -2017,13 +2192,33 @@ function renderDashButtons(){
     }));
   }
 
-  const subs = [...new Set(dashRowsCache.map(r=>(r.subcategory||"").trim()))].filter(Boolean).sort();
+  // subcategories: 선택된 대분류(전체 제외)에 속하는 소분류만 노출
   const wrapS = byId("dashBtnsSubcategory");
   wrapS.innerHTML = "";
   wrapS.appendChild(mkBtn("전체", {
     active: dashState.subcategories.size === 0,
     onClick: ()=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
+
+  const allowedSubs = new Set();
+  const catsSelected = dashState.categories.size > 0;
+
+  for(const r of dashRowsCache){
+    const c = (r.category||"").trim();
+    const s = (r.subcategory||"").trim();
+    if(!s) continue;
+    if(catsSelected && !dashState.categories.has(c)) continue; // 대분류 선택 시 해당 대분류의 소분류만
+    allowedSubs.add(s);
+  }
+
+  // 대분류 선택이 바뀌면, 현재 선택된 소분류가 범위 밖이면 자동 해제(숨은 필터 방지)
+  if(catsSelected){
+    for(const s of [...dashState.subcategories]){
+      if(!allowedSubs.has(s)) dashState.subcategories.delete(s);
+    }
+  }
+
+  const subs = [...allowedSubs].sort((a,b)=>a.localeCompare(b,"ko"));
   for(const s of subs){
     const active = dashState.subcategories.has(s);
     wrapS.appendChild(mkBtn(s, {
@@ -2105,11 +2300,12 @@ function computeCategoryExpense(rows, pred){
 }
 
 function computeTop10(rows, pred){
+  // 지출 Top10: 소분류 기준 합산
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
     if(r.flow_type !== "expense") continue;
-    const k = (r.subcategory || "미분류") + (r.detail ? ` · ${r.detail}` : "");
+    const k = (r.subcategory || "미분류").trim() || "미분류";
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
@@ -2147,7 +2343,7 @@ function refreshDashboardFromCache(){
     data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals }] },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
@@ -2155,8 +2351,8 @@ function refreshDashboardFromCache(){
 
   // Top10
   const topArr = computeTop10(dashRowsCache, pred);
-  const topLabels = topArr.map(x=>x[0]).reverse();
-  const topVals = topArr.map(x=>x[1]).reverse();
+  const topLabels = topArr.map(x=>x[0]);
+  const topVals = topArr.map(x=>x[1]);
   if(chartTop10) chartTop10.destroy();
   chartTop10 = new Chart(byId("chartTop10"), {
     type:"bar",
@@ -2164,7 +2360,7 @@ function refreshDashboardFromCache(){
     options:{
       indexAxis:"y",
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
@@ -2185,7 +2381,7 @@ function refreshDashboardFromCache(){
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
+      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } }, datalabels:{ align:"top", anchor:"end", formatter:(v,ctx)=>{ const last = ctx.dataset.data.length-1; return (ctx.dataIndex===last && v)?fmt(v):""; } } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
@@ -2201,10 +2397,21 @@ function refreshDashboardFromCache(){
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
-        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.label}: ${fmt(ctx.raw)} 원` } }
+        tooltip:{ callbacks:{ label:(ctx)=> { const total = ctx.dataset.data.reduce((a,b)=>a+Number(b||0),0)||1; const pct = Math.round((Number(ctx.raw||0)/total)*100); return `${ctx.label}: ${fmt(ctx.raw)} 원 (${pct}%)`; } } },
+        datalabels:{ formatter:(v,ctx)=>{ const data = ctx.chart.data.datasets[0].data; const total = data.reduce((a,b)=>a+Number(b||0),0)||1; const pct = Math.round((Number(v||0)/total)*100); return pct?`${pct}%`:""; } }
       }
     }
   });
+
+  // percentages text
+  try{
+    const total = (share.e + share.i + share.s) || 1;
+    const expPct = Math.round((share.e/total)*100);
+    const savPct = Math.round((share.s/total)*100);
+    const expSavPct = Math.round(((share.e+share.s)/total)*100);
+    const el = byId("flowShareText");
+    if(el) el.textContent = `지출 ${expPct}% · 저축 ${savPct}% · (지출+저축) ${expSavPct}%`;
+  }catch(_){}
 
   // Monthly stacked bar
   if(chartMonthlyStack) chartMonthlyStack.destroy();
@@ -2217,7 +2424,7 @@ function refreshDashboardFromCache(){
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
+      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } }, datalabels:{ align:"top", anchor:"end", formatter:(v,ctx)=>{ const last = ctx.dataset.data.length-1; return (ctx.dataIndex===last && v)?fmt(v):""; } } },
       scales:{
         x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
         y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
@@ -2248,7 +2455,17 @@ function switchTab(tab){
 document.addEventListener("click", (e)=>{
   const btn = e.target.closest(".tab-btn");
   if(!btn) return;
-  switchTab(btn.dataset.tab);
+
+  const tab = btn.dataset.tab;
+  if(tab === "bulk"){
+    // bulk UI lives inside edit tab
+    switchTab("edit");
+    const el = byId("editBulkWrap");
+    if(el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+    return;
+  }
+
+  switchTab(tab);
 });
 
 /** =========================
@@ -2258,6 +2475,12 @@ async function refreshEverything(){
   await loadMembers();
   await loadEntries();
   await refreshDashboard();
+
+  // dropdown sources (edit + batch rename)
+  await rebuildCategoryMaps();
+  refreshEntryFormCategoryDropdowns();
+  refreshRenameDropdowns();
+
   await refreshMatrix();
 }
 
@@ -2444,6 +2667,14 @@ window.addEventListener("DOMContentLoaded", async ()=>{
       }
     });
 
+
+    // bulk placeholder button
+    byId("btnGoEditBulk")?.addEventListener("click", ()=>{
+      switchTab("edit");
+      const el = byId("editBulkWrap");
+      if(el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+    });
+
     // matrix tab (월별 매트릭스)
     byId("btnMxReload").addEventListener("click", async ()=>{
       try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); setStatus(""); }
@@ -2462,14 +2693,15 @@ byId("btnRenameApply").addEventListener("click", async ()=>{
 
 byId("btnRenameClear").addEventListener("click", ()=>{
   byId("renameOldCategory").value = "";
+  byId("renameNewCategory").value = "";
+  try{ byId("renameOldCategory").dispatchEvent(new Event("change")); }catch(_){}
+  try{ byId("renameNewCategory").dispatchEvent(new Event("change")); }catch(_){}
   byId("renameOldSubcategory").value = "";
   byId("renameOldDetail").value = "";
-  byId("renameNewCategory").value = "";
   byId("renameNewSubcategory").value = "";
   byId("renameNewDetail").value = "";
   byId("renameHint").textContent = "";
 });
-
 
     // pending approval UI
     byId("btnPendingRefresh")?.addEventListener("click", async ()=>{
