@@ -467,7 +467,8 @@ thead{ background: rgba(255,255,255,.86) !important; }
 
               <div>
                 <div class="text-xs text-white/60 mb-1">설명(선택)</div>
-                <input id="detailNote" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="선택 (예: 점심/저녁)" />
+                <input id="detailNote" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="선택" />
+                <div id="detailExampleHint" class="text-xs text-black/60 mt-1"></div>
               </div>
 
               <div>
@@ -1433,12 +1434,14 @@ function refreshEntryFormCategoryDropdowns(){
     const s = (selS.value||"").trim();
     const ds = s ? [...(subToDetailsMap.get(s) || new Set())] : getAllDetailsSorted();
     fillSelectOptions(selD, ds.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(상세항목 선택)" });
+    updateDetailExampleHint();
   };
 
   // bind once
   if(!selG.dataset.bound){
     selG.addEventListener("change", applySubs);
     selS.addEventListener("change", applyDetails);
+    selD.addEventListener("change", updateDetailExampleHint);
     selG.dataset.bound = "1";
   }
 
@@ -1485,7 +1488,29 @@ function refreshBatchRenameDropdowns(){
 function detailItemIdFromSelections(groupName, subName, detailName){
   const g = (groupName||"").trim();
   const s = (subName||"").trim();
-  const d = (detailName||"").trim();
+  const d = (detail
+
+function updateDetailExampleHint(){
+  const gName = (byId("category")?.value || "").trim();
+  const sName = (byId("subcategory")?.value || "").trim();
+  const dName = (byId("detail")?.value || "").trim();
+  const hintEl = byId("detailExampleHint");
+  const noteEl = byId("detailNote");
+  if(!hintEl || !noteEl) return;
+
+  const id = detailItemIdFromSelections(gName, sName, dName);
+  const it = id ? detailItemById.get(id) : null;
+  const ex = (it?.example_note || "").trim();
+
+  if(ex){
+    hintEl.textContent = `예시: ${ex}`;
+    noteEl.placeholder = ex;
+  }else{
+    hintEl.textContent = "";
+    noteEl.placeholder = "선택";
+  }
+}
+Name||"").trim();
   return detailKeyToId.get(`${g}||${s}||${d}`) || null;
 }
 /** =========================
@@ -2119,42 +2144,56 @@ async function downloadMonthlyTemplate(){
   }
   setError("");
 
-  // masterDetailItems는 refreshEverything에서 로딩되지만, 안전하게 한 번 더 보장
-  if(!masterDetailItems?.length){
-    await loadCategoryMaster();
-  }
+  // ✅ 마스터 카테고리 기준으로 템플릿 생성
+  setStatus("카테고리 마스터 불러오는 중...");
+  await loadCategoryMaster();
 
-  const rowsMaster = masterDetailItems
-    .map(x=>({
-      group: x.subcategory?.group?.name || "",
-      sub: x.subcategory?.name || "",
-      detail: x.name || "",
-      example: x.example_note || ""
-    }))
-    .filter(x=>x.group && x.sub && x.detail);
+  const ym = ymFromInput() || new Date().toISOString().slice(0,7);
 
-  if(!rowsMaster.length){
-    setError("활성화된 상세항목이 없어. (detail_items.is_active=true 확인)");
+  // 정렬: (대분류 sort/name) -> (소분류 sort/name) -> (상세 sort/name)
+  const groupsSorted = [...masterGroups].sort((a,b)=> (a.sort_order??9999)-(b.sort_order??9999) || String(a.name).localeCompare(String(b.name),"ko"));
+  const groupOrder = new Map(groupsSorted.map((g,i)=>[g.id,i]));
+
+  const subsSorted = [...masterSubcategories].sort((a,b)=> (a.sort_order??9999)-(b.sort_order??9999) || String(a.name).localeCompare(String(b.name),"ko"));
+  const subOrder = new Map(subsSorted.map((s,i)=>[s.id,i]));
+
+  const items = [...masterDetailItems].sort((a,b)=>{
+    const ga = a.subcategory?.group?.id ? (groupOrder.get(a.subcategory.group.id) ?? 99999) : 99999;
+    const gb = b.subcategory?.group?.id ? (groupOrder.get(b.subcategory.group.id) ?? 99999) : 99999;
+    if(ga !== gb) return ga-gb;
+    const sa = a.subcategory?.id ? (subOrder.get(a.subcategory.id) ?? 99999) : 99999;
+    const sb = b.subcategory?.id ? (subOrder.get(b.subcategory.id) ?? 99999) : 99999;
+    if(sa !== sb) return sa-sb;
+    const da = (a.sort_order ?? 9999) - (b.sort_order ?? 9999);
+    if(da !== 0) return da;
+    return String(a.name||"").localeCompare(String(b.name||""),"ko");
+  });
+
+  if(!items.length){
+    setError("카테고리 마스터(detail_items)가 비어 있어. 카테고리 관리 탭에서 먼저 추가해줘.");
+    setStatus("");
     return;
   }
 
-  const ym = ymFromInput() || new Date().toISOString().slice(0,7);
   const sheetRows = [];
-  sheetRows.push(["사용법: '날짜'는 가능하면 YYYY-MM-DD로 입력. 금액 공란은 스킵(기존 값 유지)."]);
-  sheetRows.push(["날짜","대분류","소분류","상세항목","설명(예시)","돌프","천사","공통"]);
+  sheetRows.push(["사용법: '날짜'는 YYYY-MM-DD 권장. 금액 공란은 스킵(기존 값 유지)."]);
+  sheetRows.push(["날짜","대분류","소분류","상세항목","설명예시","돌프","천사","공통"]);
 
-  for(const r of rowsMaster){
-    sheetRows.push(["", r.group, r.sub, r.detail, r.example || "", "", "", ""]);
+  for(const it of items){
+    const gName = it.subcategory?.group?.name || "";
+    const sName = it.subcategory?.name || "";
+    sheetRows.push(["", gName, sName, it.name||"", it.example_note||"", "", "", ""]);
   }
 
   const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:22},{wch:28},{wch:12},{wch:12},{wch:12}];
+  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:18},{wch:34},{wch:12},{wch:12},{wch:12}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "기록");
 
   const fname = `record_template_${ym.replace("-","")}.xlsx`;
   XLSX.writeFile(wb, fname);
+  setStatus("템플릿 다운로드 완료!");
 }
 
 
