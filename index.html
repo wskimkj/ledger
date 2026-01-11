@@ -19,6 +19,12 @@
 
   <!-- xlsx -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  // CDN이 막힌 환경 대비: 같은 폴더에 xlsx.full.min.js가 있으면 그걸 로드
+  if(!window.XLSX){
+    document.write('<script src="./xlsx.full.min.js"><\/script>');
+  }
+</script>
 
     <style>
 /* Vivid Candy × Cute-but-Clean (Desktop-first) */
@@ -1304,7 +1310,11 @@ async function loadCategoryMaster(){
       };
     });
 
-  // fast maps
+  // fast maps (attach group/sub name for quick dashboard mapping)
+  for(const d of masterDetailItems){
+    d.sub_name = d?.subcategory?.name || "";
+    d.group_name = d?.subcategory?.group?.name || "";
+  }
   detailItemById = new Map(masterDetailItems.map(d => [d.id, d]));
   subById = new Map(masterSubcategories.map(s => [s.id, s]));
   groupById = new Map(masterGroups.map(g => [g.id, g]));
@@ -1637,13 +1647,11 @@ async function upsertEntryFromForm(){
   const id = byId("editId").value || null;
   const entry_date = byId("entryDate").value;
   const member_id = byId("memberSelect").value;
+  const flow_type = byId("flowType").value;
   const amount = Number(byId("amount").value || 0);
 
   // category master selections
   const groupName = (byId("category").value || "").trim();
-  const flow_type = flowFromGroup(groupName);
-  // keep UI in sync (flow is derived from 대분류)
-  try{ byId("flowType").value = flow_type; }catch(_){ }
   const subName = (byId("subcategory").value || "").trim();
   const detailName = (byId("detail").value || "").trim();
   const detail_item_id = detailItemIdFromSelections(groupName, subName, detailName);
@@ -2120,7 +2128,7 @@ async function seedDefaultTemplatesIfEmpty(){
 
   const payload = DEFAULT_SEED.map((x, i)=>({
     ledger_id: currentLedgerId,
-    flow_type: flowFromGroup(x[0] || ""),
+    flow_type: flowFromCategory(x[0] || ""),
     category: x[0] || "",
     subcategory: x[1] || "",
     detail: x[2] || "",
@@ -2140,7 +2148,7 @@ async function seedDefaultTemplatesIfEmpty(){
 async function downloadMonthlyTemplate(){
   const ok = await waitForXLSX();
   if(!ok){
-    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx.full.min.js 파일이 index.html(이 파일)과 같은 폴더에 있는지 확인해줘.");
+    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx 라이브러리를 불러오지 못했어. (CDN 차단이면 같은 폴더에 xlsx.full.min.js를 두고 다시 시도해줘.)");
     return;
   }
   setError("");
@@ -2220,7 +2228,7 @@ function flowFromGroup(groupName){
 async function bulkUpload(){
   const ok = await waitForXLSX();
   if(!ok){
-    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx.full.min.js 파일이 index.html(이 파일)과 같은 폴더에 있는지 확인해줘.");
+    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx 라이브러리를 불러오지 못했어. (CDN 차단이면 같은 폴더에 xlsx.full.min.js를 두고 다시 시도해줘.)");
     return;
   }
 
@@ -2698,23 +2706,29 @@ function renderDashButtons(){
 }
 
 async function fetchAllEntriesForDash(){
+  // ✅ Dashboard는 entries를 최소 컬럼만 가져오고,
+  //    대분류/소분류 이름은 미리 로드된 categoryMaster(detailItemById 맵)로 로컬 매핑한다.
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id,detail_items(name,subcategories(name,category_groups(name)))");
+  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("order", "entry_date.asc");
-  url.searchParams.set("limit", "8000");
+  url.searchParams.set("limit", "12000");
 
   const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
   const res = await fetch(url.toString(), { headers });
   const data = await res.json();
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-  const rows = data || [];
-  return rows.map(r=>{
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
-    const s = r.detail_items?.subcategories?.name || "";
-    const d = r.detail_items?.name || "";
-    return { ...r, group_name:g, sub_name:s, item_name:d };
-  });
+
+  // attach master names
+  for(const r of (data || [])){
+    const di = r.detail_item_id ? detailItemById.get(r.detail_item_id) : null;
+    // detailItemById는 loadCategoryMaster에서 (id -> {name, sub_name, group_name}) 형태로 채움
+    r.detail_name = di?.name || "";
+    r.sub_name = di?.sub_name || "";
+    r.group_name = di?.group_name || "";
+  }
+
+  return data || [];
 }
 
 function computeMonthlyBuckets(rows, pred){
@@ -3195,20 +3209,6 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     });
     byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
     byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
-    // category master selection => derive flow automatically
-    const syncFlowFromGroup = ()=>{
-      try{
-        const groupName = (byId("category").value || "").trim();
-        const f = flowFromGroup(groupName);
-        byId("flowType").value = f;
-        // optionally disable manual change (flow is derived)
-        byId("flowType").disabled = true;
-      }catch(_){}
-    };
-    byId("category").addEventListener("change", ()=>{ syncFlowFromGroup(); try{ refreshEntryFormCategoryDropdowns(); }catch(_){ } });
-    // run once
-    syncFlowFromGroup();
-
 byId("btnRenameApply").addEventListener("click", async ()=>{
   try{
     setError("");
