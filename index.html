@@ -1235,7 +1235,8 @@ function detailItemIdFromSelections(groupName, subName, detailName){
   const d = (detailName||"").trim();
   return detailKeyToId.get(`${g}||${s}||${d}`) || null;
 }
-* 4) Entries CRUD
+/** =========================
+ * 4) Entries CRUD
  * ========================= */
 function getFilters(){
   return {
