@@ -1963,23 +1963,26 @@ function refreshDashboardFromCache(){
       { label:"저축", data: sav, tension:.25 },
     ]},
     options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
-      datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true }
-    },
-      datalabels:{
-        align:"top",
-        anchor:"end",
-        formatter:(v)=> v ? fmt(v) : "",
-        clamp:true,
-        display:(ctx)=>{
-          const ds = ctx.dataset?.data || [];
-          return ctx.dataIndex === ds.length-1;
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } },
+        datalabels:{
+          align:"top",
+          anchor:"end",
+          formatter:(v)=> v ? fmt(v) : "",
+          clamp:true,
+          display:(ctx)=>{
+            const ds = ctx.dataset?.data || [];
+            return ctx.dataIndex === ds.length-1; // 마지막 점만 표시
+          }
         }
+      },
+      scales:{
+        x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
+        y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
       }
-    },
-      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-               y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
   });
 
@@ -2017,21 +2020,13 @@ function refreshDashboardFromCache(){
       { label:"저축", data: sav, stack:"sum" },
     ]},
     options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
-      datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true }
-    },
-      datalabels:{
-        align:"top",
-        anchor:"end",
-        formatter:(v)=> v ? fmt(v) : "",
-        clamp:true,
-        display:(ctx)=>{
-          const ds = ctx.dataset?.data || [];
-          return ctx.dataIndex === ds.length-1;
-        }
-      }
-    },
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } },
+        datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true }
+      },
       scales:{
         x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
         y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
