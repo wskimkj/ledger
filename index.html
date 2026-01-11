@@ -1453,7 +1453,8 @@ async function bulkUpload(){
 
   setStatus("엑셀 읽는 중...");
   const data = await file.arrayBuffer();
-  const wb = XLSX.read(data, { type:"array", cellDates:false });
+  const wb = XLSX.read(data, { type: "array", cellDates: false });
+
 
 
   // ensure members exist
@@ -1479,7 +1480,8 @@ async function bulkUpload(){
     const sheet = wb.Sheets[sheetName];
     if(!sheet) continue;
 
-    const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
+
     if(rows.length < 2) { skippedSheets++; continue; }
 
     const headerRow = detectHeaderRow(rows);
