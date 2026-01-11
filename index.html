@@ -1590,14 +1590,19 @@ async function bulkUpload(){
 function pad2(n){ return String(n).padStart(2,"0"); }
 
 function normalizeDate(v, ym){
-  // ✅ 1) Date 객체면 로컬 기준으로 YYYY-MM-DD 만들기 (타임존 보정 X)
-if(v instanceof Date && !isNaN(v.getTime())){
-  // ✅ 엑셀 날짜는 UTC 기준으로 읽어야 하루 안 밀림
-  const y = v.getUTCFullYear();
-  const m = pad2(v.getUTCMonth() + 1);
-  const d = pad2(v.getUTCDate());
-  return `${y}-${m}-${d}`;
-}
+  // ✅ 1) Date 객체면: 시간값을 보고 로컬/UTC 자동 선택 (시간대 이슈 방지)
+  if(v instanceof Date && !isNaN(v.getTime())){
+    // 엑셀에서 Date가 "로컬 00:00:00"으로 만들어진 경우가 있고,
+    // 어떤 환경에선 "UTC 00:00:00"이 로컬로 변환되어 09:00 등으로 들어오기도 함.
+    // -> 시간이 0시이면 로컬 기준, 아니면 UTC 기준을 사용하면 날짜가 안 밀림.
+    const isMidnightLocal =
+      v.getHours() === 0 && v.getMinutes() === 0 && v.getSeconds() === 0;
+
+    const y = isMidnightLocal ? v.getFullYear() : v.getUTCFullYear();
+    const m = isMidnightLocal ? (v.getMonth() + 1) : (v.getUTCMonth() + 1);
+    const d = isMidnightLocal ? v.getDate() : v.getUTCDate();
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
 
   // 2) Excel serial number
   if(typeof v === "number" && Number.isFinite(v)){
@@ -1631,6 +1636,7 @@ if(v instanceof Date && !isNaN(v.getTime())){
 
   return "";
 }
+
 
 
 /** =========================
