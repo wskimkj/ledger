@@ -155,11 +155,8 @@
     <!-- Status -->
     <div class="mt-4 glass rounded-2xl p-4">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div class="text-sm text-white/70">
-          <div>현재 장부: <span id="ledgerName" class="font-semibold text-white"></span></div>
-          <div id="status" class="text-white/70 mt-1"></div>
-          <div id="error" class="text-red-300 mt-1"></div>
-        </div>
+        <div class="hidden"><span id="ledgerName"></span><div id="status"></div></div>
+        <div id="error" class="text-red-300 text-xs"></div>
 
         <!-- Auth box -->
         <div id="authBox" class="glass2 rounded-2xl p-4 w-full md:w-[520px]">
@@ -846,6 +843,53 @@ async function loadReqModal(){
   }
 }
 
+
+async function upsertLedgerMemberUser(userId){
+  // Try to add user to ledger_members robustly across differing schemas/role constraints.
+  // 1) Prefer upsert on (ledger_id,user_id) if unique exists.
+  const tryBodies = [
+    { ledger_id: MAIN_LEDGER_ID, user_id: userId, role: "member" },
+    { ledger_id: MAIN_LEDGER_ID, user_id: userId, role: "viewer" },
+    { ledger_id: MAIN_LEDGER_ID, user_id: userId, role: "editor" },
+    { ledger_id: MAIN_LEDGER_ID, user_id: userId } // if role has default or nullable
+  ];
+
+  let lastErr = null;
+
+  for(const bodyObj of tryBodies){
+    try{
+      // Use array body + on_conflict for safe upsert if the table has a unique constraint.
+      await apiFetch("/rest/v1/ledger_members", {
+        method:"POST",
+        preferReturn:false,
+        query:{ on_conflict:"ledger_id,user_id" },
+        body:[bodyObj],
+        extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
+      });
+      return;
+    }catch(e){
+      lastErr = e;
+      // If server says on_conflict columns invalid, retry without on_conflict
+      const msg = String(e?.message || e || "");
+      if(msg.includes("on_conflict") || msg.includes("PGRST") || msg.includes("Could not find") || msg.includes("column")){
+        // try plain insert once for this bodyObj
+        try{
+          await apiFetch("/rest/v1/ledger_members", {
+            method:"POST",
+            preferReturn:false,
+            body: bodyObj
+          });
+          return;
+        }catch(e2){
+          lastErr = e2;
+        }
+      }
+    }
+  }
+
+  throw lastErr || new Error("ledger_members 추가 실패");
+}
+
 async function handleApproveRequest(req){
   try{
     setError("");
@@ -872,15 +916,7 @@ async function handleApproveRequest(req){
         }
       });
 
-      await apiFetch("/rest/v1/ledger_members", {
-        method:"POST",
-        preferReturn:false,
-        body:{
-          ledger_id: MAIN_LEDGER_ID,
-          user_id: req.requester_user_id,
-          role: "member"
-        }
-      });
+      await upsertLedgerMemberUser(req.requester_user_id);
     }
 
     setStatus("승인 완료!");
@@ -2312,15 +2348,30 @@ function computeTop10(rows, pred){
 }
 
 function computeFlowShare(rows, pred){
-  let e=0,i=0,s=0;
+  // Share = 월급 수입 / 기타 수입 / 지출 (3개 합이 100%)
+  let salary=0, otherIncome=0, expense=0;
   for(const r of rows){
     if(!pred(r)) continue;
-    if(r.flow_type==="expense") e += Number(r.amount||0);
-    else if(r.flow_type==="income") i += Number(r.amount||0);
-    else if(r.flow_type==="saving") s += Number(r.amount||0);
+    const amt = Number(r.amount||0);
+    if(!amt) continue;
+
+    if(r.flow_type==="expense"){
+      expense += amt;
+      continue;
+    }
+    if(r.flow_type==="income"){
+      const sub = (r.subcategory||"").trim();
+      const det = (r.detail||"").trim();
+      const isSalary = (sub === "월급") || (det === "월급") || (sub.includes("월급")) || (det.includes("월급"));
+      if(isSalary) salary += amt;
+      else otherIncome += amt;
+      continue;
+    }
+    // saving은 흐름 비중(3개)에서는 제외
   }
-  return { e,i,s };
+  return { salary, otherIncome, expense };
 }
+
 
 function refreshDashboardFromCache(){
   const pred = buildDashPredicate();
@@ -2381,37 +2432,66 @@ function refreshDashboardFromCache(){
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } }, datalabels:{ align:"top", anchor:"end", formatter:(v,ctx)=>{ const last = ctx.dataset.data.length-1; return (ctx.dataIndex===last && v)?fmt(v):""; } } },
-      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-               y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
-    }
-  });
-
-  // Flow share doughnut
-  const share = computeFlowShare(dashRowsCache, pred);
-  if(chartFlowShare) chartFlowShare.destroy();
-  chartFlowShare = new Chart(byId("chartFlowShare"), {
-    type:"doughnut",
-    data:{ labels:["지출","수입","저축"], datasets:[{ data:[share.e, share.i, share.s] }] },
-    options:{
-      responsive:true, maintainAspectRatio:false,
       plugins:{
-        legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
-        tooltip:{ callbacks:{ label:(ctx)=> { const total = ctx.dataset.data.reduce((a,b)=>a+Number(b||0),0)||1; const pct = Math.round((Number(ctx.raw||0)/total)*100); return `${ctx.label}: ${fmt(ctx.raw)} 원 (${pct}%)`; } } },
-        datalabels:{ formatter:(v,ctx)=>{ const data = ctx.chart.data.datasets[0].data; const total = data.reduce((a,b)=>a+Number(b||0),0)||1; const pct = Math.round((Number(v||0)/total)*100); return pct?`${pct}%`:""; } }
+        legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } },
+        datalabels:{
+          anchor:"end",
+          align:"top",
+          clamp:true,
+          formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
+        }
+      },
+      scales:{ 
+        x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
+        y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } 
       }
     }
   });
 
-  // percentages text
+  // Flow share doughnut (월급 수입 / 기타 수입 / 지출)
+  const share = computeFlowShare(dashRowsCache, pred);
+  const flowLabels = ["월급 수입","기타 수입","지출"];
+  const flowVals = [share.salary, share.otherIncome, share.expense];
+
+  if(chartFlowShare) chartFlowShare.destroy();
+  chartFlowShare = new Chart(byId("chartFlowShare"), {
+    type:"doughnut",
+    data:{ labels: flowLabels, datasets:[{ data: flowVals }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ 
+          label:(ctx)=> {
+            const total = (ctx.chart?.data?.datasets?.[0]?.data || []).reduce((a,b)=>a+Number(b||0),0) || 1;
+            const pct = Math.round((Number(ctx.raw||0)/total)*100);
+            return `${ctx.label}: ${fmt(ctx.raw)} 원 (${pct}%)`;
+          } 
+        }},
+        datalabels:{
+          formatter:(v,ctx)=>{
+            const data = (ctx.chart?.data?.datasets?.[0]?.data || []);
+            const total = data.reduce((a,b)=>a+Number(b||0),0) || 0;
+            if(!total || !v) return "";
+            const pct = Math.round((Number(v||0)/total)*100);
+            return pct ? `${pct}%` : "";
+          }
+        }
+      }
+    }
+  });
+
+  // percentages text: 지출% / (지출+저축)% 대신 -> 지출% / (지출+기타수입)% / (월급+기타=수입)%
   try{
-    const total = (share.e + share.i + share.s) || 1;
-    const expPct = Math.round((share.e/total)*100);
-    const savPct = Math.round((share.s/total)*100);
-    const expSavPct = Math.round(((share.e+share.s)/total)*100);
+    const total = (share.salary + share.otherIncome + share.expense) || 1;
+    const expPct = Math.round((share.expense/total)*100);
+    const incomePct = Math.round(((share.salary+share.otherIncome)/total)*100);
+    const nonSalaryPct = Math.round(((share.otherIncome+share.expense)/total)*100);
     const el = byId("flowShareText");
-    if(el) el.textContent = `지출 ${expPct}% · 저축 ${savPct}% · (지출+저축) ${expSavPct}%`;
+    if(el) el.textContent = `지출 ${expPct}% · 총수입 ${incomePct}% · (기타수입+지출) ${nonSalaryPct}%`;
   }catch(_){}
+
 
   // Monthly stacked bar
   if(chartMonthlyStack) chartMonthlyStack.destroy();
@@ -2424,7 +2504,16 @@ function refreshDashboardFromCache(){
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } }, datalabels:{ align:"top", anchor:"end", formatter:(v,ctx)=>{ const last = ctx.dataset.data.length-1; return (ctx.dataIndex===last && v)?fmt(v):""; } } },
+      plugins:{
+        legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } },
+        datalabels:{
+          anchor:"center",
+          align:"center",
+          clamp:true,
+          formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
+        }
+      },
       scales:{
         x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
         y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
