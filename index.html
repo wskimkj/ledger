@@ -15,72 +15,69 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
   <!-- xlsx -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
-    /* Light pastel + glass (purple) */
     :root{
-      --ink: #0f172a;                 /* slate-900 */
-      --ink-2: rgba(15,23,42,.72);
-      --ink-3: rgba(15,23,42,.55);
-      --border: rgba(99,102,241,.22); /* indigo */
-      --border-2: rgba(168,85,247,.18); /* purple */
-      --glass: rgba(255,255,255,.72);
-      --glass2: rgba(255,255,255,.58);
-      --shadow: 0 18px 45px rgba(15,23,42,.10);
+      --ink:#0f172a;
+      --muted: rgba(15,23,42,.62);
+      --muted2: rgba(15,23,42,.48);
+      --border: rgba(15,23,42,.10);
+      --card: rgba(255,255,255,.92);
+      --card2: rgba(255,255,255,.82);
+      --shadow: 0 10px 24px rgba(2,6,23,.08);
+      --shadow2: 0 6px 16px rgba(2,6,23,.06);
+      --accent1:#4f46e5;
+      --accent2:#7c3aed;
     }
 
     body{
       color: var(--ink);
       background:
-        radial-gradient(1200px 600px at 15% 0%, rgba(168,85,247,0.22), transparent 60%),
-        radial-gradient(1100px 560px at 90% 12%, rgba(99,102,241,0.18), transparent 60%),
-        radial-gradient(900px 480px at 40% 90%, rgba(236,72,153,0.10), transparent 60%),
-        #f7f5ff;
+        radial-gradient(900px 520px at 12% 0%, rgba(79,70,229,.10), transparent 60%),
+        radial-gradient(900px 520px at 88% 10%, rgba(124,58,237,.08), transparent 60%),
+        #f8fafc;
     }
 
-    /* glass cards */
     .glass{
-      background: var(--glass);
+      background: var(--card);
       border: 1px solid var(--border);
       box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
+      backdrop-filter: blur(12px);
     }
     .glass2{
-      background: var(--glass2);
-      border: 1px solid rgba(99,102,241,.18);
-      box-shadow: 0 12px 28px rgba(15,23,42,.08);
-      backdrop-filter: blur(14px);
+      background: var(--card2);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow2);
+      backdrop-filter: blur(12px);
     }
 
-    /* scrollbar */
     .thin-scroll::-webkit-scrollbar{ height:10px; width:10px; }
-    .thin-scroll::-webkit-scrollbar-thumb{ background: rgba(99,102,241,.28); border-radius: 999px; }
-    .thin-scroll::-webkit-scrollbar-track{ background: rgba(15,23,42,.06); border-radius: 999px; }
+    .thin-scroll::-webkit-scrollbar-thumb{ background: rgba(15,23,42,.18); border-radius: 999px; }
+    .thin-scroll::-webkit-scrollbar-track{ background: rgba(2,6,23,.04); border-radius: 999px; }
 
-    /* tabs/buttons */
     .tab-btn[data-active="true"]{
-      background: rgba(99,102,241,.12);
-      border-color: rgba(99,102,241,.35);
+      background: rgba(79,70,229,.10);
+      border-color: rgba(79,70,229,.28);
     }
-    .pill{ border:1px solid rgba(99,102,241,.22); background: rgba(99,102,241,.06); }
+    .pill{ border:1px solid rgba(15,23,42,.10); background: rgba(255,255,255,.75); }
 
     .btn{
-      border:1px solid rgba(99,102,241,.18);
-      background: rgba(255,255,255,.65);
+      border:1px solid rgba(15,23,42,.10);
+      background: rgba(255,255,255,.90);
+      box-shadow: 0 1px 0 rgba(2,6,23,.04);
     }
-    .btn:hover{ background: rgba(255,255,255,.86); }
+    .btn:hover{ background: rgba(255,255,255,1); }
     .btn-primary{
-      background: linear-gradient(135deg, rgba(99,102,241,.95), rgba(168,85,247,.95));
-      border-color: rgba(99,102,241,.35);
+      background: linear-gradient(135deg, var(--accent1), var(--accent2));
+      border-color: rgba(79,70,229,.35);
       color: white !important;
+      box-shadow: 0 10px 20px rgba(79,70,229,.18);
     }
-    .btn-primary:hover{
-      filter: brightness(1.02);
-      background: linear-gradient(135deg, rgba(99,102,241,1), rgba(168,85,247,1));
-    }
+    .btn-primary:hover{ filter: brightness(1.03); }
     .btn-danger{
       background: rgba(239,68,68,.10);
       border-color: rgba(239,68,68,.22);
@@ -88,47 +85,39 @@
     }
     .btn-danger:hover{ background: rgba(239,68,68,.14); }
 
-    /* inputs */
     input, select{
-  background: rgba(255,255,255,.75) !important;
-  border-color: rgba(99,102,241,.22) !important;
-  color: var(--ink) !important;
-}
-
-    input::placeholder{ color: rgba(15,23,42,.45); }
+      background: rgba(255,255,255,.92) !important;
+      border-color: rgba(15,23,42,.12) !important;
+      color: var(--ink) !important;
+    }
+    input::placeholder{ color: rgba(15,23,42,.40); }
     option{ color: var(--ink); }
-
-    /* table lines */
     table th, table td { border-color: rgba(15,23,42,.10) !important; }
 
-    /* Tailwind utility overrides (because markup uses text-white/xx everywhere) */
+    /* markup uses text-white classes in many places — remap to dark */
     .text-white{ color: var(--ink) !important; }
     .text-white\/80{ color: rgba(15,23,42,.80) !important; }
     .text-white\/70{ color: rgba(15,23,42,.70) !important; }
     .text-white\/60{ color: rgba(15,23,42,.60) !important; }
     .text-white\/50{ color: rgba(15,23,42,.50) !important; }
-    .text-red-300{ color: rgba(220,38,38,.90) !important; }
-  
+    .text-red-300{ color: rgba(220,38,38,.95) !important; }
+
     .chip{
-      border:1px solid rgba(17,24,39,.12);
-      background: rgba(255,255,255,.65);
-      color: rgba(17,24,39,.85);
+      border:1px solid rgba(15,23,42,.10);
+      background: rgba(255,255,255,.92);
+      color: rgba(15,23,42,.84);
       border-radius: 999px;
-      box-shadow: 0 8px 24px rgba(17,24,39,.06);
+      box-shadow: 0 6px 18px rgba(2,6,23,.06);
       backdrop-filter: blur(10px);
       transition: transform .08s ease, background .12s ease, border-color .12s ease;
       user-select:none;
+      white-space: nowrap;
     }
-
-    /* dashboard subcategory grid: full-width chips */
-    #dashBtnsSubcategory .chip{ width:100%; justify-content:flex-start; }
-    #dashBtnsCategory .chip{ justify-content:flex-start; }
-
-    .chip:hover{ background: rgba(255,255,255,.85); transform: translateY(-1px); }
+    .chip:hover{ background: rgba(255,255,255,1); transform: translateY(-1px); }
     .chip[data-active="true"]{
-      background: rgba(124,58,237,.14);
-      border-color: rgba(124,58,237,.35);
-      color: rgba(76,29,149,.95);
+      background: rgba(79,70,229,.10);
+      border-color: rgba(79,70,229,.28);
+      color: rgba(49,46,129,.95);
     }
 </style>
 </head>
@@ -233,7 +222,8 @@
 
               <div>
                 <div class="text-xs text-black/60 mb-2">소분류 (중복 선택 가능)</div>
-                <div id="dashBtnsSubcategory" class="flex flex-wrap gap-2 max-h-44 overflow-auto thin-scroll pr-1"></div>
+                <input id="dashSubSearch" class="rounded-xl px-3 py-2 text-sm mb-2 w-full" placeholder="소분류 검색" />
+                <div id="dashBtnsSubcategory" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-44 overflow-auto thin-scroll pr-1"></div>
               </div>
 
               <div class="flex gap-2 pt-1">
@@ -279,13 +269,10 @@
 
             <div class="glass rounded-2xl p-4 md:col-span-1">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-solid fa-list-ol mr-2"></i>지출 Top 100</div>
-                <div class="text-xs text-black/50">스크롤</div>
+                <div class="text-sm font-semibold"><i class="fa-solid fa-list-ol mr-2"></i>지출 Top 10</div>
               </div>
-              <div class="mt-3 max-h-[260px] overflow-auto thin-scroll pr-1">
-                <div id="chartTopInner" class="h-[260px]">
-                  <canvas id="chartTop10"></canvas>
-                </div>
+              <div class="mt-3 h-[260px]">
+                <canvas id="chartTop10"></canvas>
               </div>
             </div>
 
@@ -1659,59 +1646,12 @@ let chartMonthly = null;
 let chartFlowShare = null;
 let chartMonthlyStack = null;
 
-// --- Chart value labels (bars) ---
-// Shows numeric labels at the end of bars (Category / Top N)
-const valueLabelPlugin = {
-  id: "valueLabel",
-  afterDatasetsDraw(chart){
-    if(chart.config.type !== "bar") return;
-
-    const ctx = chart.ctx;
-    const indexAxis = chart?.options?.indexAxis || "x"; // "y" => horizontal bars
-
-    ctx.save();
-    ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-    ctx.fillStyle = "rgba(0,0,0,.78)";
-
-    chart.data.datasets.forEach((dataset, di) => {
-      const meta = chart.getDatasetMeta(di);
-      meta.data.forEach((el, i) => {
-        const raw = dataset.data[i];
-        const val = Number(raw);
-        if(!Number.isFinite(val) || val === 0) return;
-
-        const label = fmt(val);
-
-        if(indexAxis === "y"){
-          // horizontal bar: label at the end (right)
-          const x = el.x + 6;
-          const y = el.y;
-          ctx.textAlign = "left";
-          ctx.textBaseline = "middle";
-          ctx.fillText(label, x, y);
-        }else{
-          // vertical bar: label on top
-          const x = el.x;
-          const y = el.y - 6;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "bottom";
-          ctx.fillText(label, x, y);
-        }
-      });
-    });
-
-    ctx.restore();
-  }
-};
+// Chart.js datalabels plugin
+if (window.ChartDataLabels) {
+  Chart.register(ChartDataLabels);
+}
 
 let dashRowsCache = [];
-
-
-
-
-
-
-
 const dashState = {
   members: new Set(),
   years: new Set(),
@@ -1843,32 +1783,35 @@ function renderDashButtons(){
     }));
   }
 
-  const subsAll = [...new Set(dashRowsCache.map(r=>(r.subcategory||"").trim()))].filter(Boolean).sort();
-  const qSub = ((byId("dashSubSearch")?.value) || "").trim().toLowerCase();
-  const subs = qSub ? subsAll.filter(s => s.toLowerCase().includes(qSub)) : subsAll;
-
+  let subs = [...new Set(dashRowsCache.map(r=>(r.subcategory||"").trim()))].filter(Boolean);
+  // 검색 필터
+  const subQ = (byId("dashSubSearch")?.value || "").trim();
+  if(subQ) subs = subs.filter(s => s.includes(subQ));
+  // 보기 좋은 정렬: (선택 조건 기준) 지출합 큰 순 → 가나다
+  const subAmt = new Map();
+  for(const r of dashRowsCache){
+    if(!buildDashPredicate()(r)) continue;
+    if(r.flow_type !== "expense") continue;
+    const k = (r.subcategory||"").trim();
+    if(!k) continue;
+    subAmt.set(k, (subAmt.get(k)||0) + Number(r.amount||0));
+  }
+  subs.sort((a,b)=> (subAmt.get(b)||0) - (subAmt.get(a)||0) || a.localeCompare(b,"ko"));
   const wrapS = byId("dashBtnsSubcategory");
   wrapS.innerHTML = "";
-
-  // '전체' 버튼은 2컬럼 전체 폭
-  const allBtn = mkBtn("전체", {
+  wrapS.appendChild(mkBtn("전체", {
     active: dashState.subcategories.size === 0,
     onClick: ()=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
-  });
-  allBtn.classList.add("col-span-2");
-  wrapS.appendChild(allBtn);
-
+  }));
   for(const s of subs){
     const active = dashState.subcategories.has(s);
-    const b = mkBtn(s, {
+    wrapS.appendChild(mkBtn(s, {
       active,
       onClick: ()=>{
         if(active) dashState.subcategories.delete(s); else dashState.subcategories.add(s);
         refreshDashboardFromCache(); renderDashButtons();
       }
-    });
-    b.title = s;
-    wrapS.appendChild(b);
+    }));
   }
 
   // hint text
@@ -1940,7 +1883,7 @@ function computeCategoryExpense(rows, pred){
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
 }
 
-function computeTopN(rows, pred, n=100){
+function computeTop10(rows, pred){
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
@@ -1948,7 +1891,7 @@ function computeTopN(rows, pred, n=100){
     const k = (r.subcategory || "미분류") + (r.detail ? ` · ${r.detail}` : "");
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
-  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0, n);
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
 }
 
 function computeFlowShare(rows, pred){
@@ -1980,36 +1923,27 @@ function refreshDashboardFromCache(){
   if(chartCategory) chartCategory.destroy();
   chartCategory = new Chart(byId("chartCategory"), {
     type:"bar",
-    plugins:[valueLabelPlugin],
     data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals }] },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
   });
 
-  // Top100 (descending)
-  const topArr = computeTopN(dashRowsCache, pred, 100);
+  // Top10
+  const topArr = computeTop10(dashRowsCache, pred);
   const topLabels = topArr.map(x=>x[0]);
   const topVals = topArr.map(x=>x[1]);
-
-  // make canvas area tall and scrollable
-  const topInner = byId("chartTopInner");
-  if(topInner){
-    const h = Math.max(260, topLabels.length * 22);
-    topInner.style.height = `${h}px`;
-  }
   if(chartTop10) chartTop10.destroy();
   chartTop10 = new Chart(byId("chartTop10"), {
     type:"bar",
-    plugins:[valueLabelPlugin],
     data:{ labels: topLabels, datasets:[{ label:"지출", data: topVals }] },
     options:{
       indexAxis:"y",
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
@@ -2031,6 +1965,19 @@ function refreshDashboardFromCache(){
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
+      datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true }
+    },
+      datalabels:{
+        align:"top",
+        anchor:"end",
+        formatter:(v)=> v ? fmt(v) : "",
+        clamp:true,
+        display:(ctx)=>{
+          const ds = ctx.dataset?.data || [];
+          return ctx.dataIndex === ds.length-1;
+        }
+      }
+    },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
@@ -2046,7 +1993,16 @@ function refreshDashboardFromCache(){
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
-        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.label}: ${fmt(ctx.raw)} 원` } }
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.label}: ${fmt(ctx.raw)} 원` } },
+        datalabels:{
+          formatter:(v, ctx)=>{
+            const data = ctx.chart.data.datasets[0].data;
+            const sum = data.reduce((a,b)=>a+Number(b||0),0);
+            if(!sum || !v) return "";
+            const p = Math.round((v/sum)*100);
+            return `${p}%`;
+          }
+        }
       }
     }
   });
@@ -2063,6 +2019,19 @@ function refreshDashboardFromCache(){
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ labels:{ color:"rgba(0,0,0,.7)" } }, tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } } },
+      datalabels:{ anchor:"end", align:"end", formatter:(v)=> v ? fmt(v) : "", clamp:true }
+    },
+      datalabels:{
+        align:"top",
+        anchor:"end",
+        formatter:(v)=> v ? fmt(v) : "",
+        clamp:true,
+        display:(ctx)=>{
+          const ds = ctx.dataset?.data || [];
+          return ctx.dataIndex === ds.length-1;
+        }
+      }
+    },
       scales:{
         x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
         y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
@@ -2215,11 +2184,6 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     byId("btnDashClear").addEventListener("click", ()=>{
       clearDashState();
       refreshDashboardFromCache();
-      renderDashButtons();
-    });
-
-    // subcategory search (only affects list display)
-    byId("dashSubSearch").addEventListener("input", ()=>{
       renderDashButtons();
     });
 
