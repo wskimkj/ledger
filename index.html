@@ -2146,11 +2146,9 @@ async function seedDefaultTemplatesIfEmpty(){
 }
 
 async function downloadMonthlyTemplate(){
+  // XLSX가 있으면 .xlsx로, 없으면 CSV로라도 내려받기 (배포 환경에서 CDN이 막혀도 동작)
   const ok = await waitForXLSX();
-  if(!ok){
-    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx 라이브러리를 불러오지 못했어. (CDN 차단이면 같은 폴더에 xlsx.full.min.js를 두고 다시 시도해줘.)");
-    return;
-  }
+  const useXlsx = !!(ok && window.XLSX && window.XLSX.utils && window.XLSX.writeFile);
   setError("");
 
   // ✅ 마스터 카테고리 기준으로 템플릿 생성
@@ -2200,9 +2198,32 @@ async function downloadMonthlyTemplate(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "기록");
 
-  const fname = `record_template_${ym.replace("-","")}.xlsx`;
-  XLSX.writeFile(wb, fname);
-  setStatus("템플릿 다운로드 완료!");
+  if(useXlsx){
+    const fname = `record_template_${ym.replace("-","")}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    setStatus("템플릿 다운로드 완료! (xlsx)");
+  }else{
+    // CSV fallback
+    const csvName = `record_template_${ym.replace("-","")}.csv`;
+    const csv = sheetRows.map(row => row.map(cell => {
+      const s = String(cell ?? "");
+      // CSV escape
+      if(/[",
+
+]/.test(s)) return '"' + s.replaceAll('"','""') + '"';
+      return s;
+    }).join(",")).join("
+");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = csvName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    setStatus("템플릿 다운로드 완료! (CSV)");
+    setError("xlsx 라이브러리를 못 불러와서 CSV로 내려받았어. .xlsx가 꼭 필요하면 CDN 허용 또는 같은 폴더에 xlsx.full.min.js를 두면 돼.");
+  }
 }
 
 
