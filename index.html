@@ -1453,7 +1453,8 @@ async function bulkUpload(){
 
   setStatus("엑셀 읽는 중...");
   const data = await file.arrayBuffer();
-  const wb = XLSX.read(data, { type:"array", cellDates:true });
+  const wb = XLSX.read(data, { type:"array", cellDates:false });
+
 
   // ensure members exist
   const findMemberId = (name)=>{
