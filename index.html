@@ -381,8 +381,13 @@
         </div>
 
               <div>
-                <div class="text-xs text-white/60 mb-1">설명/상세</div>
-                <input id="detail" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="예: 점심" required />
+                <div class="text-xs text-white/60 mb-1">상세항목</div>
+                <select id="detail" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+              </div>
+
+              <div>
+                <div class="text-xs text-white/60 mb-1">설명(선택)</div>
+                <input id="detailNote" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="선택 (예: 점심/저녁)" />
               </div>
 
               <div>
@@ -476,8 +481,9 @@
                     <th class="text-left py-3 px-3 border-b">흐름</th>
                     <th class="text-left py-3 px-3 border-b">대분류</th>
                     <th class="text-left py-3 px-3 border-b">소분류</th>
+                    <th class="text-left py-3 px-3 border-b">상세항목</th>
                     <th class="text-left py-3 px-3 border-b">설명</th>
-                    <th class="text-right py-3 px-3 border-b">금액</th>
+                    <th class="text-right py-3 px-3 border-b">금액</th
                     <th class="text-left py-3 px-3 border-b">메모</th>
                     <th class="text-left py-3 px-3 border-b">관리</th>
                   </tr>
@@ -1058,150 +1064,178 @@ async function loadMembers(){
 
 
 /** =========================
- * 3.5) Category/Subcategory dropdown sources (edit + batch rename)
- *    - sources: entry_templates(active) + existing entries(dashRowsCache)
+ * 3.5) Category master (대분류>소분류>상세항목) dropdown sources
+ *   - DB: category_groups / subcategories / detail_items
+ *   - entries에는 detail_item_id만 저장(표시는 join으로 이름 가져옴)
  * ========================= */
-let catToSubsMap = new Map();               // category -> Set(subcategory)
-let catSubToDetailsMap = new Map();         // category||subcategory -> Set(detail)
+
+let masterDetailItems = []; // [{id,name, subcategory:{name, group:{name}}}]
+let groupToSubsMap = new Map(); // groupName -> Set(subName)
+let subToDetailsMap = new Map(); // subName -> Set(detailName)
+let detailKeyToId = new Map();   // `${group}||${sub}||${detail}` -> uuid
 
 function mapAddSet(map, key, val){
   if(!key) return;
-  if(!map.has(key)) map.set(key, new Set());
-  if(val !== undefined && val !== null && String(val).trim() !== ""){
-    map.get(key).add(String(val).trim());
-  }
+  if(val === undefined || val === null || String(val).trim()==="") return;
+  const k = String(key).trim();
+  const v = String(val).trim();
+  if(!map.has(k)) map.set(k, new Set());
+  map.get(k).add(v);
 }
 
-async function rebuildCategoryMaps(){
-  catToSubsMap = new Map();
-  catSubToDetailsMap = new Map();
-
-  // 1) existing entries cache
-  for(const r of (dashRowsCache || [])){
-    const c = (r.category||"").trim();
-    const s = (r.subcategory||"").trim();
-    const d = (r.detail||"").trim();
-    if(c){
-      mapAddSet(catToSubsMap, c, s);
-      mapAddSet(catSubToDetailsMap, `${c}||${s}`, d);
-    }
-  }
-
-  // 2) templates(active)
-  try{
-    const templates = await fetchActiveTemplates();
-    for(const r of (templates || [])){
-      const c = (r.category||"").trim();
-      const s = (r.subcategory||"").trim();
-      const d = (r.detail||"").trim();
-      if(c){
-        mapAddSet(catToSubsMap, c, s);
-        mapAddSet(catSubToDetailsMap, `${c}||${s}`, d);
-      }
-    }
-  }catch(_){}
-}
-
-function fillSelectOptions(sel, items, { includeBlank=true, blankLabel="(선택)" } = {}){
+function fillSelectOptions(sel, arr, { includeBlank=false, blankLabel="(선택)" } = {}){
   if(!sel) return;
   const prev = sel.value || "";
   sel.innerHTML = "";
   if(includeBlank){
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = blankLabel;
-    sel.appendChild(opt);
+    const o = document.createElement("option");
+    o.value = "";
+    o.textContent = blankLabel;
+    sel.appendChild(o);
   }
-  for(const it of items){
-    const opt = document.createElement("option");
-    opt.value = it;
-    opt.textContent = it;
-    sel.appendChild(opt);
+  for(const v of arr){
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = v;
+    sel.appendChild(o);
   }
   // restore if possible
-  sel.value = items.includes(prev) ? prev : "";
+  const exists = [...sel.options].some(o=>o.value===prev);
+  if(exists) sel.value = prev;
 }
 
-function getAllSubcategoriesSorted(){
+async function loadCategoryMaster(){
+  // detail_items를 기준으로 상위 조인까지 한 번에 가져옴
+  const url = new URL(SUPABASE_URL + "/rest/v1/detail_items");
+  url.searchParams.set("select", "id,name,subcategory_id,subcategories(name,category_groups(name))");
+  url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
+  url.searchParams.set("is_active", "eq.true");
+  url.searchParams.set("order", "sort_order.asc,name.asc");
+  url.searchParams.set("limit", "12000");
+
+  const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
+  const res = await fetch(url.toString(), { headers });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
+
+  masterDetailItems = (data || []).map(r=>{
+    const sub = r.subcategories || null;
+    const grp = sub?.category_groups || null;
+    return {
+      id: r.id,
+      name: r.name || "",
+      subcategory: { name: sub?.name || "", group: { name: grp?.name || "" } }
+    };
+  });
+
+  groupToSubsMap = new Map();
+  subToDetailsMap = new Map();
+  detailKeyToId = new Map();
+
+  for(const r of masterDetailItems){
+    const g = r.subcategory?.group?.name || "";
+    const s = r.subcategory?.name || "";
+    const d = r.name || "";
+    mapAddSet(groupToSubsMap, g, s);
+    mapAddSet(subToDetailsMap, s, d);
+    detailKeyToId.set(`${g}||${s}||${d}`, r.id);
+  }
+
+  refreshEntryFormCategoryDropdowns();
+  refreshBatchRenameDropdowns();
+}
+
+function getAllSubsSorted(){
   const set = new Set();
-  for(const subs of catToSubsMap.values()){
+  for(const subs of groupToSubsMap.values()){
     for(const s of subs) if(s) set.add(s);
+  }
+  return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
+}
+function getAllDetailsSorted(){
+  const set = new Set();
+  for(const ds of subToDetailsMap.values()){
+    for(const d of ds) if(d) set.add(d);
   }
   return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
 }
 
 function refreshEntryFormCategoryDropdowns(){
-  const selC = byId("category");
-  const selS = byId("subcategory");
-  if(!selC || !selS) return;
+  const selG = byId("category");     // UI상 '대분류' (group)
+  const selS = byId("subcategory");  // UI상 '소분류' (subcategory)
+  const selD = byId("detail");       // UI상 '상세항목' (detail_item)
+  if(!selG || !selS || !selD) return;
 
-  const cats = [...catToSubsMap.keys()].sort((a,b)=>a.localeCompare(b,"ko"));
-  fillSelectOptions(selC, cats, { includeBlank:true, blankLabel:"(대분류 선택)" });
+  const groups = [...groupToSubsMap.keys()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
+  fillSelectOptions(selG, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
 
   const applySubs = ()=>{
-    const c = (selC.value||"").trim();
-    const subs = c ? [...(catToSubsMap.get(c) || new Set())] : getAllSubcategoriesSorted();
-    const arr = subs.filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
-    fillSelectOptions(selS, arr, { includeBlank:true, blankLabel:"(소분류 선택)" });
+    const g = (selG.value||"").trim();
+    const subs = g ? [...(groupToSubsMap.get(g) || new Set())] : getAllSubsSorted();
+    fillSelectOptions(selS, subs.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(소분류 선택)" });
+    applyDetails();
   };
 
-  selC.addEventListener("change", ()=>{ applySubs(); });
+  const applyDetails = ()=>{
+    const s = (selS.value||"").trim();
+    const ds = s ? [...(subToDetailsMap.get(s) || new Set())] : getAllDetailsSorted();
+    fillSelectOptions(selD, ds.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(상세항목 선택)" });
+  };
+
+  // bind once
+  if(!selG.dataset.bound){
+    selG.addEventListener("change", applySubs);
+    selS.addEventListener("change", applyDetails);
+    selG.dataset.bound = "1";
+  }
+
   applySubs();
 }
 
-function refreshRenameDropdowns(){
-  const oldC = byId("renameOldCategory");
-  const oldS = byId("renameOldSubcategory");
-  const oldD = byId("renameOldDetail");
-  const newC = byId("renameNewCategory");
-  const newS = byId("renameNewSubcategory");
-  const newD = byId("renameNewDetail");
-  if(!oldC || !oldS || !oldD || !newC || !newS || !newD) return;
+function refreshBatchRenameDropdowns(){
+  const og = byId("renameOldCategory");
+  const os = byId("renameOldSubcategory");
+  const od = byId("renameOldDetail");
+  const ng = byId("renameNewCategory");
+  const ns = byId("renameNewSubcategory");
+  const nd = byId("renameNewDetail");
+  if(!og || !os || !od || !ng || !ns || !nd) return;
 
-  const cats = [...catToSubsMap.keys()].sort((a,b)=>a.localeCompare(b,"ko"));
-  fillSelectOptions(oldC, cats, { includeBlank:true, blankLabel:"(조건 없음)" });
-  fillSelectOptions(newC, cats, { includeBlank:true, blankLabel:"(변경 안 함)" });
+  const groups = [...groupToSubsMap.keys()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
+  fillSelectOptions(og, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
+  fillSelectOptions(ng, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
 
-  const fillSubs = (c, sel, blankLabel)=>{
-    const subs = c ? [...(catToSubsMap.get(c) || new Set())] : getAllSubcategoriesSorted();
-    const arr = subs.filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
-    fillSelectOptions(sel, arr, { includeBlank:true, blankLabel });
+  const bindCascade = (gSel, sSel, dSel)=>{
+    const applyS = ()=>{
+      const g = (gSel.value||"").trim();
+      const subs = g ? [...(groupToSubsMap.get(g) || new Set())] : getAllSubsSorted();
+      fillSelectOptions(sSel, subs.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(소분류 선택)" });
+      applyD();
+    };
+    const applyD = ()=>{
+      const s = (sSel.value||"").trim();
+      const ds = s ? [...(subToDetailsMap.get(s) || new Set())] : getAllDetailsSorted();
+      fillSelectOptions(dSel, ds.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(상세항목 선택)" });
+    };
+    if(!gSel.dataset.bound){
+      gSel.addEventListener("change", applyS);
+      sSel.addEventListener("change", applyD);
+      gSel.dataset.bound = "1";
+    }
+    applyS();
   };
 
-  const fillDetails = (c, s, sel, blankLabel)=>{
-    const key = `${c}||${s}`;
-    const set = catSubToDetailsMap.get(key) || new Set();
-    const arr = [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
-    fillSelectOptions(sel, arr, { includeBlank:true, blankLabel });
-  };
-
-  const applyOld = ()=>{
-    const c = (oldC.value||"").trim();
-    const s = (oldS.value||"").trim();
-    fillSubs(c, oldS, "(조건 없음)");
-    fillDetails(c||"", s||"", oldD, "(조건 없음)");
-  };
-
-  const applyNew = ()=>{
-    const c = (newC.value||"").trim();
-    const s = (newS.value||"").trim();
-    fillSubs(c, newS, "(변경 안 함)");
-    fillDetails(c||"", s||"", newD, "(변경 안 함)");
-  };
-
-  oldC.addEventListener("change", applyOld);
-  oldS.addEventListener("change", applyOld);
-  newC.addEventListener("change", applyNew);
-  newS.addEventListener("change", applyNew);
-
-  // initial
-  applyOld();
-  applyNew();
+  bindCascade(og, os, od);
+  bindCascade(ng, ns, nd);
 }
 
-
-/** =========================
- * 4) Entries CRUD
+function detailItemIdFromSelections(groupName, subName, detailName){
+  const g = (groupName||"").trim();
+  const s = (subName||"").trim();
+  const d = (detailName||"").trim();
+  return detailKeyToId.get(`${g}||${s}||${d}`) || null;
+}
+* 4) Entries CRUD
  * ========================= */
 function getFilters(){
   return {
@@ -1216,7 +1250,7 @@ function getFilters(){
 async function loadEntries(){
   const f = getFilters();
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail,subcategory,category,memo,member_id,created_at");
+  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail_item_id,detail_note,memo,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("entry_date", `gte.${f.from}`);
   url.searchParams.append("entry_date", `lte.${f.to}`);
@@ -1234,7 +1268,7 @@ async function loadEntries(){
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
 
   const rows = (f.q)
-    ? data.filter(r => (r.detail||"").includes(f.q) || (r.memo||"").includes(f.q))
+    ? data.filter(r => ((r.detail_items?.name||"").includes(f.q) || (r.detail_note||"").includes(f.q) || (r.memo||"").includes(f.q)))
     : data;
 
   renderEntries(rows);
@@ -1259,14 +1293,19 @@ function renderEntries(rows){
   const tbody = byId("entriesTbody");
   tbody.innerHTML = "";
   for(const r of rows){
+    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const s = r.detail_items?.subcategories?.name || "";
+    const d = r.detail_items?.name || "";
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.entry_date)}</td>
       <td class="py-2 px-3 border-b text-white/80">${escapeHtml(memberNameById(r.member_id))}</td>
       <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.flow_type)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.category || "")}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.subcategory || "")}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.detail || "")}</td>
+      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(g)}</td>
+      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(s)}</td>
+      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(d)}</td>
+      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.detail_note || "")}</td>
       <td class="py-2 px-3 border-b text-right font-semibold">${fmt(r.amount)}</td>
       <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.memo || "")}</td>
       <td class="py-2 px-3 border-b">
@@ -1286,21 +1325,24 @@ function renderEntries(rows){
   }
 }
 
+
 function startEdit(r){
   byId("editId").value = r.id;
   byId("entryDate").value = r.entry_date;
   byId("flowType").value = r.flow_type;
   byId("amount").value = r.amount;
-  byId("detail").value = r.detail || "";
+  byId("detailNote").value = r.detail_note || "";
   byId("memo").value = r.memo || "";
 
-  // dropdowns: category -> subcategory
-  const cat = r.category || "";
-  const sub = r.subcategory || "";
-  byId("category").value = cat;
-  // trigger subcategory refresh
+  const g = r.detail_items?.subcategories?.category_groups?.name || "";
+  const s = r.detail_items?.subcategories?.name || "";
+  const d = r.detail_items?.name || "";
+
+  byId("category").value = g;
   try{ byId("category").dispatchEvent(new Event("change")); }catch(_){}
-  byId("subcategory").value = sub;
+  byId("subcategory").value = s;
+  try{ byId("subcategory").dispatchEvent(new Event("change")); }catch(_){}
+  byId("detail").value = d;
 
   byId("memberSelect").value = r.member_id;
   byId("btnSubmit").textContent = "수정 저장";
@@ -1319,14 +1361,19 @@ async function upsertEntryFromForm(){
   const member_id = byId("memberSelect").value;
   const flow_type = byId("flowType").value;
   const amount = Number(byId("amount").value || 0);
-  const detail = (byId("detail").value || "").trim();
+
+  // category master selections
+  const groupName = (byId("category").value || "").trim();
+  const subName = (byId("subcategory").value || "").trim();
+  const detailName = (byId("detail").value || "").trim();
+  const detail_item_id = detailItemIdFromSelections(groupName, subName, detailName);
+
+  const detail_note = (byId("detailNote").value || "").trim();
   const memo = (byId("memo").value || "").trim();
-  const category = (byId("category").value || "").trim();
-  const subcategory = (byId("subcategory").value || "").trim();
 
   if(!entry_date) throw new Error("날짜를 선택해줘");
   if(!member_id) throw new Error("구분을 선택해줘");
-  if(!detail) throw new Error("설명을 입력해줘");
+  if(!detail_item_id) throw new Error("대분류/소분류/상세항목을 선택해줘");
   if(!Number.isFinite(amount) || amount < 0) throw new Error("금액을 확인해줘");
 
   const payload = {
@@ -1335,11 +1382,10 @@ async function upsertEntryFromForm(){
     member_id,
     flow_type,
     amount,
-    detail,
-    category: category || "",
-    subcategory: subcategory || "",
+    detail_item_id,
     created_by: session.user.id
   };
+  if(detail_note) payload.detail_note = detail_note;
   if(memo) payload.memo = memo;
 
   if(!id){
@@ -1356,33 +1402,32 @@ async function renameCategoryBatch(){
   setError("");
   setStatus("");
 
-  const oldCategory = (byId("renameOldCategory").value || "").trim();
-  const oldSubcategory = (byId("renameOldSubcategory").value || "").trim();
-  const oldDetail = (byId("renameOldDetail").value || "").trim();
+  const oldG = (byId("renameOldCategory").value || "").trim();
+  const oldS = (byId("renameOldSubcategory").value || "").trim();
+  const oldD = (byId("renameOldDetail").value || "").trim();
 
-  const newCategory = (byId("renameNewCategory").value || "").trim();
-  const newSubcategory = (byId("renameNewSubcategory").value || "").trim();
-  const newDetail = (byId("renameNewDetail").value || "").trim();
+  const newG = (byId("renameNewCategory").value || "").trim();
+  const newS = (byId("renameNewSubcategory").value || "").trim();
+  const newD = (byId("renameNewDetail").value || "").trim();
 
-  // 최소 안전장치: 조건이 너무 넓은 실수 방지
-  if(!oldCategory && !oldSubcategory && !oldDetail){
-    throw new Error("기존값(찾을 조건)에서 최소 1개는 입력해야 해.");
+  const oldId = detailItemIdFromSelections(oldG, oldS, oldD);
+  const newId = detailItemIdFromSelections(newG, newS, newD);
+
+  if(!oldId){
+    throw new Error("기존값(대분류/소분류/상세항목)을 모두 선택해야 해.");
   }
-
-  // 변경값이 전부 비면 할 게 없음
-  if(!newCategory && !newSubcategory && !newDetail){
-    throw new Error("변경값(바꿀 값)을 최소 1개는 입력해야 해.");
+  if(!newId){
+    throw new Error("변경값(대분류/소분류/상세항목)을 모두 선택해야 해.");
+  }
+  if(oldId === newId){
+    throw new Error("기존값과 변경값이 같아. 다른 항목을 선택해줘.");
   }
 
   // 1) 대상 id들 가져오기
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
   url.searchParams.set("select", "id");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-
-  if(oldCategory !== "") url.searchParams.set("category", `eq.${oldCategory}`);
-  if(oldSubcategory !== "") url.searchParams.set("subcategory", `eq.${oldSubcategory}`);
-  if(oldDetail !== "") url.searchParams.set("detail", `eq.${oldDetail}`);
-
+  url.searchParams.set("detail_item_id", `eq.${oldId}`);
   url.searchParams.set("limit", "12000");
 
   const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
@@ -1399,18 +1444,12 @@ async function renameCategoryBatch(){
     return;
   }
 
-  if(!confirm(`조건에 맞는 ${ids.length}건을 일괄 변경할까?`)){
+  if(!confirm(`조건에 맞는 ${ids.length}건의 '상세항목'을 변경할까?`)){
     setStatus("취소됨");
     return;
   }
 
-  // 2) PATCH payload (공란은 변경 안 함)
-  const patchBody = {};
-  if(newCategory !== "") patchBody.category = newCategory;
-  if(newSubcategory !== "") patchBody.subcategory = newSubcategory;
-  if(newDetail !== "") patchBody.detail = newDetail;
-
-  // 3) id IN으로 청크 PATCH
+  // 2) PATCH by chunks
   setStatus("일괄 변경 적용 중...");
   const chunkSize = 200;
 
@@ -1420,7 +1459,7 @@ async function renameCategoryBatch(){
       method:"PATCH",
       preferReturn:false,
       query:{ id: `in.(${part.join(",")})` },
-      body: patchBody
+      body: { detail_item_id: newId }
     });
     await sleep(60);
   }
@@ -1428,6 +1467,7 @@ async function renameCategoryBatch(){
   setStatus(`일괄 변경 완료! (${ids.length}건)`);
   await refreshEverything();
 }
+
 
 
 /** =========================
@@ -1438,8 +1478,8 @@ async function renameCategoryBatch(){
  * ========================= */
 function monthLabels(){ return Array.from({length:12}, (_,i)=>String(i+1).padStart(2,"0")); }
 
-function buildMatrixRowKey(flow_type, category, subcategory, detail){
-  return [flow_type, category||"", subcategory||"", detail||""].join("||");
+function buildMatrixRowKey(flow_type, detail_item_id){
+  return [flow_type, detail_item_id||""].join("||");
 }
 
 function getMatrixMembers3(){
@@ -1456,7 +1496,7 @@ function getMatrixMembers3(){
 
 async function fetchEntriesForMatrix(year, flow_type){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,category,subcategory,detail,member_id,created_at");
+  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("flow_type", `eq.${flow_type}`);
   url.searchParams.set("entry_date", `gte.${year}-01-01`);
@@ -1468,7 +1508,13 @@ async function fetchEntriesForMatrix(year, flow_type){
   const res = await fetch(url.toString(), { headers });
   const data = await res.json();
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-  return data || [];
+  const rows = data || [];
+  return rows.map(r=>{
+    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const s = r.detail_items?.subcategories?.name || "";
+    const d = r.detail_items?.name || "";
+    return { ...r, group_name:g, sub_name:s, item_name:d };
+  });
 }
 
 function fillMatrixFilters(years){
@@ -1491,10 +1537,10 @@ function renderMatrixTable3({ year, flow_type, rows }){
     const mk = (r.entry_date||"").slice(5,7);
     if(!months.includes(mk)) continue;
 
-    const cat = (r.category || "");
-    const sub = (r.subcategory || "");
-    const det = (r.detail || "");
-    const key = buildMatrixRowKey(flow_type, cat, sub, det);
+    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const s = r.detail_items?.subcategories?.name || "";
+    const d = r.detail_items?.name || "";
+    const key = buildMatrixRowKey(flow_type, r.detail_item_id);
 
     if(!map.has(key)){
       const cell = {};
@@ -1504,7 +1550,7 @@ function renderMatrixTable3({ year, flow_type, rows }){
           cell[mm][m.id] = 0;
         }
       }
-      map.set(key, { flow_type, category: cat, subcategory: sub, detail: det, cell });
+      map.set(key, { flow_type, group: g, subcategory: s, detail: d, detail_item_id: r.detail_item_id, cell });
     }
 
     const obj = map.get(key);
@@ -1514,8 +1560,8 @@ function renderMatrixTable3({ year, flow_type, rows }){
   }
 
   const arr = [...map.values()].sort((a,b)=>{
-    const A = `${a.category}||${a.subcategory}||${a.detail}`;
-    const B = `${b.category}||${b.subcategory}||${b.detail}`;
+    const A = `${a.group}||${a.subcategory}||${a.detail}`;
+    const B = `${b.group}||${b.subcategory}||${b.detail}`;
     return A.localeCompare(B, "ko");
   });
 
@@ -1555,7 +1601,7 @@ thead.innerHTML = `
 
     const tdCat = document.createElement("td");
     tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
-    tdCat.textContent = row.category || "미분류";
+    tdCat.textContent = row.group || "미분류";
 
     const tdSub = document.createElement("td");
     tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
@@ -1578,7 +1624,8 @@ thead.innerHTML = `
         td.dataset.member_id = m.id;
         td.dataset.member_name = m.name;
         td.dataset.flow = flow_type;
-        td.dataset.category = row.category || "";
+        td.dataset.detail_item_id = row.detail_item_id || "";
+        td.dataset.group = row.group || "";
         td.dataset.subcategory = row.subcategory || "";
         td.dataset.detail = row.detail || "";
         td.textContent = fmt((row.cell?.[mm]?.[m.id]) || 0);
@@ -1624,9 +1671,7 @@ function startCellEdit3(td){
     const mm = td.dataset.month;
     const member_id = td.dataset.member_id;
     const flow_type = td.dataset.flow;
-    const category = td.dataset.category || "";
-    const subcategory = td.dataset.subcategory || "";
-    const detail = td.dataset.detail || "";
+    const detail_item_id = td.dataset.detail_item_id || "";
    const entry_date = String(`${year}-${mm}-01`);
 
 
@@ -1643,9 +1688,7 @@ function startCellEdit3(td){
             entry_date:`eq.${entry_date}`,
             member_id:`eq.${member_id}`,
             flow_type:`eq.${flow_type}`,
-            category:`eq.${category}`,
-            subcategory:`eq.${subcategory}`,
-            detail:`eq.${detail}`
+            detail_item_id:`eq.${detail_item_id}`
           }
         });
         td.textContent = fmt(0);
@@ -1667,13 +1710,11 @@ function startCellEdit3(td){
         member_id,
         flow_type,
         amount,
-        detail,
-        category,
-        subcategory,
+        detail_item_id,
         created_by: session.user.id
       };
 
-      const onConflict = "ledger_id,entry_date,member_id,flow_type,category,subcategory,detail";
+      const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
       await apiFetch("/rest/v1/entries", {
         method:"POST",
         query:{ on_conflict: onConflict },
@@ -1824,29 +1865,35 @@ async function downloadMonthlyTemplate(){
   }
   setError("");
 
-  // ✅ 최초 1회 seed (비어있을 때만)
-  await seedDefaultTemplatesIfEmpty();
+  // masterDetailItems는 refreshEverything에서 로딩되지만, 안전하게 한 번 더 보장
+  if(!masterDetailItems?.length){
+    await loadCategoryMaster();
+  }
 
-  // ✅ 현재 DB 상태를 기반으로 템플릿 생성
-  const templates = await fetchActiveTemplates();
+  const rowsMaster = masterDetailItems
+    .map(x=>({
+      group: x.subcategory?.group?.name || "",
+      sub: x.subcategory?.name || "",
+      detail: x.name || ""
+    }))
+    .filter(x=>x.group && x.sub && x.detail);
 
-  if(!templates.length){
-    setError("활성화된 템플릿 항목이 없어. (카테고리 관리에서 추가하거나, 기본 템플릿을 다시 시드해야 해)");
+  if(!rowsMaster.length){
+    setError("활성화된 상세항목이 없어. (detail_items.is_active=true 확인)");
     return;
   }
 
   const ym = ymFromInput() || new Date().toISOString().slice(0,7);
   const sheetRows = [];
-
   sheetRows.push(["사용법: '날짜'는 가능하면 YYYY-MM-DD로 입력. 금액 공란은 스킵(기존 값 유지)."]);
-  sheetRows.push(["날짜","대분류","소분류","설명","돌프","천사","공통"]);
+  sheetRows.push(["날짜","대분류","소분류","상세항목","돌프","천사","공통"]);
 
-  for(const r of templates){
-    sheetRows.push(["", r.category || "", r.subcategory || "", r.detail || "", "", "", ""]);
+  for(const r of rowsMaster){
+    sheetRows.push(["", r.group, r.sub, r.detail, "", "", ""]);
   }
 
   const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:34},{wch:12},{wch:12},{wch:12}];
+  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:22},{wch:12},{wch:12},{wch:12}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "기록");
@@ -1856,9 +1903,10 @@ async function downloadMonthlyTemplate(){
 }
 
 
+
 function detectHeaderRow(rows){
   // find a row that contains required headers
-  const needed = ["날짜","대분류","소분류","설명","돌프","천사","공통"];
+  const needed = ["날짜","대분류","소분류","상세항목","돌프","천사","공통"];
   for(let i=0;i<Math.min(rows.length, 20);i++){
     const row = rows[i].map(v => String(v||"").trim());
     const ok = needed.every(h => row.includes(h));
@@ -1867,10 +1915,10 @@ function detectHeaderRow(rows){
   return -1;
 }
 
-function flowFromCategory(cat){
-  const c = (cat||"").trim();
+function flowFromGroup(groupName){
+  const c = (groupName||"").trim();
   if(c === "수입") return "income";
-  if(c === "금융·저축" || c === "저축" || c === "금융/저축") return "saving";
+  if(c === "저축") return "saving";
   return "expense";
 }
 
@@ -1932,7 +1980,7 @@ async function bulkUpload(){
     const iDate = idx("날짜");
     const iCat = idx("대분류");
     const iSub = idx("소분류");
-    const iDetail = idx("설명");
+    const iDetail = idx("상세항목");
     const iDol = idx("돌프");
     const iAng = idx("천사");
     const iCom = idx("공통");
@@ -1958,6 +2006,11 @@ async function bulkUpload(){
       const subcategory = String(row[iSub] ?? "").trim();
       const detail = String(row[iDetail] ?? "").trim();
 
+      const detail_item_id = detailItemIdFromSelections(category, subcategory, detail);
+      if(!detail_item_id){
+        throw new Error(`카테고리 매칭 실패: [${category} > ${subcategory} > ${detail}] (시트 '${sheetName}' ${r+1}행)`);
+      }
+
       // 완전 공란 라인 스킵
       const dolRaw = row[iDol];
       const angRaw = row[iAng];
@@ -1967,7 +2020,7 @@ async function bulkUpload(){
 
       if(!category && !subcategory && !detail) continue;
 
-      const flow_type = flowFromCategory(category);
+      const flow_type = flowFromGroup(category);
 
       const pushIfAmount = (member_id, amtRaw)=>{
         const s = String(amtRaw ?? "").trim();
@@ -1981,9 +2034,7 @@ async function bulkUpload(){
           member_id,
           flow_type,
           amount,
-          detail: detail || "",
-          category: category || "",
-          subcategory: subcategory || "",
+          detail_item_id,
           created_by: session.user.id
         });
       };
@@ -2004,8 +2055,8 @@ async function bulkUpload(){
   }
 
   // ✅ 같은 키가 요청 배열에 2번 들어가면 Postgres가 터져서, 업로드 전에 dedupe(마지막 값 우선)
-  const onConflict = "ledger_id,entry_date,member_id,flow_type,category,subcategory,detail";
-  const makeKey = (x)=> [x.ledger_id,x.entry_date,x.member_id,x.flow_type,x.category||"",x.subcategory||"",x.detail||""].join("|");
+  const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
+  const makeKey = (x)=> [x.ledger_id,x.entry_date,x.member_id,x.flow_type,x.detail_item_id||""].join("|");
   const dedup = new Map();
   for(const row of toUpsert) dedup.set(makeKey(row), row);
   const toUpsertUnique = [...dedup.values()];
@@ -2130,8 +2181,8 @@ function buildDashPredicate(){
     if(mem.size && !mem.has(r.member_id)) return false;
     if(yrs.size && !yrs.has(y)) return false;
     if(mos.size && !mos.has(m)) return false;
-    if(cats.size && !cats.has((r.category||""))) return false;
-    if(subs.size && !subs.has((r.subcategory||""))) return false;
+    if(cats.size && !cats.has((r.group_name||""))) return false;
+    if(subs.size && !subs.has((r.sub_name||""))) return false;
     return true;
   };
 }
@@ -2210,7 +2261,7 @@ function renderDashButtons(){
   }
 
   // categories/subcategories from data
-  const cats = [...new Set(dashRowsCache.map(r=>(r.category||"").trim()))].filter(Boolean).sort();
+  const cats = [...new Set(dashRowsCache.map(r=>(r.group_name||"").trim()))].filter(Boolean).sort();
   const wrapC = byId("dashBtnsCategory");
   wrapC.innerHTML = "";
   wrapC.appendChild(mkBtn("전체", {
@@ -2240,8 +2291,8 @@ function renderDashButtons(){
   const catsSelected = dashState.categories.size > 0;
 
   for(const r of dashRowsCache){
-    const c = (r.category||"").trim();
-    const s = (r.subcategory||"").trim();
+    const c = (r.group_name||"").trim();
+    const s = (r.sub_name||"").trim();
     if(!s) continue;
     if(catsSelected && !dashState.categories.has(c)) continue; // 대분류 선택 시 해당 대분류의 소분류만
     allowedSubs.add(s);
@@ -2278,7 +2329,7 @@ function renderDashButtons(){
 
 async function fetchAllEntriesForDash(){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,category,subcategory,detail,member_id");
+  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id,detail_items(name,subcategories(name,category_groups(name)))");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("order", "entry_date.asc");
   url.searchParams.set("limit", "8000");
@@ -2287,7 +2338,13 @@ async function fetchAllEntriesForDash(){
   const res = await fetch(url.toString(), { headers });
   const data = await res.json();
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-  return data || [];
+  const rows = data || [];
+  return rows.map(r=>{
+    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const s = r.detail_items?.subcategories?.name || "";
+    const d = r.detail_items?.name || "";
+    return { ...r, group_name:g, sub_name:s, item_name:d };
+  });
 }
 
 function computeMonthlyBuckets(rows, pred){
@@ -2329,7 +2386,7 @@ function computeCategoryExpense(rows, pred){
   for(const r of rows){
     if(!pred(r)) continue;
     if(r.flow_type !== "expense") continue;
-    const k = (r.category || "미분류");
+    const k = (r.group_name || "미분류");
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
@@ -2341,7 +2398,7 @@ function computeTop10(rows, pred){
   for(const r of rows){
     if(!pred(r)) continue;
     if(r.flow_type !== "expense") continue;
-    const k = (r.subcategory || "미분류").trim() || "미분류";
+    const k = (r.sub_name || "미분류").trim() || "미분류";
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
@@ -2360,16 +2417,15 @@ function computeFlowShare(rows, pred){
       continue;
     }
     if(r.flow_type==="income"){
-      const sub = (r.subcategory||"").trim();
-      const det = (r.detail||"").trim();
-      const isSalary = (sub === "월급") || (det === "월급") || (sub.includes("월급")) || (det.includes("월급"));
-      if(isSalary) salary += amt;
+      const item = (r.item_name || "").trim();
+      if(item === "월급") salary += amt;
       else otherIncome += amt;
       continue;
     }
-    // saving은 흐름 비중(3개)에서는 제외
+    // saving은 이 그래프 정의상 제외
   }
-  return { salary, otherIncome, expense };
+  const total = salary + otherIncome + expense;
+  return { salary, otherIncome, expense, total };
 }
 
 
@@ -2565,10 +2621,8 @@ async function refreshEverything(){
   await loadEntries();
   await refreshDashboard();
 
-  // dropdown sources (edit + batch rename)
-  await rebuildCategoryMaps();
-  refreshEntryFormCategoryDropdowns();
-  refreshRenameDropdowns();
+  // category master (대분류>소분류>상세항목)
+  await loadCategoryMaster();
 
   await refreshMatrix();
 }
