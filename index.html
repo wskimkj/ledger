@@ -2160,8 +2160,8 @@ async function downloadMonthlyTemplate(){
   const subOrder = new Map(subsSorted.map((s,i)=>[s.id,i]));
 
   const items = [...masterDetailItems].sort((a,b)=>{
-    const ga = a.subcategory?.group?.id ? (groupOrder.get(a.subcategory.group.id) ?? 99999) : 99999;
-    const gb = b.subcategory?.group?.id ? (groupOrder.get(b.subcategory.group.id) ?? 99999) : 99999;
+    const ga = a.subcategory?.category?.id ? (groupOrder.get(a.subcategory.category.id) ?? 99999) : 99999;
+    const gb = b.subcategory?.category?.id ? (groupOrder.get(b.subcategory.category.id) ?? 99999) : 99999;
     if(ga !== gb) return ga-gb;
     const sa = a.subcategory?.id ? (subOrder.get(a.subcategory.id) ?? 99999) : 99999;
     const sb = b.subcategory?.id ? (subOrder.get(b.subcategory.id) ?? 99999) : 99999;
@@ -2182,7 +2182,7 @@ async function downloadMonthlyTemplate(){
   sheetRows.push(["날짜","대분류","소분류","상세항목","설명예시","돌프","천사","공통"]);
 
   for(const it of items){
-    const gName = it.subcategory?.group?.name || "";
+    const gName = it.subcategory?.category?.name || "";
     const sName = it.subcategory?.name || "";
     sheetRows.push(["", gName, sName, it.name||"", it.example_note||"", "", "", ""]);
   }
@@ -2450,7 +2450,7 @@ let categoryMaster = {
   details: [],  // [{id,name,subcategory_id,sort_order,is_active}]
   groupNameById: new Map(),
   subById: new Map(),
-  subsByGroupId: new Map(),
+  subsByCategoryId: new Map(),
   detailsBySubId: new Map(),
 };
 
@@ -2492,7 +2492,7 @@ async function loadCategoryMaster(){
   categoryMaster.details = details || [];
 
   // --- ALSO populate master structures used by dropdowns/template/admin ---
-  masterGroups = (categories || []).filter(g=>g.is_active!==false);
+  masterGroups = (groups || []).filter(g=>g.is_active!==false);
   masterSubcategories = (subs || []).filter(s=>s.is_active!==false);
 
   // maps for name lookup
@@ -2543,11 +2543,11 @@ async function loadCategoryMaster(){
   categoryMaster.groupNameById = new Map(categoryMaster.groups.map(g=>[g.id, g.name]));
   categoryMaster.subById = new Map(categoryMaster.subs.map(s=>[s.id, s]));
 
-  categoryMaster.subsByGroupId = new Map();
+  categoryMaster.subsByCategoryId = new Map();
   for(const s of categoryMaster.subs){
-    const arr = categoryMaster.subsByGroupId.get(s.category_id) || [];
+    const arr = categoryMaster.subsByCategoryId.get(s.category_id) || [];
     arr.push(s);
-    categoryMaster.subsByGroupId.set(s.category_id, arr);
+    categoryMaster.subsByCategoryId.set(s.category_id, arr);
   }
 
   categoryMaster.detailsBySubId = new Map();
@@ -2729,7 +2729,7 @@ function renderDashButtons(){
       for(const gName of selected){
         const gid = nameToId.get(gName);
         if(!gid) continue;
-        for(const s of (categoryMaster.subsByGroupId.get(gid) || [])){
+        for(const s of (categoryMaster.subsByCategoryId.get(gid) || [])){
           allSubs.push(s.name);
         }
       }
