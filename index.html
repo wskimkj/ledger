@@ -1,423 +1,239 @@
-<!-- STEP 2 FINAL: Category Management inside Bulk Upload tab -->
-
 <!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>우리집 가계부 (STEP 2 · 카테고리 관리 포함)</title>
+  <title>우리집 가계부 · Master 고정 (Final)</title>
 
-  <!-- Tailwind (UI) -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
-  <!-- xlsx -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script>
-  // CDN이 막힌 환경 대비: 같은 폴더에 xlsx.full.min.js가 있으면 그걸 로드
-  if(!window.XLSX){
-    document.write('<script src="./xlsx.full.min.js"><\/script>');
-  }
-</script>
+  <!-- SheetJS (XLSX). If blocked, CSV fallback is used. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"></script>
 
-    <style>
-/* Vivid Candy × Cute-but-Clean (Desktop-first) */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
-
-:root{
-  --bg0:#F9FAFB;
-  --bg1:#F4F6FF;
-  --card:#FFFFFF;
-  --ink:#111827;
-  --ink2:rgba(17,24,39,.72);
-  --ink3:rgba(17,24,39,.52);
-
-  --purple:#6D28D9;
-  --cyan:#22D3EE;
-  --lime:#A3E635;
-  --orange:#FB923C;
-  --pink:#EC4899;
-
-  --stroke:rgba(99,102,241,.16);
-  --stroke2:rgba(17,24,39,.08);
-
-  --shadow: 0 16px 45px rgba(17,24,39,.10);
-  --shadow2: 0 10px 30px rgba(17,24,39,.08);
-
-  --r-xl: 22px;
-  --r-lg: 18px;
-  --r-md: 14px;
-}
-
-html, body{ height:100%; }
-body{
-  font-family: "Poppins","Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  color: var(--ink);
-  background:
-    radial-gradient(900px 520px at 14% 0%, rgba(34,211,238,.22), transparent 60%),
-    radial-gradient(880px 520px at 90% 8%, rgba(236,72,153,.18), transparent 60%),
-    radial-gradient(760px 520px at 40% 100%, rgba(163,230,53,.16), transparent 60%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 55%, #FFFFFF 120%);
-}
-
-/* subtle grain */
-body:before{
-  content:"";
-  position:fixed; inset:0;
-  pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
-  mix-blend-mode:multiply;
-}
-
-/* cards */
-.glass, .glass2{
-  background: rgba(255,255,255,.92);
-  border: 1px solid var(--stroke2);
-  box-shadow: var(--shadow2);
-  backdrop-filter: blur(14px);
-}
-.glass{ border-color: rgba(109,40,217,.14); box-shadow: var(--shadow); }
-.glass2{ border-color: rgba(99,102,241,.12); }
-
-/* scrollbar */
-.thin-scroll::-webkit-scrollbar{ height:10px; width:10px; }
-.thin-scroll::-webkit-scrollbar-thumb{
-  background: linear-gradient(180deg, rgba(109,40,217,.55), rgba(236,72,153,.45));
-  border-radius: 999px;
-}
-.thin-scroll::-webkit-scrollbar-track{
-  background: rgba(17,24,39,.06);
-  border-radius: 999px;
-}
-
-/* tabs */
-.tab-btn{
-  border:1px solid rgba(109,40,217,.16);
-  background: rgba(255,255,255,.78);
-  box-shadow: 0 6px 16px rgba(17,24,39,.06);
-  border-radius: 16px;
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
-}
-.tab-btn:hover{ transform: translateY(-1px); box-shadow: 0 12px 26px rgba(17,24,39,.10); }
-.tab-btn[data-active="true"]{
-  background: linear-gradient(135deg, rgba(109,40,217,.98), rgba(236,72,153,.92));
-  border-color: rgba(109,40,217,.30);
-  color: #fff !important;
-}
-
-/* pill + chips */
-.pill{
-  border:1px solid rgba(109,40,217,.18);
-  background: rgba(255,255,255,.78);
-}
-.chip{
-  border:1.5px solid rgba(109,40,217,.16);
-  background: rgba(255,255,255,.92);
-  color: rgba(88,28,135,.98);
-  border-radius: 999px;
-  box-shadow: 0 10px 22px rgba(17,24,39,.07);
-  backdrop-filter: blur(10px);
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
-  user-select:none;
-}
-.chip:hover{
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(17,24,39,.10);
-}
-.chip[data-active="true"]{
-  background: linear-gradient(135deg, rgba(109,40,217,1), rgba(34,211,238,.92));
-  border-color: rgba(34,211,238,.55);
-  color: #fff;
-}
-
-/* buttons */
-.btn{
-  border:1px solid rgba(109,40,217,.14);
-  background: rgba(255,255,255,.88);
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(17,24,39,.06);
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, filter .12s ease;
-}
-.btn:hover{
-  transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(17,24,39,.10);
-  background: rgba(255,255,255,.98);
-}
-.btn:active{ transform: translateY(0) scale(.98); }
-
-.btn-primary{
-  background: linear-gradient(135deg, var(--purple), var(--pink));
-  border-color: rgba(109,40,217,.32);
-  color: #fff !important;
-  box-shadow: 0 14px 34px rgba(109,40,217,.18);
-}
-.btn-primary:hover{
-  filter: brightness(1.03);
-  background: linear-gradient(135deg, #7C3AED, #F472B6);
-}
-.btn-danger{
-  background: rgba(244,63,94,.10);
-  border-color: rgba(244,63,94,.22);
-  color: rgba(159,18,57,.98) !important;
-}
-.btn-danger:hover{ background: rgba(244,63,94,.14); }
-
-/* inputs */
-input, select{
-  background: rgba(255,255,255,.94) !important;
-  border: 1px solid rgba(109,40,217,.16) !important;
-  border-radius: 16px !important;
-  color: var(--ink) !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.0);
-  transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
-}
-input:focus, select:focus{
-  outline: none !important;
-  border-color: rgba(34,211,238,.65) !important;
-  box-shadow: 0 0 0 4px rgba(34,211,238,.18) !important;
-}
-input::placeholder{ color: rgba(17,24,39,.45); }
-option{ color: var(--ink); }
-
-/* tables */
-table th, table td { border-color: rgba(17,24,39,.10) !important; }
-thead{ background: rgba(255,255,255,.86) !important; }
-
-/* text overrides to ensure previous markup remains readable */
-.text-white{ color: var(--ink) !important; }
-.text-white\/80{ color: rgba(17,24,39,.80) !important; }
-.text-white\/70{ color: rgba(17,24,39,.70) !important; }
-.text-white\/60{ color: rgba(17,24,39,.60) !important; }
-.text-white\/50{ color: rgba(17,24,39,.50) !important; }
-.text-red-300{ color: rgba(225,29,72,.95) !important; }
-
-/* cute KPI badges (optional) */
-.kpi-badge{
-  display:inline-flex; align-items:center; gap:.4rem;
-  padding:.35rem .65rem;
-  border-radius:999px;
-  font-size:12px;
-  border:1px solid rgba(17,24,39,.08);
-  background: rgba(255,255,255,.92);
-}
-.kpi-dot{ width:10px; height:10px; border-radius:999px; box-shadow: 0 8px 18px rgba(17,24,39,.12); }
-.kpi-dot.purple{ background: var(--purple); }
-.kpi-dot.pink{ background: var(--pink); }
-.kpi-dot.lime{ background: var(--lime); }
-
-/* desktop-first spacing */
-@media (min-width: 1024px){
-  .max-w-7xl{ max-width: 1240px !important; }
-}
-</style>
+  <style>
+    :root{
+      --bg0:#f7f7ff;
+      --bg1:#ffffffcc;
+      --ink:#0b1220;
+      --muted:rgba(11,18,32,.62);
+      --line:rgba(99,102,241,.22);
+      --shadow: 0 18px 55px rgba(17,24,39,.10);
+      --grad: linear-gradient(135deg, #7c3aed, #2563eb, #06b6d4);
+      --grad2: linear-gradient(135deg, #fb7185, #a78bfa, #22c55e);
+    }
+    body{
+      color: var(--ink);
+      background:
+        radial-gradient(900px 520px at 12% 0%, rgba(124,58,237,.16), transparent 60%),
+        radial-gradient(900px 520px at 92% 10%, rgba(37,99,235,.16), transparent 60%),
+        radial-gradient(860px 520px at 50% 96%, rgba(34,197,94,.12), transparent 60%),
+        var(--bg0);
+    }
+    .glass{
+      background: var(--bg1);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+    .btn{
+      border: 1px solid rgba(99,102,241,.22);
+      background: rgba(255,255,255,.78);
+      transition: transform .08s ease, filter .12s ease, background .12s ease;
+    }
+    .btn:hover{ background: rgba(255,255,255,.95); transform: translateY(-1px); }
+    .btn-primary{
+      color: white !important;
+      border-color: rgba(99,102,241,.22);
+      background: var(--grad);
+    }
+    .btn-primary:hover{ filter: brightness(1.03); }
+    .btn-danger{
+      border-color: rgba(239,68,68,.25);
+      background: rgba(239,68,68,.10);
+      color: rgba(153,27,27,.98) !important;
+    }
+    .pill{
+      border: 1px solid rgba(124,58,237,.22);
+      background: rgba(124,58,237,.08);
+    }
+    .tab[data-active="true"]{
+      background: rgba(124,58,237,.10);
+      border-color: rgba(124,58,237,.30);
+    }
+    .thin-scroll::-webkit-scrollbar{ height:10px; width:10px; }
+    .thin-scroll::-webkit-scrollbar-thumb{ background: rgba(124,58,237,.28); border-radius: 999px; }
+    .thin-scroll::-webkit-scrollbar-track{ background: rgba(17,24,39,.06); border-radius: 999px; }
+    select,input{
+      background: rgba(255,255,255,.9) !important;
+      border-color: rgba(99,102,241,.22) !important;
+      color: var(--ink) !important;
+    }
+    table th, table td { border-color: rgba(17,24,39,.10) !important; }
+    .muted{ color: var(--muted); }
+    .kpi{
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(99,102,241,.18);
+      box-shadow: 0 12px 32px rgba(17,24,39,.08);
+      backdrop-filter: blur(14px);
+    }
+  </style>
 </head>
-
-<body class="text-white">
+<body>
   <div class="max-w-7xl mx-auto px-4 py-6">
-    <!-- Header -->
-    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div>
-        <h1 class="text-3xl font-bold tracking-tight">가계부</h1>
-        <div class="text-white/60 text-sm mt-1">
-          Supabase 동기화 · 커버 대시보드 + 기록/수정 + 대량 업로드(템플릿) · 공란 스킵=기존값 유지 · 덮어쓰기=금액이 있을 때만 업데이트
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-2xl grid place-items-center text-white" style="background: var(--grad2); box-shadow: 0 14px 35px rgba(124,58,237,.18);">
+          <i class="fa-solid fa-sparkles"></i>
+        </div>
+        <div>
+          <div class="text-2xl font-extrabold tracking-tight">우리집 가계부</div>
+          <div class="text-xs muted mt-0.5">Master(Flow→대분류→소분류→상세) 기준 · entries는 detail_item_id로만 저장</div>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <div id="whoPill" class="pill rounded-full px-3 py-2 text-sm text-white/80 hidden"></div>
 
-        <button id="btnRequests" class="btn rounded-xl px-3 py-2 text-sm hidden relative" title="승인 요청">
-          <i class="fa-regular fa-bell"></i>
-          <span id="reqBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
-        </button>
+      <div class="flex items-center gap-2">
+        <div id="whoPill" class="pill rounded-full px-3 py-2 text-sm muted hidden"></div>
         <button id="btnLogout" class="btn btn-danger rounded-xl px-4 py-2 text-sm hidden">
           <i class="fa-solid fa-right-from-bracket mr-2"></i>로그아웃
         </button>
       </div>
     </div>
 
-    <!-- Status -->
-    <div class="mt-4 glass rounded-2xl p-4">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div class="hidden"><span id="ledgerName"></span><div id="status"></div></div>
-        <div id="error" class="text-red-300 text-xs"></div>
-
-        <!-- Auth box -->
-        <div id="authBox" class="glass2 rounded-2xl p-4 w-full md:w-[520px]">
-          <div class="text-sm font-semibold mb-2">로그인</div>
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-2">
-            <input id="email" class="md:col-span-2 rounded-xl px-3 py-2 text-sm" type="email" placeholder="이메일" />
-            <input id="password" class="md:col-span-2 rounded-xl px-3 py-2 text-sm" type="password" placeholder="비밀번호" />
-            <button id="btnLogin" class="btn btn-primary rounded-xl px-3 py-2 text-sm">
-              로그인
-            </button>
-            <button id="btnSignUp" class="btn rounded-xl px-3 py-2 text-sm md:col-span-5">
-              처음이면 회원가입(메일 인증 필요할 수 있음)
-            </button>
-          </div>
-          <div class="text-xs text-white/60 mt-2">
-            * Supabase 설정에서 <b>Confirm email</b>이 켜져있으면, 가입 후 메일 인증을 해야 로그인돼.
-          </div>
+    <div id="authBox" class="mt-5 glass rounded-2xl p-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <div class="text-sm font-semibold">로그인</div>
+          <div class="text-xs muted mt-1">처음이면 회원가입 후 로그인. (메일 인증이 켜져있으면 인증 후 가능)</div>
         </div>
-
-        <!-- Pending approval -->
-        <div id="pendingBox" class="glass2 rounded-2xl p-4 w-full md:w-[520px] hidden">
-          <div class="text-sm font-semibold mb-1">승인 대기 중</div>
-          <div class="text-sm text-white/70">
-            이 계정은 아직 장부 접근 승인이 필요해.<br/>
-            주인 계정이 승인하면 자동으로 들어갈 수 있어.
-          </div>
-
-          <div class="mt-3 flex gap-2">
-            <button id="btnRequestAccess" class="btn btn-primary rounded-xl px-4 py-2 text-sm w-full">
-              <i class="fa-solid fa-paper-plane mr-2"></i>승인 요청 보내기
-            </button>
-            <button id="btnPendingRefresh" class="btn rounded-xl px-4 py-2 text-sm">
-              새로고침
-            </button>
-          </div>
-
-          <div id="pendingHint" class="text-xs text-white/60 mt-2"></div>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-2 w-full lg:w-[560px]">
+          <input id="email" class="md:col-span-2 rounded-xl px-3 py-2 text-sm" type="email" placeholder="이메일" />
+          <input id="password" class="md:col-span-2 rounded-xl px-3 py-2 text-sm" type="password" placeholder="비밀번호" />
+          <button id="btnLogin" class="btn btn-primary rounded-xl px-3 py-2 text-sm">로그인</button>
+          <button id="btnSignUp" class="btn rounded-xl px-3 py-2 text-sm md:col-span-5">처음이면 회원가입</button>
         </div>
       </div>
+      <div id="error" class="text-sm mt-3 text-red-600"></div>
+      <div id="status" class="text-xs mt-1 muted"></div>
     </div>
 
-    <!-- Tabs -->
     <div id="appWrap" class="mt-5 hidden">
       <div class="flex flex-wrap gap-2">
-        <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="dash" data-active="true">
-          <i class="fa-solid fa-chart-line mr-2"></i>커버 대시보드
+        <button class="tab btn rounded-xl px-4 py-2 text-sm" data-tab="dash" data-active="true">
+          <i class="fa-solid fa-chart-line mr-2"></i>대시보드
         </button>
-        <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="edit" data-active="false">
+        <button class="tab btn rounded-xl px-4 py-2 text-sm" data-tab="edit" data-active="false">
           <i class="fa-solid fa-pen-to-square mr-2"></i>기록/수정
         </button>
-<button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="all" data-active="false">
-          <i class="fa-solid fa-table mr-2"></i>전체 데이터/수정
+        <button class="tab btn rounded-xl px-4 py-2 text-sm" data-tab="cat" data-active="false">
+          <i class="fa-solid fa-layer-group mr-2"></i>카테고리
         </button>
       </div>
 
-      <!-- DASHBOARD -->
+      <!-- DASH -->
       <section id="tab-dash" class="mt-4">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          
-          <!-- slicers -->
           <div class="glass rounded-2xl p-4 lg:col-span-3">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center justify-between">
               <div class="text-sm font-semibold">필터</div>
               <button id="btnDashRefetch" class="btn rounded-xl px-3 py-2 text-xs">
-                <i class="fa-solid fa-rotate mr-2"></i>데이터 새로고침
+                <i class="fa-solid fa-rotate mr-2"></i>새로고침
               </button>
             </div>
 
-            <div class="space-y-4">
+            <div class="mt-3 space-y-3">
               <div>
-                <div class="text-xs text-black/60 mb-2">구분 (중복 선택 가능)</div>
-                <div id="dashBtnsMember" class="flex flex-wrap gap-2"></div>
+                <div class="text-xs muted mb-1">기간</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input id="dashFrom" type="date" class="rounded-xl px-3 py-2 text-sm">
+                  <input id="dashTo" type="date" class="rounded-xl px-3 py-2 text-sm">
+                </div>
               </div>
 
               <div>
-                <div class="text-xs text-black/60 mb-2">연도 (중복 선택 가능)</div>
-                <div id="dashBtnsYear" class="flex flex-wrap gap-2"></div>
+                <div class="text-xs muted mb-1">흐름</div>
+                <select id="dashFlow" class="w-full rounded-xl px-3 py-2 text-sm"></select>
               </div>
 
               <div>
-                <div class="text-xs text-black/60 mb-2">월 (중복 선택 가능)</div>
-                <div id="dashBtnsMonth" class="flex flex-wrap gap-2"></div>
+                <div class="text-xs muted mb-1">대분류</div>
+                <select id="dashCategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
               </div>
 
               <div>
-                <div class="text-xs text-black/60 mb-2">대분류 (중복 선택 가능)</div>
-                <div id="dashBtnsCategory" class="flex flex-wrap gap-2 max-h-40 overflow-auto thin-scroll pr-1"></div>
+                <div class="text-xs muted mb-1">소분류</div>
+                <select id="dashSubcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
               </div>
 
               <div>
-                <div class="text-xs text-black/60 mb-2">소분류 (중복 선택 가능)</div>
-                <div id="dashBtnsSubcategory" class="flex flex-wrap gap-2 max-h-44 overflow-auto thin-scroll pr-1"></div>
+                <div class="text-xs muted mb-1">상세항목</div>
+                <select id="dashDetailItem" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+                <div id="dashExample" class="text-xs muted mt-2"></div>
+              </div>
+
+              <div>
+                <div class="text-xs muted mb-1">구분</div>
+                <select id="dashMember" class="w-full rounded-xl px-3 py-2 text-sm"></select>
               </div>
 
               <div class="flex gap-2 pt-1">
-                <button id="btnDashClear" class="btn rounded-xl px-4 py-2 text-sm w-full">
-                  전체 해제
-                </button>
-              </div>
-
-              <div id="dashSelectionHint" class="text-xs text-black/50">
-                * 버튼을 누르면 즉시 반영돼. (중복 선택은 합산)
+                <button id="btnDashClear" class="btn rounded-xl px-4 py-2 text-sm w-full">필터 초기화</button>
               </div>
             </div>
           </div>
 
-          <!-- main dashboard -->
-
           <div class="lg:col-span-9 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="glass rounded-2xl p-4">
-              <div class="text-xs text-white/60">저축 현황</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiSaving">0</span> <span class="text-base font-medium text-white/60">원</span></div>
-              <div class="text-xs text-white/50 mt-2">월평균: <span id="kpiSavingAvg">0</span> 원</div>
+            <div class="kpi rounded-2xl p-4">
+              <div class="text-xs muted">수입</div>
+              <div class="text-2xl font-extrabold mt-1"><span id="kpiIncome">0</span><span class="text-base font-medium muted ml-1">원</span></div>
             </div>
-            <div class="glass rounded-2xl p-4">
-              <div class="text-xs text-white/60">수입 현황</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiIncome">0</span> <span class="text-base font-medium text-white/60">원</span></div>
-              <div class="text-xs text-white/50 mt-2">월평균: <span id="kpiIncomeAvg">0</span> 원</div>
+            <div class="kpi rounded-2xl p-4">
+              <div class="text-xs muted">지출</div>
+              <div class="text-2xl font-extrabold mt-1"><span id="kpiExpense">0</span><span class="text-base font-medium muted ml-1">원</span></div>
             </div>
-            <div class="glass rounded-2xl p-4">
-              <div class="text-xs text-white/60">지출 현황</div>
-              <div class="text-2xl font-bold mt-1"><span id="kpiExpense">0</span> <span class="text-base font-medium text-white/60">원</span></div>
-              <div class="text-xs text-white/50 mt-2">월평균: <span id="kpiExpenseAvg">0</span> 원</div>
+            <div class="kpi rounded-2xl p-4">
+              <div class="text-xs muted">저축</div>
+              <div class="text-2xl font-extrabold mt-1"><span id="kpiSaving">0</span><span class="text-base font-medium muted ml-1">원</span></div>
             </div>
 
             <div class="glass rounded-2xl p-4 md:col-span-2">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-regular fa-chart-bar mr-2"></i>지출 요약 (대분류)</div>
-                <div class="text-xs text-white/50">선택 조건 기준</div>
+                <div class="text-xs muted">선택 조건 기준</div>
               </div>
-              <div class="mt-3 h-[260px]">
-                <canvas id="chartCategory"></canvas>
-              </div>
+              <div class="mt-3 h-[260px]"><canvas id="chartCategory"></canvas></div>
             </div>
 
             <div class="glass rounded-2xl p-4 md:col-span-1">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-solid fa-list-ol mr-2"></i>지출 Top 10</div>
+                <div class="text-sm font-semibold"><i class="fa-solid fa-list-ol mr-2"></i>지출 Top 10 (소분류)</div>
               </div>
-              <div class="mt-3 h-[260px]">
-                <canvas id="chartTop10"></canvas>
-              </div>
+              <div class="mt-3 h-[260px]"><canvas id="chartTop10"></canvas></div>
             </div>
 
-            
             <div class="glass rounded-2xl p-4 md:col-span-1">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-solid fa-chart-pie mr-2"></i>흐름 비중</div>
               </div>
-              <div class="mt-3 h-[260px]">
-                <canvas id="chartFlowShare"></canvas>
-              </div>
-              <div id="flowShareText" class="text-xs text-black/60 mt-2"></div>
+              <div class="mt-3 h-[260px]"><canvas id="chartFlowShare"></canvas></div>
             </div>
 
             <div class="glass rounded-2xl p-4 md:col-span-2">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-solid fa-layer-group mr-2"></i>월별 합계(스택)</div>
-                <div class="text-xs text-black/50">지출/수입/저축</div>
+                <div class="text-xs muted">수입/지출/저축</div>
               </div>
-              <div class="mt-3 h-[260px]">
-                <canvas id="chartMonthlyStack"></canvas>
-              </div>
+              <div class="mt-3 h-[260px]"><canvas id="chartMonthlyStack"></canvas></div>
             </div>
-<div class="glass rounded-2xl p-4 md:col-span-3">
+
+            <div class="glass rounded-2xl p-4 md:col-span-3">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-regular fa-calendar mr-2"></i>월별 지출/수입/저축 추이</div>
-                <div class="text-xs text-white/50">연도=전체면 전체기간</div>
+                <div class="text-sm font-semibold"><i class="fa-regular fa-calendar mr-2"></i>월별 추이</div>
               </div>
-              <div class="mt-3 h-[280px]">
-                <canvas id="chartMonthly"></canvas>
-              </div>
+              <div class="mt-3 h-[280px]"><canvas id="chartMonthly"></canvas></div>
             </div>
           </div>
         </div>
@@ -427,111 +243,63 @@ thead{ background: rgba(255,255,255,.86) !important; }
       <section id="tab-edit" class="mt-4 hidden">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div class="glass rounded-2xl p-4 lg:col-span-4">
-            <div class="text-sm font-semibold mb-3">거래 입력/수정</div>
-            <form id="entryForm" class="space-y-3">
-              <input type="hidden" id="editId" value="" />
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold">거래 입력</div>
+              <button id="btnDownloadTemplate" class="btn btn-primary rounded-xl px-3 py-2 text-xs">
+                <i class="fa-solid fa-download mr-2"></i>엑셀 템플릿
+              </button>
+            </div>
+            <div class="text-xs muted mt-2">템플릿은 마스터 기준으로 생성돼. (Flow→대분류→소분류→상세 + 예시)</div>
+
+            <form id="entryForm" class="mt-4 space-y-3">
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <div class="text-xs text-white/60 mb-1">날짜</div>
+                  <div class="text-xs muted mb-1">날짜</div>
                   <input id="entryDate" type="date" class="w-full rounded-xl px-3 py-2 text-sm" required />
                 </div>
                 <div>
-                  <div class="text-xs text-white/60 mb-1">구분</div>
+                  <div class="text-xs muted mb-1">구분</div>
                   <select id="memberSelect" class="w-full rounded-xl px-3 py-2 text-sm" required></select>
                 </div>
               </div>
 
+              <div>
+                <div class="text-xs muted mb-1">흐름</div>
+                <select id="flowSelect" class="w-full rounded-xl px-3 py-2 text-sm" required></select>
+              </div>
+
+              <div>
+                <div class="text-xs muted mb-1">대분류</div>
+                <select id="categorySelect" class="w-full rounded-xl px-3 py-2 text-sm" required></select>
+              </div>
+
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <div class="text-xs text-white/60 mb-1">흐름</div>
-                  <select id="flowType" class="w-full rounded-xl px-3 py-2 text-sm">
-                    <option value="expense">지출</option>
-                    <option value="income">수입</option>
-                    <option value="saving">저축</option>
-                  </select>
+                  <div class="text-xs muted mb-1">소분류</div>
+                  <select id="subcategorySelect" class="w-full rounded-xl px-3 py-2 text-sm" required></select>
                 </div>
                 <div>
-                  <div class="text-xs text-white/60 mb-1">금액</div>
-                  <input id="amount" type="number" min="0" step="1" class="w-full rounded-xl px-3 py-2 text-sm" required />
+                  <div class="text-xs muted mb-1">상세항목</div>
+                  <select id="detailSelect" class="w-full rounded-xl px-3 py-2 text-sm" required></select>
                 </div>
               </div>
 
-              <div>
-          <div class="text-xs text-white/60 mb-1">대분류</div>
-          <select id="category" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-        </div>
+              <div id="exampleHint" class="text-xs muted -mt-1"></div>
 
-        <div>
-          <div class="text-xs text-white/60 mb-1">소분류</div>
-          <select id="subcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-        </div>
-
-              <div>
-                <div class="text-xs text-white/60 mb-1">상세항목</div>
-                <select id="detail" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <div class="text-xs muted mb-1">금액</div>
+                  <input id="amount" type="number" min="0" step="1" class="w-full rounded-xl px-3 py-2 text-sm" required />
+                </div>
+                <div>
+                  <div class="text-xs muted mb-1">메모(선택)</div>
+                  <input id="memo" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="선택" />
+                </div>
               </div>
 
-              <div>
-                <div class="text-xs text-white/60 mb-1">설명(선택)</div>
-                <input id="detailNote" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="선택" />
-                <div id="detailExampleHint" class="text-xs text-black/60 mt-1"></div>
-              </div>
-
-              <div>
-                <div class="text-xs text-white/60 mb-1">메모(선택)</div>
-                <input id="memo" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="선택" />
-              </div>
-
-              <div class="flex gap-2">
-                <button id="btnSubmit" type="submit" class="btn btn-primary rounded-xl px-4 py-2 text-sm w-full">추가</button>
-                <button id="btnCancelEdit" type="button" class="btn rounded-xl px-4 py-2 text-sm w-full hidden">수정 취소</button>
-              </div>
-              <!-- 카테고리/설명 일괄 변경 -->
-<div class="mt-6 glass2 rounded-2xl p-4">
-  <div class="flex items-center justify-between">
-    <div class="text-sm font-semibold">카테고리/설명 일괄 변경</div>
-    <div class="text-xs text-black/50">기존 데이터 전체에 반영</div>
-  </div>
-
-  <div class="text-xs text-black/60 mt-2">
-    * “기존값” 조건에 맞는 거래를 찾아서 “변경값”으로 바꿔. (공란인 변경값은 해당 필드 변경 안 함)
-  </div>
-
-  <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-    <div class="glass rounded-2xl p-3">
-      <div class="text-xs font-semibold text-black/70 mb-2">기존값(찾을 조건)</div>
-      <div class="space-y-2">
-        <select id="renameOldCategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-        <select id="renameOldSubcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-        <select id="renameOldDetail" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-      </div>
-    </div>
-
-    <div class="glass rounded-2xl p-3">
-      <div class="text-xs font-semibold text-black/70 mb-2">변경값(바꿀 값)</div>
-      <div class="space-y-2">
-        <select id="renameNewCategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-        <select id="renameNewSubcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-        <select id="renameNewDetail" class="w-full rounded-xl px-3 py-2 text-sm"></select>
-      </div>
-    </div>
-  </div>
-
-  <div class="mt-3 flex gap-2">
-    <button id="btnRenameApply" class="btn btn-primary rounded-xl px-4 py-2 text-sm w-full">
-      <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>일괄 변경 실행
-    </button>
-    <button id="btnRenameClear" class="btn rounded-xl px-4 py-2 text-sm">
-      초기화
-    </button>
-  </div>
-
-  <div id="renameHint" class="text-xs text-black/60 mt-2"></div>
-</div>
-
-
-
-              
+              <button id="btnSubmit" type="submit" class="btn btn-primary rounded-xl px-4 py-2 text-sm w-full">
+                <i class="fa-solid fa-plus mr-2"></i>저장
+              </button>
             </form>
           </div>
 
@@ -539,29 +307,22 @@ thead{ background: rgba(255,255,255,.86) !important; }
             <div class="flex flex-wrap gap-2 items-end justify-between">
               <div>
                 <div class="text-sm font-semibold">거래 목록</div>
-                <div class="text-xs text-white/60 mt-1">필터로 빠르게 찾고 수정/삭제</div>
+                <div class="text-xs muted mt-1">v_entries_master 기준(조인뷰)</div>
               </div>
               <div class="flex flex-wrap gap-2 items-center">
-                <input id="filterFrom" type="date" class="rounded-xl px-3 py-2 text-sm" />
-                <input id="filterTo" type="date" class="rounded-xl px-3 py-2 text-sm" />
-                <select id="filterFlow" class="rounded-xl px-3 py-2 text-sm">
-                  <option value="all">전체 흐름</option>
-                  <option value="expense">지출</option>
-                  <option value="income">수입</option>
-                  <option value="saving">저축</option>
-                </select>
-                <select id="filterMember" class="rounded-xl px-3 py-2 text-sm">
-                  <option value="all">전체 구분</option>
-                </select>
-                <input id="filterQ" class="rounded-xl px-3 py-2 text-sm" placeholder="검색(상세/메모)" />
-                <button id="btnApplyFilter" class="btn btn-primary rounded-xl px-4 py-2 text-sm">적용</button>
-                <button id="btnReload" class="btn rounded-xl px-4 py-2 text-sm">새로고침</button>
+                <input id="listFrom" type="date" class="rounded-xl px-3 py-2 text-sm" />
+                <input id="listTo" type="date" class="rounded-xl px-3 py-2 text-sm" />
+                <select id="listFlow" class="rounded-xl px-3 py-2 text-sm"></select>
+                <select id="listMember" class="rounded-xl px-3 py-2 text-sm"></select>
+                <input id="listQ" class="rounded-xl px-3 py-2 text-sm" placeholder="검색(상세/메모)" />
+                <button id="btnListApply" class="btn btn-primary rounded-xl px-4 py-2 text-sm">적용</button>
+                <button id="btnListReload" class="btn rounded-xl px-4 py-2 text-sm">새로고침</button>
               </div>
             </div>
 
             <div class="mt-4 overflow-auto thin-scroll">
               <table class="w-full text-sm border-separate border-spacing-0">
-                <thead class="text-white/70">
+                <thead class="muted">
                   <tr>
                     <th class="text-left py-3 px-3 border-b">날짜</th>
                     <th class="text-left py-3 px-3 border-b">구분</th>
@@ -569,117 +330,25 @@ thead{ background: rgba(255,255,255,.86) !important; }
                     <th class="text-left py-3 px-3 border-b">대분류</th>
                     <th class="text-left py-3 px-3 border-b">소분류</th>
                     <th class="text-left py-3 px-3 border-b">상세항목</th>
-                    <th class="text-left py-3 px-3 border-b">설명</th>
-                    <th class="text-right py-3 px-3 border-b">금액</th
+                    <th class="text-right py-3 px-3 border-b">금액</th>
                     <th class="text-left py-3 px-3 border-b">메모</th>
-                    <th class="text-left py-3 px-3 border-b">관리</th>
                   </tr>
                 </thead>
-                <tbody id="entriesTbody"></tbody>
+                <tbody id="listTbody"></tbody>
               </table>
             </div>
-            <div class="text-xs text-white/60 mt-3">총 <span id="count">0</span></div>
+            <div class="text-xs muted mt-3">총 <span id="listCount">0</span></div>
           </div>
-        </div>
-      
-
-      <!-- BULK (moved into EDIT) -->
-      <div id="editBulkWrap" class="mt-6">
-<div class="glass rounded-2xl p-4">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <div class="text-sm font-semibold">대량 업로드</div>
-              <div class="text-xs text-white/60 mt-1">
-                템플릿(기록 시트) 다운로드 → 금액만 채우기 → 업로드.
-                <b>날짜(A열)</b>는 가능한 한 <b>반드시 입력(YYYY-MM-DD)</b>. (연도 없는 'M/D'만 쓸 경우 기본 월의 연도를 사용)
-                <b>금액(E/F/G)</b> 공란은 스킵(기존값 유지). 금액이 있으면 덮어쓰기(upsert).
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-2 items-center">
-              <div class="text-xs text-white/60">기본 월(선택)</div>
-              <input id="bulkYm" type="month" class="rounded-xl px-3 py-2 text-sm" />
-              <button id="btnDownloadTemplate" class="btn btn-primary rounded-xl px-4 py-2 text-sm">
-                <i class="fa-solid fa-download mr-2"></i>기록 템플릿 다운로드
-              </button>
-            </div>
-          </div>
-
-          <div class="mt-4 glass2 rounded-2xl p-4">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <input id="bulkFile" type="file" accept=".xlsx,.xls" class="text-sm" />
-                <button id="btnBulkUpload" class="btn btn-primary rounded-xl px-4 py-2 text-sm">
-                  <i class="fa-solid fa-file-arrow-up mr-2"></i>업로드 실행
-                </button>
-              </div>
-              <div class="text-xs text-white/60">
-                * 업로드는 <b>entries</b> 테이블에 기록돼. (멤버=돌프/천사/공통)
-              </div>
-            </div>
-
-            <div class="mt-3 text-xs text-white/60">
-              업로드 규칙(중요):
-              <ul class="list-disc ml-5 mt-1 space-y-1">
-                <li>키(덮어쓰기 기준): ledger_id + entry_date + member_id + category + subcategory + detail + flow_type</li>
-                <li>같은 키로 다시 업로드하면 <b>금액</b>만 업데이트(=덮어쓰기). 금액 공란이면 건드리지 않음.</li>
-                <li>대분류가 <b>수입</b>이면 flow=income, <b>금융·저축/저축</b>이면 flow=saving, 그 외 expense</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-</section>
-      <!-- ALL DATA GRID (월별 매트릭스 편집) -->
-      <section id="tab-all" class="mt-4 hidden">
-        <div class="glass rounded-2xl p-4">
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div class="text-sm font-semibold">월별 매트릭스(전체) · 셀 더블클릭 수정</div>
-              <div class="text-xs text-black/60 mt-1">
-                대분류/소분류/설명을 세로로 고정하고, 월을 가로축으로 펼쳐서 한 번에 보고 수정할 수 있어.
-              </div>
-            </div>
-
-            <div class="flex flex-wrap gap-2 items-center">
-              <div class="text-xs text-black/60">연도</div>
-              <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
-<div class="text-xs text-black/60 ml-1">흐름</div>
-              <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
-                <option value="expense">지출</option>
-                <option value="income">수입</option>
-                <option value="saving">저축</option>
-              </select>
-
-              <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
-                <i class="fa-solid fa-rotate mr-2"></i>새로고침
-              </button>
-            </div>
-          </div>
-
-          <div class="mt-4 glass2 rounded-2xl p-3">
-            <div class="text-xs text-black/60">
-              * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
-            </div>
-          </div>
-
-          <div class="mt-4 overflow-auto thin-scroll">
-            <table class="w-full text-sm border-separate border-spacing-0" id="mxTable">
-              <thead id="mxThead" class="text-black/70 sticky top-0 bg-white/60 backdrop-blur"></thead>
-              <tbody id="mxTbody"></tbody>
-            </table>
-          </div>
-          <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
         </div>
       </section>
-      <!-- CATEGORY MANAGEMENT -->
+
+      <!-- CATEGORY (view only) -->
       <section id="tab-cat" class="mt-4 hidden">
         <div class="glass rounded-2xl p-4">
-          <div class="flex items-end justify-between gap-3 flex-wrap">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
             <div>
-              <div class="text-sm font-semibold">카테고리 관리 (대분류 → 소분류 → 상세항목)</div>
-              <div class="text-xs text-black/60 mt-1">
-                * 템플릿/드롭다운/대시보드에 즉시 반영돼. (권한: owner만 수정 가능)
-              </div>
+              <div class="text-sm font-semibold">카테고리 (마스터)</div>
+              <div class="text-xs muted mt-1">현재는 “조회 전용”</div>
             </div>
             <button id="btnCatReload" class="btn rounded-xl px-4 py-2 text-sm">
               <i class="fa-solid fa-rotate mr-2"></i>새로고침
@@ -687,125 +356,49 @@ thead{ background: rgba(255,255,255,.86) !important; }
           </div>
 
           <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- Groups -->
-            <div class="glass2 rounded-2xl p-4">
-              <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold">대분류</div>
-              </div>
-              <div class="mt-3 flex gap-2">
-                <input id="catNewGroup" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="대분류 이름 (예: 소모 지출)" />
-                <button id="btnAddGroup" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
-              </div>
-              <div id="catGroupList" class="mt-3 space-y-2 text-sm"></div>
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-semibold">대분류</div>
+              <div id="catList" class="mt-3 space-y-2 max-h-[520px] overflow-auto thin-scroll pr-1"></div>
             </div>
-
-            <!-- Subcategories -->
-            <div class="glass2 rounded-2xl p-4">
+            <div class="glass rounded-2xl p-4">
               <div class="text-sm font-semibold">소분류</div>
-              <div class="mt-3 grid grid-cols-1 gap-2">
-                <select id="catPickGroup" class="rounded-xl px-3 py-2 text-sm"></select>
-                <div class="flex gap-2">
-                  <input id="catNewSub" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="소분류 이름 (예: 식비)" />
-                  <button id="btnAddSub" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
-                </div>
-              </div>
-              <div id="catSubList" class="mt-3 space-y-2 text-sm"></div>
+              <div id="subList" class="mt-3 space-y-2 max-h-[520px] overflow-auto thin-scroll pr-1"></div>
             </div>
-
-            <!-- Detail items -->
-            <div class="glass2 rounded-2xl p-4">
+            <div class="glass rounded-2xl p-4">
               <div class="text-sm font-semibold">상세항목</div>
-              <div class="mt-3 grid grid-cols-1 gap-2">
-                <select id="catPickSub" class="rounded-xl px-3 py-2 text-sm"></select>
-                <input id="catNewDetail" class="rounded-xl px-3 py-2 text-sm" placeholder="상세항목 이름 (예: 외식)" />
-                <input id="catNewExample" class="rounded-xl px-3 py-2 text-sm" placeholder="설명(예시) (예: 점심/저녁, 스타벅스 등)" />
-                <button id="btnAddDetail" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
-              </div>
-              <div id="catDetailList" class="mt-3 space-y-2 text-sm"></div>
+              <div id="detailList" class="mt-3 space-y-2 max-h-[520px] overflow-auto thin-scroll pr-1"></div>
             </div>
           </div>
         </div>
       </section>
-
-    </div>
-  </div>
-
-
-  <!-- Owner Requests Modal -->
-  <div id="reqModal" class="fixed inset-0 z-50 hidden">
-    <div class="absolute inset-0 bg-black/40"></div>
-    <div class="relative max-w-2xl mx-auto mt-16 px-4">
-      <div class="glass rounded-2xl p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-sm font-semibold"><i class="fa-solid fa-user-check mr-2"></i>승인 요청</div>
-            <div class="text-xs text-white/60 mt-1">요청을 승인하면 해당 계정이 장부에 प्रवेश할 수 있어.</div>
-          </div>
-          <button id="btnReqModalClose" class="btn rounded-xl px-3 py-2 text-sm">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-
-        <div class="mt-3 glass2 rounded-2xl p-3">
-          <div id="reqList" class="space-y-2"></div>
-          <div id="reqEmpty" class="text-sm text-white/70 hidden">대기 중인 요청이 없어.</div>
-        </div>
-
-        <div class="mt-3 flex gap-2">
-          <button id="btnReqRefresh" class="btn rounded-xl px-4 py-2 text-sm w-full">
-            <i class="fa-solid fa-rotate mr-2"></i>새로고침
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 
 <script>
-/** =========================
- * 0) Project config
- * ========================= */
-    // --- XLSX 로더 가드 ---
-    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-    async function waitForXLSX(timeoutMs = 8000){
-      const t0 = Date.now();
-      while(Date.now() - t0 < timeoutMs){
-        if (window.XLSX && window.XLSX.utils && window.XLSX.writeFile) return true;
-        await sleep(50);
-      }
-      return false;
-    }
-
 const SUPABASE_URL = "https://cqxpmfxwgrpdtxomxfiz.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxeHBtZnh3Z3JwZHR4b214Zml6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5MTQ1NzAsImV4cCI6MjA4MzQ5MDU3MH0.YUGKXlqNpltt_JI_tyvgE-FhLXRILq0v7-gpLpQgo0M";
-
+const SUPABASE_KEY = "REPLACE_WITH_YOUR_ANON_KEY"; // 🔴 네 anon key로 교체
 const DEFAULT_LEDGER_NAME = "우리집";
-
-const MAIN_LEDGER_ID = "873e11dd-0acb-422a-90d0-52a0ad8a9c93"; // 공용 장부(승인 대상)
-const DEFAULT_START_DATE = "2026-01-01";
 const SS_KEY = "ledger_session_v2";
 
-let session = null; // { access_token, refresh_token, user }
+let session = null;
 let currentLedgerId = null;
-let membersCache = []; // {id,name,kind}
-let isOwner = false; // owner만 카테고리 관리
-let memberNameToId = new Map();
 
-const byId = (id) => document.getElementById(id);
-const fmt = (n) => Number(n||0).toLocaleString("ko-KR");
+let membersCache = [];
+let flowsCache = [];
+let categoriesCache = [];
+let subcategoriesCache = [];
+let detailItemsCache = [];
+let dashRowsCache = [];
 
-function setStatus(msg){ byId("status").textContent = msg || ""; }
+const byId = (id)=>document.getElementById(id);
+const fmt = (n)=>Number(n||0).toLocaleString("ko-KR");
 function setError(msg){ byId("error").textContent = msg || ""; }
+function setStatus(msg){ byId("status").textContent = msg || ""; }
 function todayISO(){
   const d = new Date();
   const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
   return z.toISOString().slice(0,10);
 }
-function ymFromInput(){
-  const v = (byId("bulkYm").value || "").trim();
-  if(!v) return "";
-  return v; // YYYY-MM
-}
-
 function saveSession(s){
   session = s;
   if(s) localStorage.setItem(SS_KEY, JSON.stringify(s));
@@ -814,10 +407,10 @@ function saveSession(s){
 function loadSession(){
   const raw = localStorage.getItem(SS_KEY);
   if(!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  try{ return JSON.parse(raw); }catch{ return null; }
 }
 
-async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true, extraHeaders=null } = {}){
+async function apiFetch(path, { method="GET", query=null, body=null, auth=true, preferReturn=true } = {}){
   const url = new URL(SUPABASE_URL + path);
   if(query){
     for(const [k,v] of Object.entries(query)){
@@ -825,271 +418,31 @@ async function apiFetch(path, { method="GET", query=null, body=null, auth=true, 
       url.searchParams.set(k, v);
     }
   }
-
   const headers = {
     "apikey": SUPABASE_KEY,
-    "Content-Type": "application/json",
-    ...(extraHeaders || {})
+    ...(body ? {"Content-Type":"application/json"} : {}),
   };
   if(auth && session?.access_token){
     headers["Authorization"] = "Bearer " + session.access_token;
   }
   if(preferReturn && (method==="POST" || method==="PATCH")){
-    headers["Prefer"] = headers["Prefer"] ? headers["Prefer"] + ", return=representation" : "return=representation";
+    headers["Prefer"] = "return=representation";
   }
-
-  const res = await fetch(url.toString(), {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  });
-
+  const res = await fetch(url.toString(), { method, headers, body: body ? JSON.stringify(body) : undefined });
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
-
   if(!res.ok){
-    const msg = typeof data === "object" && data ? (data.message || data.msg || data.error_description || JSON.stringify(data)) : String(data);
+    const msg = typeof data === "object" && data ? (data.message || data.error_description || JSON.stringify(data)) : String(data);
     throw new Error(msg || `HTTP ${res.status}`);
   }
   return data;
 }
 
-/** =========================
- * 0.5) Approval Requests (Owner badge + modal)
- * ========================= */
-async function fetchPendingRequests(){
-  // Owner only (RLS). If not owner, this will error or return empty based on policies.
-  return await apiFetch("/rest/v1/ledger_access_requests", {
-    query:{
-      select:"id,requester_user_id,status,created_at",
-      ledger_id:`eq.${MAIN_LEDGER_ID}`,
-      status:"eq.pending",
-      order:"created_at.asc",
-      limit:"200"
-    }
-  });
+/** AUTH */
+async function fetchUser(){
+  return await apiFetch("/auth/v1/user", { method:"GET", auth:true, preferReturn:false });
 }
-
-function shortId(id){
-  const s = String(id||"");
-  if(s.length <= 12) return s;
-  return s.slice(0,6) + "..." + s.slice(-4);
-}
-
-function fmtKST(iso){
-  try{
-    const d = new Date(iso);
-    return d.toLocaleString("ko-KR");
-  }catch(_){
-    return String(iso||"");
-  }
-}
-
-async function refreshOwnerRequestBadge(){
-  // Only when logged in
-  const authed = !!(session?.access_token && session?.user?.id);
-  if(!authed){
-    byId("btnRequests")?.classList.add("hidden");
-    byId("reqBadge")?.classList.add("hidden");
-    return;
-  }
-
-  try{
-    const list = await fetchPendingRequests();
-
-    // If we can read this table with ledger filter, we treat user as owner
-    byId("btnRequests")?.classList.remove("hidden");
-
-    const n = (list||[]).length;
-    const badge = byId("reqBadge");
-    if(badge){
-      badge.textContent = String(n);
-      badge.classList.toggle("hidden", n <= 0);
-    }
-  }catch(e){
-    // Not owner (or policies not ready) → hide icon entirely
-    byId("btnRequests")?.classList.add("hidden");
-    byId("reqBadge")?.classList.add("hidden");
-  }
-}
-
-function openReqModal(){
-  byId("reqModal")?.classList.remove("hidden");
-}
-
-function closeReqModal(){
-  byId("reqModal")?.classList.add("hidden");
-}
-
-function renderReqList(list){
-  const wrap = byId("reqList");
-  const empty = byId("reqEmpty");
-  if(!wrap) return;
-
-  wrap.innerHTML = "";
-  const arr = list || [];
-
-  if(empty) empty.classList.toggle("hidden", arr.length !== 0);
-
-  for(const r of arr){
-    const row = document.createElement("div");
-    row.className = "glass rounded-2xl p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2";
-
-    row.innerHTML = `
-      <div class="min-w-0">
-        <div class="text-sm font-semibold text-white/80">요청자: <span class="font-mono">${escapeHtml(shortId(r.requester_user_id))}</span></div>
-        <div class="text-xs text-white/60 mt-1">요청 시각: ${escapeHtml(fmtKST(r.created_at))}</div>
-      </div>
-      <div class="flex gap-2 shrink-0">
-        <button class="btn btn-primary rounded-xl px-3 py-2 text-sm" data-act="approve">
-          <i class="fa-solid fa-check mr-2"></i>승인
-        </button>
-        <button class="btn btn-danger rounded-xl px-3 py-2 text-sm" data-act="reject">
-          <i class="fa-solid fa-xmark mr-2"></i>거절
-        </button>
-      </div>
-    `;
-
-    row.querySelector('[data-act="approve"]').addEventListener("click", async ()=>{
-      await handleApproveRequest(r);
-    });
-    row.querySelector('[data-act="reject"]').addEventListener("click", async ()=>{
-      await handleRejectRequest(r);
-    });
-
-    wrap.appendChild(row);
-  }
-}
-
-async function loadReqModal(){
-  setError("");
-  setStatus("");
-
-  try{
-    setStatus("승인 요청 불러오는 중...");
-    const list = await fetchPendingRequests();
-    renderReqList(list);
-    setStatus("");
-  }catch(e){
-    setStatus("");
-    setError(e?.message || String(e));
-  }
-}
-
-
-async function upsertLedgerMemberUser(userId){
-  // Try to add user to ledger_members robustly across differing schemas/role constraints.
-  // 1) Prefer upsert on (ledger_id,user_id) if unique exists.
-  const tryBodies = [
-    { ledger_id: MAIN_LEDGER_ID, user_id: userId, role: "member" },
-    { ledger_id: MAIN_LEDGER_ID, user_id: userId, role: "viewer" },
-    { ledger_id: MAIN_LEDGER_ID, user_id: userId, role: "editor" },
-    { ledger_id: MAIN_LEDGER_ID, user_id: userId } // if role has default or nullable
-  ];
-
-  let lastErr = null;
-
-  for(const bodyObj of tryBodies){
-    try{
-      // Use array body + on_conflict for safe upsert if the table has a unique constraint.
-      await apiFetch("/rest/v1/ledger_members", {
-        method:"POST",
-        preferReturn:false,
-        query:{ on_conflict:"ledger_id,user_id" },
-        body:[bodyObj],
-        extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
-      });
-      return;
-    }catch(e){
-      lastErr = e;
-      // If server says on_conflict columns invalid, retry without on_conflict
-      const msg = String(e?.message || e || "");
-      if(msg.includes("on_conflict") || msg.includes("PGRST") || msg.includes("Could not find") || msg.includes("column")){
-        // try plain insert once for this bodyObj
-        try{
-          await apiFetch("/rest/v1/ledger_members", {
-            method:"POST",
-            preferReturn:false,
-            body: bodyObj
-          });
-          return;
-        }catch(e2){
-          lastErr = e2;
-        }
-      }
-    }
-  }
-
-  throw lastErr || new Error("ledger_members 추가 실패");
-}
-
-async function handleApproveRequest(req){
-  try{
-    setError("");
-    setStatus("승인 처리 중...");
-
-    // 1) Prefer RPC if exists (recommended)
-    try{
-      await apiFetch("/rest/v1/rpc/approve_ledger_request", {
-        method:"POST",
-        auth:true,
-        preferReturn:false,
-        body:{ p_request_id: req.id }
-      });
-    }catch(rpcErr){
-      // 2) Fallback: update request + insert member (requires RLS policies)
-      await apiFetch("/rest/v1/ledger_access_requests", {
-        method:"PATCH",
-        preferReturn:false,
-        query:{ id:`eq.${req.id}` },
-        body:{
-          status:"approved",
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: session.user.id
-        }
-      });
-
-      await upsertLedgerMemberUser(req.requester_user_id);
-    }
-
-    setStatus("승인 완료!");
-    await refreshOwnerRequestBadge();
-    await loadReqModal();
-  }catch(e){
-    setStatus("");
-    setError(e?.message || String(e));
-  }
-}
-
-async function handleRejectRequest(req){
-  try{
-    setError("");
-    setStatus("거절 처리 중...");
-
-    await apiFetch("/rest/v1/ledger_access_requests", {
-      method:"PATCH",
-      preferReturn:false,
-      query:{ id:`eq.${req.id}` },
-      body:{
-        status:"rejected",
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: session.user.id
-      }
-    });
-
-    setStatus("거절 완료!");
-    await refreshOwnerRequestBadge();
-    await loadReqModal();
-  }catch(e){
-    setStatus("");
-    setError(e?.message || String(e));
-  }
-}
-
-/** =========================
- * 1) Auth (email+password)
- * ========================= */
 async function loginWithPassword(email, password){
   const data = await apiFetch("/auth/v1/token", {
     method:"POST",
@@ -1105,2299 +458,665 @@ async function loginWithPassword(email, password){
   const user = await fetchUser();
   saveSession({ ...session, user });
 }
-
 async function signUp(email, password){
-  await apiFetch("/auth/v1/signup", {
-    method:"POST",
-    auth:false,
-    preferReturn:false,
-    body:{ email, password }
-  });
-  // 바로 로그인 시도 (confirm email이 켜져있으면 여기서 실패할 수 있음)
+  await apiFetch("/auth/v1/signup", { method:"POST", auth:false, preferReturn:false, body:{ email, password } });
   await loginWithPassword(email, password);
 }
+async function logout(){ saveSession(null); }
 
-async function fetchUser(){
-  return await apiFetch("/auth/v1/user", { method:"GET", auth:true, preferReturn:false });
-}
-async function logout(){
-  saveSession(null);
-}
-
-/** =========================
- * 2) DB bootstrap (ledger + members)
- * ========================= */
-async function checkLedgerAccess(){
-  try{
-    const ledgers = await apiFetch("/rest/v1/ledgers", {
-      query: { select:"id,name,created_at", order:"created_at.asc", limit:"1" }
-    });
-    if(ledgers?.length) return { ok:true, ledger: ledgers[0] };
-    return { ok:false, ledger:null };
-  }catch(e){
-    return { ok:false, ledger:null, error: e?.message || String(e) };
-  }
-}
-
+/** BOOTSTRAP */
 async function ensureDefaultLedger(){
-  // ✅ 승인된 멤버만 ledgers SELECT가 가능 (RLS)
-  const r = await checkLedgerAccess();
-  if(!r.ok){
-    currentLedgerId = null;
-    byId("ledgerName").textContent = "";
-    throw new Error("PENDING_APPROVAL");
-  }
-  currentLedgerId = r.ledger.id;
-  byId("ledgerName").textContent = r.ledger.name;
+  const ledgers = await apiFetch("/rest/v1/ledgers", { query:{ select:"id,name,created_at", order:"created_at.asc" }});
+  if(ledgers?.length){ currentLedgerId = ledgers[0].id; return; }
+
+  const createdArr = await apiFetch("/rest/v1/ledgers", { method:"POST", body:{ name: DEFAULT_LEDGER_NAME, created_by: session.user.id }});
+  const created = createdArr?.[0];
+  if(!created?.id) throw new Error("장부 생성 실패");
+  currentLedgerId = created.id;
+
+  try{
+    await apiFetch("/rest/v1/ledger_members", { method:"POST", body:{ ledger_id: currentLedgerId, user_id: session.user.id, role:"owner", status:"active" }, preferReturn:false });
+  }catch(_){}
 }
 
-/** =========================
- * 3) Members
- * ========================= */
+/** LOAD MASTERS */
 async function loadMembers(){
-  const members = await apiFetch("/rest/v1/members", {
-    query:{
-      select:"id,name,kind,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      is_active:"eq.true",
-      order:"kind.desc,name.asc"
-    }
-  });
+  membersCache = await apiFetch("/rest/v1/members", {
+    query:{ select:"id,name,kind,is_active", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.true", order:"kind.desc,name.asc", limit:"200" }
+  }) || [];
+}
+async function loadFlows(){
+  flowsCache = await apiFetch("/rest/v1/flows", {
+    query:{ select:"id,code,name,sort_order", ledger_id:`eq.${currentLedgerId}`, order:"sort_order.asc,code.asc", limit:"50" }
+  }) || [];
+}
+async function loadCategories(){
+  categoriesCache = await apiFetch("/rest/v1/categories", {
+    query:{ select:"id,name,flow_id,sort_order,is_active", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.true", order:"sort_order.asc,name.asc", limit:"500" }
+  }) || [];
+}
+async function loadSubcategories(){
+  subcategoriesCache = await apiFetch("/rest/v1/subcategories", {
+    query:{ select:"id,name,category_id,sort_order,is_active", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.true", order:"sort_order.asc,name.asc", limit:"1000" }
+  }) || [];
+}
+async function loadDetailItems(){
+  detailItemsCache = await apiFetch("/rest/v1/detail_items", {
+    query:{ select:"id,name,subcategory_id,example_note,sort_order,is_active", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.true", order:"sort_order.asc,name.asc", limit:"5000" }
+  }) || [];
+}
 
-  membersCache = members || [];
-  memberNameToId = new Map(membersCache.map(m => [m.name, m.id]));
+function memberNameById(id){ return (membersCache.find(m=>m.id===id)?.name)||""; }
 
-  // edit form select
-  const sel = byId("memberSelect");
-  sel.innerHTML = "";
+function fillFlowSelect(selectEl, includeAll=false){
+  const prev = selectEl.value || "";
+  selectEl.innerHTML = includeAll ? `<option value="all">전체</option>` : "";
+  for(const f of flowsCache){
+    const opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = f.name || f.code;
+    selectEl.appendChild(opt);
+  }
+  if(includeAll && prev==="all") selectEl.value="all";
+  else if(prev && [...selectEl.options].some(o=>o.value===prev)) selectEl.value = prev;
+}
+function fillMemberSelect(selectEl, includeAll=false){
+  const prev = selectEl.value || "";
+  selectEl.innerHTML = includeAll ? `<option value="all">전체</option>` : "";
   for(const m of membersCache){
     const opt = document.createElement("option");
     opt.value = m.id;
     opt.textContent = `${m.name}${m.kind==="common" ? " (공통)" : ""}`;
-    sel.appendChild(opt);
+    selectEl.appendChild(opt);
   }
-
-  // filter member
-  const filterMember = byId("filterMember");
-  const prev = filterMember.value || "all";
-  filterMember.innerHTML = `<option value="all">전체 구분</option>`;
-  for(const m of membersCache){
+  if(includeAll && prev==="all") selectEl.value="all";
+  else if(prev && [...selectEl.options].some(o=>o.value===prev)) selectEl.value = prev;
+}
+function fillCategorySelect(selectEl, flowId, includeAll=false){
+  const prev = selectEl.value || "";
+  const list = categoriesCache.filter(c => !flowId || c.flow_id === flowId);
+  selectEl.innerHTML = includeAll ? `<option value="all">전체</option>` : "";
+  for(const c of list){
     const opt = document.createElement("option");
-    opt.value = m.id;
-    opt.textContent = `${m.name}${m.kind==="common" ? " (공통)" : ""}`;
-    filterMember.appendChild(opt);
+    opt.value = c.id;
+    opt.textContent = c.name;
+    selectEl.appendChild(opt);
   }
-  filterMember.value = prev;
+  if(includeAll && prev==="all") selectEl.value="all";
+  else if(prev && [...selectEl.options].some(o=>o.value===prev)) selectEl.value = prev;
+  else if(!includeAll && list.length) selectEl.value = list[0].id;
 }
-
-
-async function loadMyMembership(){
-  isOwner = false;
-  try{
-    const rows = await apiFetch("/rest/v1/ledger_members", {
-      query:{
-        select:"role,status",
-        ledger_id:`eq.${currentLedgerId}`,
-        user_id:`eq.${session.user.id}`,
-        limit:"1"
-      }
-    });
-    const r = rows?.[0];
-    if(r?.role === "owner") isOwner = true;
-  }catch(_){}
-  // 카테고리 관리 탭 노출/숨김
-  const catBtn = document.querySelector('.tab-btn[data-tab="cat"]');
-  if(catBtn) catBtn.classList.toggle("hidden", !isOwner);
-}
-
-
-
-/** =========================
- * 3.5) Category master (대분류>소분류>상세항목) dropdown sources
- *   - DB: category_groups / subcategories / detail_items
- *   - entries에는 detail_item_id만 저장(표시는 join으로 이름 가져옴)
- * ========================= */
-
-let masterGroups = [];
-let masterSubcategories = [];
-let masterDetailItems = [];
-let groupById = new Map();
-let subById = new Map();
-let detailItemById = new Map(); // [{id,name, subcategory:{name, group:{name}}}]
-let groupToSubsMap = new Map(); // groupName -> Set(subName)
-let subToDetailsMap = new Map(); // subName -> Set(detailName)
-let detailKeyToId = new Map();   // `${group}||${sub}||${detail}` -> uuid
-
-function mapAddSet(map, key, val){
-  if(!key) return;
-  if(val === undefined || val === null || String(val).trim()==="") return;
-  const k = String(key).trim();
-  const v = String(val).trim();
-  if(!map.has(k)) map.set(k, new Set());
-  map.get(k).add(v);
-}
-
-function fillSelectOptions(sel, arr, { includeBlank=false, blankLabel="(선택)" } = {}){
-  if(!sel) return;
-  const prev = sel.value || "";
-  sel.innerHTML = "";
-  if(includeBlank){
-    const o = document.createElement("option");
-    o.value = "";
-    o.textContent = blankLabel;
-    sel.appendChild(o);
+function fillSubcategorySelect(selectEl, categoryId, includeAll=false){
+  const prev = selectEl.value || "";
+  const list = subcategoriesCache.filter(s => !categoryId || s.category_id === categoryId);
+  selectEl.innerHTML = includeAll ? `<option value="all">전체</option>` : "";
+  for(const s of list){
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = s.name;
+    selectEl.appendChild(opt);
   }
-  for(const v of arr){
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = v;
-    sel.appendChild(o);
+  if(includeAll && prev==="all") selectEl.value="all";
+  else if(prev && [...selectEl.options].some(o=>o.value===prev)) selectEl.value = prev;
+  else if(!includeAll && list.length) selectEl.value = list[0].id;
+}
+function fillDetailSelect(selectEl, subcategoryId, includeAll=false){
+  const prev = selectEl.value || "";
+  const list = detailItemsCache.filter(d => !subcategoryId || d.subcategory_id === subcategoryId);
+  selectEl.innerHTML = includeAll ? `<option value="all">전체</option>` : "";
+  for(const d of list){
+    const opt = document.createElement("option");
+    opt.value = d.id;
+    opt.textContent = d.name;
+    selectEl.appendChild(opt);
   }
-  // restore if possible
-  const exists = [...sel.options].some(o=>o.value===prev);
-  if(exists) sel.value = prev;
+  if(includeAll && prev==="all") selectEl.value="all";
+  else if(prev && [...selectEl.options].some(o=>o.value===prev)) selectEl.value = prev;
+  else if(!includeAll && list.length) selectEl.value = list[0].id;
+}
+function setExampleHint(detailItemId, el){
+  const it = detailItemsCache.find(d=>d.id===detailItemId);
+  const note = (it?.example_note||"").trim();
+  el.textContent = note ? `예시: ${note}` : "";
 }
 
-
-async function loadCategoryMaster(){
-  // 1) groups
-  const groups = await apiFetch("/rest/v1/category_groups", {
-    query:{
-      select:"id,name,sort_order,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      order:"sort_order.asc,name.asc",
-      limit:"5000"
-    }
-  });
-
-  // 2) subcategories
-  const subs = await apiFetch("/rest/v1/subcategories", {
-    query:{
-      select:"id,name,group_id,sort_order,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      order:"sort_order.asc,name.asc",
-      limit:"12000"
-    }
-  });
-
-  // 3) detail items + join (for dashboard/template)
-  const url = new URL(SUPABASE_URL + "/rest/v1/detail_items");
-  url.searchParams.set("select", "id,name,example_note,subcategory_id,is_active,sort_order,subcategories(id,name,group_id,category_groups(id,name))");
+/** VIEW DATA */
+async function fetchDashRows(){
+  const url = new URL(SUPABASE_URL + "/rest/v1/v_entries_master");
+  url.searchParams.set("select", "entry_date,amount,member_id,flow_code,flow_name,category_name,subcategory_name,detail_name,detail_item_id,memo,category_id,subcategory_id");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("order", "sort_order.asc,name.asc");
+  url.searchParams.set("order", "entry_date.asc");
   url.searchParams.set("limit", "12000");
-
-  const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
+  const headers = { "apikey": SUPABASE_KEY, "Authorization":"Bearer "+session.access_token };
   const res = await fetch(url.toString(), { headers });
   const data = await res.json();
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-
-  masterGroups = (groups || []).filter(g=>g.is_active!==false);
-  masterSubcategories = (subs || []).filter(s=>s.is_active!==false);
-
-  masterDetailItems = (data || [])
-    .filter(r => r.is_active !== false)
-    .map(r=>{
-      const sub = r.subcategories || null;
-      const grp = sub?.category_groups || null;
-      return {
-        id: r.id,
-        name: r.name || "",
-        example_note: r.example_note || "",
-        sort_order: r.sort_order ?? 9999,
-        subcategory_id: r.subcategory_id,
-        subcategory: sub ? { id: sub.id, name: sub.name || "", group_id: sub.group_id, group: grp ? { id: grp.id, name: grp.name || "" } : null } : null
-      };
-    });
-
-  // fast maps (attach group/sub name for quick dashboard mapping)
-  for(const d of masterDetailItems){
-    d.sub_name = d?.subcategory?.name || "";
-    d.group_name = d?.subcategory?.group?.name || "";
-  }
-  detailItemById = new Map(masterDetailItems.map(d => [d.id, d]));
-  subById = new Map(masterSubcategories.map(s => [s.id, s]));
-  groupById = new Map(masterGroups.map(g => [g.id, g]));
+  return data || [];
 }
-
-
-function requireOwner(){
-  if(!isOwner) throw new Error("권한이 없어. (owner만 수정 가능)");
-}
-
-function renderCategoryAdmin(){
-  // group pick
-  const selG = byId("catPickGroup");
-  const selS = byId("catPickSub");
-  if(!selG || !selS) return;
-
-  selG.innerHTML = masterGroups.map(g=>`<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join("");
-  const gId = selG.value || masterGroups?.[0]?.id || "";
-  selG.value = gId;
-
-  const subs = masterSubcategories.filter(s => s.group_id === gId);
-  selS.innerHTML = subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
-  const sId = selS.value || subs?.[0]?.id || "";
-  selS.value = sId;
-
-  // group list
-  const wrapG = byId("catGroupList");
-  wrapG.innerHTML = masterGroups.map(g=>`
-    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium">${escapeHtml(g.name)}</div>
-      <div class="flex items-center gap-2">
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-up" data-id="${g.id}">↑</button>
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-down" data-id="${g.id}">↓</button>
-        <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="g-off" data-id="${g.id}">비활성</button>
-      </div>
-    </div>
-  `).join("");
-
-  // sub list (within selected group)
-  const wrapS = byId("catSubList");
-  wrapS.innerHTML = subs.map(s=>`
-    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium">${escapeHtml(s.name)}</div>
-      <div class="flex items-center gap-2">
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-up" data-id="${s.id}">↑</button>
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-down" data-id="${s.id}">↓</button>
-        <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="s-off" data-id="${s.id}">비활성</button>
-      </div>
-    </div>
-  `).join("");
-
-  // detail list (within selected sub)
-  const details = masterDetailItems.filter(d => d.subcategory_id === sId);
-  const wrapD = byId("catDetailList");
-  wrapD.innerHTML = details.map(d=>`
-    <div class="p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="flex items-center justify-between gap-2">
-        <div class="font-medium">${escapeHtml(d.name)}</div>
-        <div class="flex items-center gap-2">
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="d-up" data-id="${d.id}">↑</button>
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="d-down" data-id="${d.id}">↓</button>
-          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="d-off" data-id="${d.id}">비활성</button>
-        </div>
-      </div>
-      <div class="text-xs text-black/60 mt-1">예시: ${escapeHtml(d.example_note || "")}</div>
-    </div>
-  `).join("");
-}
-
-async function refreshCategoryAdmin(){
-  await loadCategoryMaster();
-  renderCategoryAdmin();
-  // 드롭다운/대시보드도 마스터 기반이라 같이 새로 렌더
-  renderMasterDropdowns?.();
-  renderDashButtons?.();
-  refreshDashboardFromCache?.();
-}
-
-async function bumpSort(table, id, dir){
-  requireOwner();
-  // 간단히 sort_order를 +-1 해서 재정렬 (충돌해도 큰 문제 없음)
-  const rows = await apiFetch(`/rest/v1/${table}`, { query:{ select:"id,sort_order", id:`eq.${id}`, limit:"1" }});
-  const cur = rows?.[0];
-  const next = (cur?.sort_order ?? 0) + (dir === "up" ? -1 : 1);
-  await apiFetch(`/rest/v1/${table}`, { method:"PATCH", query:{ id:`eq.${id}` }, body:{ sort_order: next }, preferReturn:false });
-}
-
-async function deactivateRow(table, id){
-  requireOwner();
-  await apiFetch(`/rest/v1/${table}`, { method:"PATCH", query:{ id:`eq.${id}` }, body:{ is_active:false }, preferReturn:false });
-}
-
-
-
-function getAllSubsSorted(){
-  const set = new Set();
-  for(const subs of groupToSubsMap.values()){
-    for(const s of subs) if(s) set.add(s);
-  }
-  return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
-}
-function getAllDetailsSorted(){
-  const set = new Set();
-  for(const ds of subToDetailsMap.values()){
-    for(const d of ds) if(d) set.add(d);
-  }
-  return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
-}
-
-function refreshEntryFormCategoryDropdowns(){
-  const selG = byId("category");     // UI상 '대분류' (group)
-  const selS = byId("subcategory");  // UI상 '소분류' (subcategory)
-  const selD = byId("detail");       // UI상 '상세항목' (detail_item)
-  if(!selG || !selS || !selD) return;
-
-  const groups = [...groupToSubsMap.keys()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
-  fillSelectOptions(selG, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
-
-  const applySubs = ()=>{
-    const g = (selG.value||"").trim();
-    const subs = g ? [...(groupToSubsMap.get(g) || new Set())] : getAllSubsSorted();
-    fillSelectOptions(selS, subs.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(소분류 선택)" });
-    applyDetails();
-  };
-
-  const applyDetails = ()=>{
-    const s = (selS.value||"").trim();
-    const ds = s ? [...(subToDetailsMap.get(s) || new Set())] : getAllDetailsSorted();
-    fillSelectOptions(selD, ds.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(상세항목 선택)" });
-    updateDetailExampleHint();
-  };
-
-  // bind once
-  if(!selG.dataset.bound){
-    selG.addEventListener("change", applySubs);
-    selS.addEventListener("change", applyDetails);
-    selD.addEventListener("change", updateDetailExampleHint);
-    selG.dataset.bound = "1";
-  }
-
-  applySubs();
-}
-
-function refreshBatchRenameDropdowns(){
-  const og = byId("renameOldCategory");
-  const os = byId("renameOldSubcategory");
-  const od = byId("renameOldDetail");
-  const ng = byId("renameNewCategory");
-  const ns = byId("renameNewSubcategory");
-  const nd = byId("renameNewDetail");
-  if(!og || !os || !od || !ng || !ns || !nd) return;
-
-  const groups = [...groupToSubsMap.keys()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
-  fillSelectOptions(og, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
-  fillSelectOptions(ng, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
-
-  const bindCascade = (gSel, sSel, dSel)=>{
-    const applyS = ()=>{
-      const g = (gSel.value||"").trim();
-      const subs = g ? [...(groupToSubsMap.get(g) || new Set())] : getAllSubsSorted();
-      fillSelectOptions(sSel, subs.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(소분류 선택)" });
-      applyD();
-    };
-    const applyD = ()=>{
-      const s = (sSel.value||"").trim();
-      const ds = s ? [...(subToDetailsMap.get(s) || new Set())] : getAllDetailsSorted();
-      fillSelectOptions(dSel, ds.sort((a,b)=>a.localeCompare(b,"ko")), { includeBlank:true, blankLabel:"(상세항목 선택)" });
-    };
-    if(!gSel.dataset.bound){
-      gSel.addEventListener("change", applyS);
-      sSel.addEventListener("change", applyD);
-      gSel.dataset.bound = "1";
-    }
-    applyS();
-  };
-
-  bindCascade(og, os, od);
-  bindCascade(ng, ns, nd);
-}
-
-function detailItemIdFromSelections(groupName, subName, detailName){
-  const g = (groupName||"").trim();
-  const s = (subName||"").trim();
-  const d = (detailName||"").trim();
-  return detailKeyToId.get(`${g}||${s}||${d}`) || null;
-}
-
-function updateDetailExampleHint(){
-  const gName = (byId("category")?.value || "").trim();
-  const sName = (byId("subcategory")?.value || "").trim();
-  const dName = (byId("detail")?.value || "").trim();
-  const hintEl = byId("detailExampleHint");
-  const noteEl = byId("detailNote");
-  if(!hintEl || !noteEl) return;
-
-  const id = detailItemIdFromSelections(gName, sName, dName);
-  const it = id ? detailItemById.get(id) : null;
-  const ex = (it?.example_note || "").trim();
-
-  if(ex){
-    hintEl.textContent = `예시: ${ex}`;
-    noteEl.placeholder = ex;
-  }else{
-    hintEl.textContent = "";
-    noteEl.placeholder = "선택";
-  }
-}
-/** =========================
- * 4) Entries CRUD
- * ========================= */
-function getFilters(){
-  return {
-    from: byId("filterFrom").value || DEFAULT_START_DATE,
-    to: byId("filterTo").value || todayISO(),
-    flow: byId("filterFlow").value,
-    memberId: byId("filterMember").value,
-    q: (byId("filterQ").value || "").trim(),
-  };
-}
-
-async function loadEntries(){
-  const f = getFilters();
-  const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail_item_id,detail,memo,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
-  url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("entry_date", `gte.${f.from}`);
-  url.searchParams.append("entry_date", `lte.${f.to}`);
-  if(f.flow !== "all") url.searchParams.set("flow_type", `eq.${f.flow}`);
-  if(f.memberId !== "all") url.searchParams.set("member_id", `eq.${f.memberId}`);
-  url.searchParams.set("order", "entry_date.desc,created_at.desc");
-
-  const headers = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": "Bearer " + session.access_token,
-  };
-
-  const res = await fetch(url.toString(), { headers });
-  const data = await res.json();
-  if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-
-  const rows = (f.q)
-    ? data.filter(r => ((r.detail_items?.name||"").includes(f.q) || (r.detail||"").includes(f.q) || (r.memo||"").includes(f.q)))
-    : data;
-
-  renderEntries(rows);
-  byId("count").textContent = `${rows.length}건`;
-}
-
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function memberNameById(id){
-  const m = membersCache.find(x=>x.id===id);
-  return m ? m.name : "";
-}
-
-function renderEntries(rows){
-  const tbody = byId("entriesTbody");
-  tbody.innerHTML = "";
-  for(const r of rows){
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
-    const s = r.detail_items?.subcategories?.name || "";
-    const d = r.detail_items?.name || "";
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.entry_date)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(memberNameById(r.member_id))}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.flow_type)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(g)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(s)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(d)}</td>
-      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.detail || "")}</td>
-      <td class="py-2 px-3 border-b text-right font-semibold">${fmt(r.amount)}</td>
-      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.memo || "")}</td>
-      <td class="py-2 px-3 border-b">
-        <div class="flex gap-2">
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="edit"><i class="fa-regular fa-pen-to-square mr-1"></i>수정</button>
-          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="del"><i class="fa-regular fa-trash-can mr-1"></i>삭제</button>
-        </div>
-      </td>
-    `;
-    tr.querySelector('[data-act="edit"]').addEventListener("click", () => startEdit(r));
-    tr.querySelector('[data-act="del"]').addEventListener("click", async () => {
-      if(!confirm("삭제할까?")) return;
-      await apiFetch("/rest/v1/entries", { method:"DELETE", query:{ id:`eq.${r.id}` }, preferReturn:false });
-      await refreshEverything();
-    });
-    tbody.appendChild(tr);
-  }
-}
-
-
-function startEdit(r){
-  byId("editId").value = r.id;
-  byId("entryDate").value = r.entry_date;
-  byId("flowType").value = r.flow_type;
-  byId("amount").value = r.amount;
-  byId("detailNote").value = r.detail || "";
-  byId("memo").value = r.memo || "";
-
-  const g = r.detail_items?.subcategories?.category_groups?.name || "";
-  const s = r.detail_items?.subcategories?.name || "";
-  const d = r.detail_items?.name || "";
-
-  byId("category").value = g;
-  try{ byId("category").dispatchEvent(new Event("change")); }catch(_){}
-  byId("subcategory").value = s;
-  try{ byId("subcategory").dispatchEvent(new Event("change")); }catch(_){}
-  byId("detail").value = d;
-
-  byId("memberSelect").value = r.member_id;
-  byId("btnSubmit").textContent = "수정 저장";
-  byId("btnCancelEdit").classList.remove("hidden");
-}
-
-function cancelEdit(){
-  byId("editId").value = "";
-  byId("btnSubmit").textContent = "추가";
-  byId("btnCancelEdit").classList.add("hidden");
-}
-
-async function upsertEntryFromForm(){
-  const id = byId("editId").value || null;
-  const entry_date = byId("entryDate").value;
-  const member_id = byId("memberSelect").value;
-  const flow_type = byId("flowType").value;
-  const amount = Number(byId("amount").value || 0);
-
-  // category master selections
-  const groupName = (byId("category").value || "").trim();
-  const subName = (byId("subcategory").value || "").trim();
-  const detailName = (byId("detail").value || "").trim();
-  const detail_item_id = detailItemIdFromSelections(groupName, subName, detailName);
-
-  const detail = (byId("detailNote").value || "").trim();
-  const memo = (byId("memo").value || "").trim();
-
-  if(!entry_date) throw new Error("날짜를 선택해줘");
-  if(!member_id) throw new Error("구분을 선택해줘");
-  if(!detail_item_id) throw new Error("대분류/소분류/상세항목을 선택해줘");
-  if(!Number.isFinite(amount) || amount < 0) throw new Error("금액을 확인해줘");
-
-  const payload = {
-    ledger_id: currentLedgerId,
-    entry_date,
-    member_id,
-    flow_type,
-    amount,
-    detail_item_id,
-    created_by: session.user.id
-  };
-  if(detail) payload.detail = detail;
-  if(memo) payload.memo = memo;
-
-  if(!id){
-    await apiFetch("/rest/v1/entries", { method:"POST", body: payload });
-  }else{
-    await apiFetch("/rest/v1/entries", { method:"PATCH", query:{ id:`eq.${id}` }, body: payload });
-  }
-
-  byId("entryForm").reset();
-  byId("entryDate").value = todayISO();
-  cancelEdit();
-}
-async function renameCategoryBatch(){
-  setError("");
-  setStatus("");
-
-  const oldG = (byId("renameOldCategory").value || "").trim();
-  const oldS = (byId("renameOldSubcategory").value || "").trim();
-  const oldD = (byId("renameOldDetail").value || "").trim();
-
-  const newG = (byId("renameNewCategory").value || "").trim();
-  const newS = (byId("renameNewSubcategory").value || "").trim();
-  const newD = (byId("renameNewDetail").value || "").trim();
-
-  const oldId = detailItemIdFromSelections(oldG, oldS, oldD);
-  const newId = detailItemIdFromSelections(newG, newS, newD);
-
-  if(!oldId){
-    throw new Error("기존값(대분류/소분류/상세항목)을 모두 선택해야 해.");
-  }
-  if(!newId){
-    throw new Error("변경값(대분류/소분류/상세항목)을 모두 선택해야 해.");
-  }
-  if(oldId === newId){
-    throw new Error("기존값과 변경값이 같아. 다른 항목을 선택해줘.");
-  }
-
-  // 1) 대상 id들 가져오기
-  const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "id");
-  url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("detail_item_id", `eq.${oldId}`);
-  url.searchParams.set("limit", "12000");
-
-  const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
-  setStatus("변경 대상 찾는 중...");
-  const res = await fetch(url.toString(), { headers });
-  const data = await res.json();
-  if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-
-  const ids = (data || []).map(x => x.id).filter(Boolean);
-  byId("renameHint").textContent = `대상 ${ids.length}건`;
-
-  if(!ids.length){
-    setStatus("조건에 맞는 데이터가 없어. (0건)");
-    return;
-  }
-
-  if(!confirm(`조건에 맞는 ${ids.length}건의 '상세항목'을 변경할까?`)){
-    setStatus("취소됨");
-    return;
-  }
-
-  // 2) PATCH by chunks
-  setStatus("일괄 변경 적용 중...");
-  const chunkSize = 200;
-
-  for(let i=0;i<ids.length;i+=chunkSize){
-    const part = ids.slice(i, i+chunkSize);
-    await apiFetch("/rest/v1/entries", {
-      method:"PATCH",
-      preferReturn:false,
-      query:{ id: `in.(${part.join(",")})` },
-      body: { detail_item_id: newId }
-    });
-    await sleep(60);
-  }
-
-  setStatus(`일괄 변경 완료! (${ids.length}건)`);
-  await refreshEverything();
-}
-
-
-
-/** =========================
- * 5) ALL DATA GRID → 월별 매트릭스 편집 (월×멤버 3컬럼)
- *    - 세로: (대분류/소분류/설명)
- *    - 가로: 1~12월 × (돌프/천사/공통)
- *    - 셀 더블클릭: 금액 수정(upsert) / 빈칸 저장: 삭제
- * ========================= */
-function monthLabels(){ return Array.from({length:12}, (_,i)=>String(i+1).padStart(2,"0")); }
-
-function buildMatrixRowKey(flow_type, detail_item_id){
-  return [flow_type, detail_item_id||""].join("||");
-}
-
-function getMatrixMembers3(){
-  // 돌프/천사/공통 3개를 고정 노출 (없으면 가능한 것만)
-  const pick = (name)=>{
-    const list = membersCache.filter(m => m.name === name);
-    if(!list.length) return null;
-    if(name === "공통") return (list.find(m=>m.kind==="common") || list[0]);
-    return list[0];
-  };
-  const arr = [pick("돌프"), pick("천사"), pick("공통")].filter(Boolean);
-  return arr; // [{id,name,kind}, ...]
-}
-
-async function fetchEntriesForMatrix(year, flow_type){
-  const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
-  url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("flow_type", `eq.${flow_type}`);
-  url.searchParams.set("entry_date", `gte.${year}-01-01`);
-  url.searchParams.append("entry_date", `lte.${year}-12-31`);
-  url.searchParams.set("order", "entry_date.asc,created_at.asc");
-  url.searchParams.set("limit", "12000");
-
-  const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
-  const res = await fetch(url.toString(), { headers });
-  const data = await res.json();
-  if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-  const rows = data || [];
-  return rows.map(r=>{
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
-    const s = r.detail_items?.subcategories?.name || "";
-    const d = r.detail_items?.name || "";
-    return { ...r, group_name:g, sub_name:s, item_name:d };
-  });
-}
-
-function fillMatrixFilters(years){
-  const ySel = byId("mxYear");
-  const prevY = ySel.value || "";
-  ySel.innerHTML = years.map(y=>`<option value="${y}">${y}년</option>`).join("");
-  ySel.value = years.includes(prevY) ? prevY : (years.at(-1) || new Date().getFullYear().toString());
-}
-
-function renderMatrixTable3({ year, flow_type, rows }){
-  const months = monthLabels();
-  const members3 = getMatrixMembers3();
-  if(members3.length < 3){
-    setError("members 테이블에 '돌프/천사/공통'이 모두 있어야 3컬럼 매트릭스를 완전하게 표시할 수 있어. (일부만 있으면 있는 멤버만 표시함)");
-  }
-
-  // Pivot: rowKey -> {meta, cell[mm][member_id]=sum}
-  const map = new Map();
-  for(const r of rows){
-    const mk = (r.entry_date||"").slice(5,7);
-    if(!months.includes(mk)) continue;
-
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
-    const s = r.detail_items?.subcategories?.name || "";
-    const d = r.detail_items?.name || "";
-    const key = buildMatrixRowKey(flow_type, r.detail_item_id);
-
-    if(!map.has(key)){
-      const cell = {};
-      for(const mm of months){
-        cell[mm] = {};
-        for(const m of members3){
-          cell[mm][m.id] = 0;
-        }
-      }
-      map.set(key, { flow_type, group: g, subcategory: s, detail: d, detail_item_id: r.detail_item_id, cell });
-    }
-
-    const obj = map.get(key);
-    if(obj.cell[mk] && obj.cell[mk][r.member_id] !== undefined){
-      obj.cell[mk][r.member_id] += Number(r.amount||0);
-    }
-  }
-
-  const arr = [...map.values()].sort((a,b)=>{
-    const A = `${a.group}||${a.subcategory}||${a.detail}`;
-    const B = `${b.group}||${b.subcategory}||${b.detail}`;
-    return A.localeCompare(B, "ko");
-  });
-
-  // THEAD (2 rows: month colspans + member names)
-const thead = byId("mxThead");
-thead.innerHTML = `
-  <tr>
-    <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30">대분류</th>
-    <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-30">소분류</th>
-    <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-30">설명</th>
-    ${months.map(mm => `
-      <th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">
-        ${Number(mm)}월
-      </th>
-    `).join("")}
-  </tr>
-  <tr>
-    <th class="border-b sticky left-0 bg-white/70 backdrop-blur z-30"></th>
-    <th class="border-b sticky left-[160px] bg-white/70 backdrop-blur z-30"></th>
-    <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>
-    ${months.map(()=>members3.map(m=>`
-      <th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">
-        ${escapeHtml(m.name)}
-      </th>
-    `).join("")).join("")}
-  </tr>
-`;
-
-
-
-  const tbody = byId("mxTbody");
-  tbody.innerHTML = "";
-  let cellCount = 0;
-
-  for(const row of arr){
-    const tr = document.createElement("tr");
-
-    const tdCat = document.createElement("td");
-    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
-    tdCat.textContent = row.group || "미분류";
-
-    const tdSub = document.createElement("td");
-    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
-    tdSub.textContent = row.subcategory || "";
-
-    const tdDet = document.createElement("td");
-    tdDet.className = "py-2 px-3 border-b sticky left-[320px] bg-white/60 backdrop-blur z-20 min-w-[260px] max-w-[360px] truncate";
-    tdDet.textContent = row.detail || "";
-
-    tr.appendChild(tdCat);
-    tr.appendChild(tdSub);
-    tr.appendChild(tdDet);
-
-    for(const mm of months){
-      for(const m of members3){
-        const td = document.createElement("td");
-        td.className = "py-2 px-3 border-b text-right font-medium hover:bg-black/5 rounded-lg cursor-pointer";
-        td.dataset.year = year;
-        td.dataset.month = mm;
-        td.dataset.member_id = m.id;
-        td.dataset.member_name = m.name;
-        td.dataset.flow = flow_type;
-        td.dataset.detail_item_id = row.detail_item_id || "";
-        td.dataset.group = row.group || "";
-        td.dataset.subcategory = row.subcategory || "";
-        td.dataset.detail = row.detail || "";
-        td.textContent = fmt((row.cell?.[mm]?.[m.id]) || 0);
-        cellCount++;
-
-        td.addEventListener("dblclick", ()=> startCellEdit3(td));
-        tr.appendChild(td);
-      }
-    }
-
-    tbody.appendChild(tr);
-  }
-
-  byId("mxRowCount").textContent = String(arr.length);
-  byId("mxCellCount").textContent = String(cellCount);
-}
-
-function startCellEdit3(td){
-  setError("");
-  if(td.querySelector("input")) return;
-
-  const prevText = td.textContent;
-  const prevVal = Number(String(prevText).replaceAll(",","")) || 0;
-
-  const inp = document.createElement("input");
-  inp.type = "number";
-  inp.min = "0";
-  inp.step = "1";
-  inp.value = String(prevVal);
-  inp.className = "w-full rounded-lg px-2 py-1 text-sm text-right";
-
-  td.innerHTML = "";
-  td.appendChild(inp);
-  inp.focus();
-  inp.select();
-
-  const restore = ()=>{ td.textContent = prevText; };
-
-  const commit = async ()=>{
-    const v = inp.value.trim();
-
-    const year = td.dataset.year;
-    const mm = td.dataset.month;
-    const member_id = td.dataset.member_id;
-    const flow_type = td.dataset.flow;
-    const detail_item_id = td.dataset.detail_item_id || "";
-   const entry_date = String(`${year}-${mm}-01`);
-
-
-    try{
-      setStatus("저장 중...");
-
-      // 빈칸 저장: 삭제
-      if(v === ""){
-        await apiFetch("/rest/v1/entries", {
-          method:"DELETE",
-          preferReturn:false,
-          query:{
-            ledger_id:`eq.${currentLedgerId}`,
-            entry_date:`eq.${entry_date}`,
-            member_id:`eq.${member_id}`,
-            flow_type:`eq.${flow_type}`,
-            detail_item_id:`eq.${detail_item_id}`
-          }
-        });
-        td.textContent = fmt(0);
-        setStatus("삭제 완료!");
-        return;
-      }
-
-      const amount = Number(v);
-      if(!Number.isFinite(amount) || amount < 0){
-        restore();
-        setStatus("");
-        setError("금액을 확인해줘 (0 이상의 숫자)");
-        return;
-      }
-
-      const payload = {
-        ledger_id: currentLedgerId,
-        entry_date,
-        member_id,
-        flow_type,
-        amount,
-        detail_item_id,
-        created_by: session.user.id
-      };
-
-      const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
-      await apiFetch("/rest/v1/entries", {
-        method:"POST",
-        query:{ on_conflict: onConflict },
-        body: [payload],
-        preferReturn:false,
-        extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
-      });
-
-      td.textContent = fmt(amount);
-      setStatus("저장 완료!");
-    }catch(e){
-      restore();
-      setStatus("");
-      setError(e?.message || String(e));
-    }
-  };
-
-  inp.addEventListener("keydown", async (e)=>{
-    if(e.key === "Enter"){ e.preventDefault(); await commit(); }
-    if(e.key === "Escape"){ restore(); }
-  });
-  inp.addEventListener("blur", async ()=>{ await commit(); });
-}
-
-async function refreshMatrix(){
-  // year candidates from DB quickly: use dashRowsCache if already loaded, else fetch minimal.
-  let years = [];
-  try{
-    if(dashRowsCache?.length){
-      years = [...new Set(dashRowsCache.map(r=>r.entry_date.slice(0,4)))].sort();
-    }else{
-      const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-      url.searchParams.set("select", "entry_date");
-      url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-      url.searchParams.set("order", "entry_date.asc");
-      url.searchParams.set("limit", "12000");
-      const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
-      const res = await fetch(url.toString(), { headers });
-      const data = await res.json();
-      if(res.ok) years = [...new Set((data||[]).map(r=>String(r.entry_date||"").slice(0,4)))].filter(Boolean).sort();
-    }
-  }catch(_){}
-  if(!years.length) years = [String(new Date().getFullYear())];
-
-  fillMatrixFilters(years);
-
-  const year = byId("mxYear").value;
-  const flow_type = byId("mxFlow").value;
-
-  setStatus("매트릭스 로딩 중...");
-  const rows = await fetchEntriesForMatrix(year, flow_type);
-  renderMatrixTable3({ year, flow_type, rows });
-  setStatus("준비 완료!");
-}
-
-/** =========================
- * 6) BULK TEMPLATE + UPLOAD (YOUR TEMPLATE FORMAT)
- *    - Sheet: 기록
- *    - Row1: 안내문(옵션)
- *    - Row2: 헤더 [날짜, 대분류, 소분류, 설명, 돌프, 천사, 공통]
- *    - Date blank => use selected ym -> YYYY-MM-01
- *    - Amount blank => skip (keep existing)
- *    - Amount present => UPSERT (overwrite amount)
- * ========================= */
-async function fetchActiveTemplates(){
-  // 활성 템플릿만, 정렬순으로 가져오기
-  const rows = await apiFetch("/rest/v1/entry_templates", {
-    query:{
-      select:"id,flow_type,category,subcategory,detail,sort_order,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      is_active:"eq.true",
-      order:"sort_order.asc,id.asc",
-      limit:"5000"
-    }
-  });
-  return rows || [];
-}
-
-async function seedDefaultTemplatesIfEmpty(){
-  // entry_templates가 비어 있으면, 기존 TEMPLATE_ROWS(하드코딩) 값을 최초 1회 삽입
-  const existing = await apiFetch("/rest/v1/entry_templates", {
-    query:{
-      select:"id",
-      ledger_id:`eq.${currentLedgerId}`,
-      limit:"1"
-    }
-  });
-  if(existing?.length) return;
-
-  // ✅ 네가 기존에 쓰던 TEMPLATE_ROWS를 여기에서만 1회 seed 용으로 사용
-  const DEFAULT_SEED = [
-    ["식비","식재료",""],
-    ["식비","외식",""],
-    ["식비","배달",""],
-    ["식비","중식",""],
-    ["식비","카페/간식",""],
-    ["소비 생활","쇼핑","의류, 잡화, 가방, 신발,화장품"],
-    ["소비 생활","미용","미용실, 네일,미용시술"],
-    ["소비 생활","구독","넷플릭스, 유튜브프리미엄, 음악스트리밍, 클라우드,멤버십"],
-    ["소비 생활","생활편의","생필품,가전제품, 인테리어 소품,가구"],
-    ["문화여가","여행","항공권, 숙박, 교통, 입장권"],
-    ["문화여가","문화생활","영화, 공연, 전시, 도서, 게임"],
-    ["문화여가","운동","헬스장, PT, 요가, 필라테스, 수영"],
-    ["건강·관리","보험","생명보험, 건강보험, 자동차보험"],
-    ["건강·관리","병원·약국","진료비, 약값, 건강검진"],
-    ["건강·관리","건강식품","비타민, 단백질보충제, 건강보조제"],
-    ["인간관계","회비","동호회,가족회비,동창"],
-    ["인간관계","경조/선물","추의금, 조의금, 행사참석비 / 생일선물, 기념일선물"],
-    ["인간관계","친목","친목회식"],
-    ["예비/기타","기부","후원"],
-    ["예비/기타","기타","비정기적 장비구매, 이벤트성 지출"],
-    ["필수 생활","주거/통신","전세이자, 관리비, 수도세, 전기세, 가스비, 휴대폰요금, 인터넷, IPTV"],
-    ["필수 생활","교통","대중교통(버스/지하철), 택시, 자가용유지(주유, 주차, 하이패스, 정비)"],
-    ["필수 생활","공과금","공과금, 재활용비,지방세 등"],
-    ["금융·저축","저축","정기적금, 비상금적금, CMA,주택청약"],
-    ["금융·저축","투자","주식, 펀드, 코인, 부동산, ETF"],
-    ["금융·저축","부채상환","카드값, 대출원리금, 이자"],
-    ["수입","월급","월급"],
-    ["수입","기타수입",""],
-    ["수입","금융이자","상여금,"],
-    ["수입","주식매도",""]
-  ];
-
-  const payload = DEFAULT_SEED.map((x, i)=>({
-    ledger_id: currentLedgerId,
-    flow_type: flowFromCategory(x[0] || ""),
-    category: x[0] || "",
-    subcategory: x[1] || "",
-    detail: x[2] || "",
-    sort_order: i,
-    is_active: true,
-    created_by: session.user.id
-  }));
-
-  // 대량 insert
-  await apiFetch("/rest/v1/entry_templates", {
-    method:"POST",
-    body: payload,
-    preferReturn:false
-  });
-}
-
-async function downloadMonthlyTemplate(){
-  // XLSX가 있으면 .xlsx로, 없으면 CSV로라도 내려받기 (배포 환경에서 CDN이 막혀도 동작)
-  const ok = await waitForXLSX();
-  const useXlsx = !!(ok && window.XLSX && window.XLSX.utils && window.XLSX.writeFile);
-  setError("");
-
-  // ✅ 마스터 카테고리 기준으로 템플릿 생성
-  setStatus("카테고리 마스터 불러오는 중...");
-  await loadCategoryMaster();
-
-  const ym = ymFromInput() || new Date().toISOString().slice(0,7);
-
-  // 정렬: (대분류 sort/name) -> (소분류 sort/name) -> (상세 sort/name)
-  const groupsSorted = [...masterGroups].sort((a,b)=> (a.sort_order??9999)-(b.sort_order??9999) || String(a.name).localeCompare(String(b.name),"ko"));
-  const groupOrder = new Map(groupsSorted.map((g,i)=>[g.id,i]));
-
-  const subsSorted = [...masterSubcategories].sort((a,b)=> (a.sort_order??9999)-(b.sort_order??9999) || String(a.name).localeCompare(String(b.name),"ko"));
-  const subOrder = new Map(subsSorted.map((s,i)=>[s.id,i]));
-
-  const items = [...masterDetailItems].sort((a,b)=>{
-    const ga = a.subcategory?.group?.id ? (groupOrder.get(a.subcategory.group.id) ?? 99999) : 99999;
-    const gb = b.subcategory?.group?.id ? (groupOrder.get(b.subcategory.group.id) ?? 99999) : 99999;
-    if(ga !== gb) return ga-gb;
-    const sa = a.subcategory?.id ? (subOrder.get(a.subcategory.id) ?? 99999) : 99999;
-    const sb = b.subcategory?.id ? (subOrder.get(b.subcategory.id) ?? 99999) : 99999;
-    if(sa !== sb) return sa-sb;
-    const da = (a.sort_order ?? 9999) - (b.sort_order ?? 9999);
-    if(da !== 0) return da;
-    return String(a.name||"").localeCompare(String(b.name||""),"ko");
-  });
-
-  if(!items.length){
-    setError("카테고리 마스터(detail_items)가 비어 있어. 카테고리 관리 탭에서 먼저 추가해줘.");
-    setStatus("");
-    return;
-  }
-
-  const sheetRows = [];
-  sheetRows.push(["사용법: '날짜'는 YYYY-MM-DD 권장. 금액 공란은 스킵(기존 값 유지)."]);
-  sheetRows.push(["날짜","대분류","소분류","상세항목","설명예시","돌프","천사","공통"]);
-
-  for(const it of items){
-    const gName = it.subcategory?.group?.name || "";
-    const sName = it.subcategory?.name || "";
-    sheetRows.push(["", gName, sName, it.name||"", it.example_note||"", "", "", ""]);
-  }
-
-  const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-  ws["!cols"] = [{wch:14},{wch:14},{wch:14},{wch:18},{wch:34},{wch:12},{wch:12},{wch:12}];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "기록");
-
-  if(useXlsx){
-    const fname = `record_template_${ym.replace("-","")}.xlsx`;
-    XLSX.writeFile(wb, fname);
-    setStatus("템플릿 다운로드 완료! (xlsx)");
-  }else{
-    // CSV fallback
-    const csvName = `record_template_${ym.replace("-","")}.csv`;
-    const csv = sheetRows.map(row => row.map(cell => {
-      const s = String(cell ?? "");
-      // CSV escape
-      if(/[",
-
-]/.test(s)) return '"' + s.replaceAll('"','""') + '"';
-      return s;
-    }).join(",")).join("
-");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = csvName;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    setStatus("템플릿 다운로드 완료! (CSV)");
-    setError("xlsx 라이브러리를 못 불러와서 CSV로 내려받았어. .xlsx가 꼭 필요하면 CDN 허용 또는 같은 폴더에 xlsx.full.min.js를 두면 돼.");
-  }
-}
-
-
-
-function detectHeaderRow(rows){
-  // find a row that contains required headers
-  const needed = ["날짜","대분류","소분류","상세항목","돌프","천사","공통"];
-  for(let i=0;i<Math.min(rows.length, 20);i++){
-    const row = rows[i].map(v => String(v||"").trim());
-    const ok = needed.every(h => row.includes(h));
-    if(ok) return i;
-  }
-  return -1;
-}
-
-function flowFromGroup(groupName){
-  const c = (groupName||"").trim();
-  if(c === "수입") return "income";
-  if(c === "저축") return "saving";
-  return "expense";
-}
-
-async function bulkUpload(){
-  const ok = await waitForXLSX();
-  if(!ok){
-    setError("xlsx 라이브러리 로딩이 안 됐어. xlsx 라이브러리를 불러오지 못했어. (CDN 차단이면 같은 폴더에 xlsx.full.min.js를 두고 다시 시도해줘.)");
-    return;
-  }
-
-  setError("");
-  const file = byId("bulkFile").files?.[0];
-  if(!file) throw new Error("엑셀 파일을 선택해줘");
-
-  // 시트명은 이제 아무거나 OK. (날짜(A열=헤더 '날짜')만 제대로 있으면 됨)
-  // 단, '7/3'처럼 연도 없는 날짜를 쓰는 경우를 대비해서 "기본 월"은 옵션으로 유지.
-  const defaultYm = ymFromInput(); // optional
-  if(!window.XLSX) throw new Error("xlsx 라이브러리 로딩이 안 됐어. (CDN 차단/오프라인)");
-
-  setStatus("엑셀 읽는 중...");
-  const data = await file.arrayBuffer();
-  const wb = XLSX.read(data, { type: "array", cellDates: false });
-
-
-
-  // ensure members exist
-  const findMemberId = (name)=>{
-    const list = membersCache.filter(m => m.name === name);
-    if(!list.length) return null;
-    if(name==="공통") return (list.find(m=>m.kind==="common") || list[0]).id;
-    return list[0].id;
-  };
-  const dolId = findMemberId("돌프");
-  const angId = findMemberId("천사");
-  const comId = findMemberId("공통");
-  if(!dolId || !angId || !comId){
-    throw new Error("members에 '돌프/천사/공통'이 모두 있어야 해. (members 테이블에 추가/활성화 확인)");
-  }
-
-  const toUpsert = [];
-  let scannedSheets = 0;
-  let skippedSheets = 0;
-  let skippedNoDate = 0;
-
-  for(const sheetName of wb.SheetNames){
-    const sheet = wb.Sheets[sheetName];
-    if(!sheet) continue;
-
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
-
-    if(rows.length < 2) { skippedSheets++; continue; }
-
-    const headerRow = detectHeaderRow(rows);
-    if(headerRow < 0) { skippedSheets++; continue; } // 헤더 없는 시트는 무시
-
-    const header = rows[headerRow].map(h => String(h).trim());
-    const idx = (name)=> header.findIndex(h => h === name);
-
-    const iDate = idx("날짜");
-    const iCat = idx("대분류");
-    const iSub = idx("소분류");
-    const iDetail = idx("상세항목");
-    const iDol = idx("돌프");
-    const iAng = idx("천사");
-    const iCom = idx("공통");
-
-    const need = [iDate,iCat,iSub,iDetail,iDol,iAng,iCom];
-    if(need.some(i => i < 0)) { skippedSheets++; continue; }
-
-    scannedSheets++;
-
-    for(let r=headerRow+1; r<rows.length; r++){
-      const row = rows[r] || [];
-
-      const dateCell = row[iDate];
-      const hasDate = String(dateCell ?? "").trim() !== "";
-      if(!hasDate){ skippedNoDate++; continue; } // ✅ 날짜가 없으면 업로드 안 함
-
-      const entry_date = normalizeDate(dateCell, defaultYm);
-      if(!entry_date){
-        throw new Error(`날짜 형식을 읽을 수 없어: 시트 '${sheetName}' ${r+1}행. (권장: YYYY-MM-DD 또는 엑셀 날짜 형식)`);
-      }
-
-      const category = String(row[iCat] ?? "").trim();
-      const subcategory = String(row[iSub] ?? "").trim();
-      const detail = String(row[iDetail] ?? "").trim();
-
-      const detail_item_id = detailItemIdFromSelections(category, subcategory, detail);
-      if(!detail_item_id){
-        throw new Error(`카테고리 매칭 실패: [${category} > ${subcategory} > ${detail}] (시트 '${sheetName}' ${r+1}행)`);
-      }
-
-      // 완전 공란 라인 스킵
-      const dolRaw = row[iDol];
-      const angRaw = row[iAng];
-      const comRaw = row[iCom];
-      const hasAny = [dateCell,category,subcategory,detail,dolRaw,angRaw,comRaw].some(v => String(v??"").trim() !== "");
-      if(!hasAny) continue;
-
-      if(!category && !subcategory && !detail) continue;
-
-      const flow_type = flowFromGroup(category);
-
-      const pushIfAmount = (member_id, amtRaw)=>{
-        const s = String(amtRaw ?? "").trim();
-        if(s === "") return; // 공란 스킵
-        const amount = Number(s.replaceAll(",",""));
-        if(!Number.isFinite(amount) || amount < 0) return;
-
-        toUpsert.push({
-          ledger_id: currentLedgerId,
-          entry_date,
-          member_id,
-          flow_type,
-          amount,
-          detail_item_id,
-          created_by: session.user.id
-        });
-      };
-
-      pushIfAmount(dolId, dolRaw);
-      pushIfAmount(angId, angRaw);
-      pushIfAmount(comId, comRaw);
-    }
-  }
-
-  if(!scannedSheets){
-    throw new Error("업로드할 시트를 찾지 못했어. (헤더: 날짜/대분류/소분류/설명/돌프/천사/공통 이 있는 시트가 필요)");
-  }
-
-  if(!toUpsert.length){
-    setStatus(`업로드할 유효 행이 없어(금액이 전부 공란이면 스킵됨). 확인한 시트 ${scannedSheets}개 / 무시한 시트 ${skippedSheets}개`);
-    return;
-  }
-
-  // ✅ 같은 키가 요청 배열에 2번 들어가면 Postgres가 터져서, 업로드 전에 dedupe(마지막 값 우선)
-  const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
-  const makeKey = (x)=> [x.ledger_id,x.entry_date,x.member_id,x.flow_type,x.detail_item_id||""].join("|");
-  const dedup = new Map();
-  for(const row of toUpsert) dedup.set(makeKey(row), row);
-  const toUpsertUnique = [...dedup.values()];
-
-  setStatus(`업로드 중... (${toUpsertUnique.length}건 / 인식 시트 ${scannedSheets}개 · 무시 시트 ${skippedSheets}개 · 날짜없음 스킵 ${skippedNoDate}행)`);
-
-  const chunk = 500;
-  for(let i=0;i<toUpsertUnique.length;i+=chunk){
-    const part = toUpsertUnique.slice(i, i+chunk);
-    await apiFetch("/rest/v1/entries", {
-      method:"POST",
-      query:{ on_conflict: onConflict },
-      body: part,
-      preferReturn:false,
-      extraHeaders:{ "Prefer":"resolution=merge-duplicates" }
-    });
-    await sleep(80);
-  }
-
-  setStatus("업로드 완료!");
-  await refreshEverything();
-}
-
-function pad2(n){ return String(n).padStart(2,"0"); }
-
-function normalizeDate(v, ym){
-  // ✅ 1) Date 객체면: 시간값을 보고 로컬/UTC 자동 선택 (시간대 이슈 방지)
-  if(v instanceof Date && !isNaN(v.getTime())){
-    // 엑셀에서 Date가 "로컬 00:00:00"으로 만들어진 경우가 있고,
-    // 어떤 환경에선 "UTC 00:00:00"이 로컬로 변환되어 09:00 등으로 들어오기도 함.
-    // -> 시간이 0시이면 로컬 기준, 아니면 UTC 기준을 사용하면 날짜가 안 밀림.
-    const isMidnightLocal =
-      v.getHours() === 0 && v.getMinutes() === 0 && v.getSeconds() === 0;
-
-    const y = isMidnightLocal ? v.getFullYear() : v.getUTCFullYear();
-    const m = isMidnightLocal ? (v.getMonth() + 1) : (v.getUTCMonth() + 1);
-    const d = isMidnightLocal ? v.getDate() : v.getUTCDate();
-    return `${y}-${pad2(m)}-${pad2(d)}`;
-  }
-
-  // 2) Excel serial number
-  if(typeof v === "number" && Number.isFinite(v)){
-    const d = XLSX.SSF.parse_date_code(v);
-    if(d) return `${d.y}-${pad2(d.m)}-${pad2(d.d)}`;
-  }
-
-  const s = String(v ?? "").trim();
-  if(!s) return "";
-
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-
-  if(/^\d{2}-\d{2}$/.test(s)){
-    if(!ym) return "";
-    return `${ym.split("-")[0]}-${s}`;
-  }
-
-  if(/^\d{1,2}\/\d{1,2}$/.test(s)){
-    if(!ym) return "";
-    const [m,d] = s.split("/").map(x=>pad2(x));
-    return `${ym.split("-")[0]}-${m}-${d}`;
-  }
-
-  const m1 = s.match(/^(\d{4})[\.\/-](\d{1,2})[\.\/-](\d{1,2})$/);
-  if(m1){
-    const y = m1[1];
-    const m = pad2(m1[2]);
-    const d = pad2(m1[3]);
-    return `${y}-${m}-${d}`;
-  }
-
-  return "";
-}
-
-
-
-/** =========================
- * 7) Dashboard (instant multi-filter buttons)
- * ========================= */
-let chartCategory = null;
-let chartTop10 = null;
-let chartMonthly = null;
-let chartFlowShare = null;
-let chartMonthlyStack = null;
-
-// Chart.js datalabels
-if (window.ChartDataLabels) {
-  Chart.register(ChartDataLabels);
-}
-
-
-
-let categoryMaster = {
-  groups: [],   // [{id,name,sort_order,is_active}]
-  subs: [],     // [{id,name,group_id,sort_order,is_active}]
-  details: [],  // [{id,name,subcategory_id,sort_order,is_active}]
-  groupNameById: new Map(),
-  subById: new Map(),
-  subsByGroupId: new Map(),
-  detailsBySubId: new Map(),
-};
-
-async function loadCategoryMaster(){
-  // Pull full master (active) for dashboard dropdowns & edit dropdowns
-  // If RLS blocks, this will throw; caller should catch.
-  const groups = await apiFetch("/rest/v1/category_groups", {
-    query:{
-      select:"id,name,sort_order,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      is_active:"eq.true",
-      order:"sort_order.asc,name.asc",
-      limit:"5000"
-    }
-  });
-
-  const subs = await apiFetch("/rest/v1/subcategories", {
-    query:{
-      select:"id,name,group_id,sort_order,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      is_active:"eq.true",
-      order:"sort_order.asc,name.asc",
-      limit:"12000"
-    }
-  });
-
-  const details = await apiFetch("/rest/v1/detail_items", {
-    query:{
-      select:"id,name,subcategory_id,sort_order,is_active",
-      ledger_id:`eq.${currentLedgerId}`,
-      is_active:"eq.true",
-      order:"sort_order.asc,name.asc",
-      limit:"20000"
-    }
-  });
-
-  categoryMaster.groups = groups || [];
-  categoryMaster.subs = subs || [];
-  categoryMaster.details = details || [];
-
-  categoryMaster.groupNameById = new Map(categoryMaster.groups.map(g=>[g.id, g.name]));
-  categoryMaster.subById = new Map(categoryMaster.subs.map(s=>[s.id, s]));
-
-  categoryMaster.subsByGroupId = new Map();
-  for(const s of categoryMaster.subs){
-    const arr = categoryMaster.subsByGroupId.get(s.group_id) || [];
-    arr.push(s);
-    categoryMaster.subsByGroupId.set(s.group_id, arr);
-  }
-
-  categoryMaster.detailsBySubId = new Map();
-  for(const d of categoryMaster.details){
-    const arr = categoryMaster.detailsBySubId.get(d.subcategory_id) || [];
-    arr.push(d);
-    categoryMaster.detailsBySubId.set(d.subcategory_id, arr);
-  }
-}
-
-let dashRowsCache = [];
-const dashState = {
-  members: new Set(),
-  years: new Set(),
-  months: new Set(),
-  categories: new Set(),
-  subcategories: new Set(),
-};
-
-function clearDashState(){
-  dashState.members.clear();
-  dashState.years.clear();
-  dashState.months.clear();
-  dashState.categories.clear();
-  dashState.subcategories.clear();
-}
-
-function isAllSelected(set){ return set.size === 0; }
 
 function buildDashPredicate(){
-  const mem = dashState.members;
-  const yrs = dashState.years;
-  const mos = dashState.months;
-  const cats = dashState.categories;
-  const subs = dashState.subcategories;
+  const from = byId("dashFrom").value || "1900-01-01";
+  const to = byId("dashTo").value || todayISO();
+  const flowId = byId("dashFlow").value;
+  const catId = byId("dashCategory").value;
+  const subId = byId("dashSubcategory").value;
+  const detId = byId("dashDetailItem").value;
+  const memId = byId("dashMember").value;
+
+  const flowCode = (flowId==="all") ? "all" : (flowsCache.find(f=>f.id===flowId)?.code || "all");
 
   return (r)=>{
-    const d = r.entry_date;
-    const y = d.slice(0,4);
-    const m = d.slice(5,7);
-
-    if(mem.size && !mem.has(r.member_id)) return false;
-    if(yrs.size && !yrs.has(y)) return false;
-    if(mos.size && !mos.has(m)) return false;
-    if(cats.size && !cats.has((r.group_name||""))) return false;
-    if(subs.size && !subs.has((r.sub_name||""))) return false;
+    if(r.entry_date < from || r.entry_date > to) return false;
+    if(memId !== "all" && r.member_id !== memId) return false;
+    if(flowCode !== "all" && r.flow_code !== flowCode) return false;
+    if(catId !== "all" && String(r.category_id) !== String(catId)) return false;
+    if(subId !== "all" && String(r.subcategory_id) !== String(subId)) return false;
+    if(detId !== "all" && String(r.detail_item_id) !== String(detId)) return false;
     return true;
   };
 }
 
-function mkBtn(label, { active=false, onClick, title="" } = {}){
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "chip px-3 py-2 text-xs";
-  b.dataset.active = active ? "true" : "false";
-  b.textContent = label;
-  if(title) b.title = title;
-  b.addEventListener("click", onClick);
-  return b;
-}
+/** CHARTS */
+Chart.register(ChartDataLabels);
+let chartCategory=null, chartTop10=null, chartFlowShare=null, chartMonthlyStack=null, chartMonthly=null;
 
-function renderDashButtons(){
-  // member buttons (from membersCache)
-  const wrapM = byId("dashBtnsMember");
-  wrapM.innerHTML = "";
-  // "전체" means no filter => empty set
-  wrapM.appendChild(mkBtn("전체", {
-    active: dashState.members.size === 0,
-    onClick: ()=>{ dashState.members.clear(); refreshDashboardFromCache(); renderDashButtons(); },
-    title:"구분 전체"
-  }));
-  for(const m of membersCache){
-    const active = dashState.members.has(m.id);
-    wrapM.appendChild(mkBtn(m.name, {
-      active,
-      onClick: ()=>{
-        if(dashState.members.size===0){ /* from all -> start selecting */ }
-        if(active) dashState.members.delete(m.id); else dashState.members.add(m.id);
-        // if all removed => treat as 전체
-        if(dashState.members.size===0){ /* ok */ }
-        refreshDashboardFromCache(); renderDashButtons();
-      }
-    }));
-  }
-
-  // years from data
-  const years = [...new Set(dashRowsCache.map(r=>r.entry_date.slice(0,4)))].sort();
-  const wrapY = byId("dashBtnsYear");
-  wrapY.innerHTML = "";
-  wrapY.appendChild(mkBtn("전체", {
-    active: dashState.years.size === 0,
-    onClick: ()=>{ dashState.years.clear(); refreshDashboardFromCache(); renderDashButtons(); },
-  }));
-  for(const y of years){
-    const active = dashState.years.has(y);
-    wrapY.appendChild(mkBtn(`${y}년`, {
-      active,
-      onClick: ()=>{
-        if(active) dashState.years.delete(y); else dashState.years.add(y);
-        refreshDashboardFromCache(); renderDashButtons();
-      }
-    }));
-  }
-
-  // months fixed
-  const wrapMo = byId("dashBtnsMonth");
-  wrapMo.innerHTML = "";
-  wrapMo.appendChild(mkBtn("전체", {
-    active: dashState.months.size === 0,
-    onClick: ()=>{ dashState.months.clear(); refreshDashboardFromCache(); renderDashButtons(); },
-  }));
-  for(let i=1;i<=12;i++){
-    const mm = String(i).padStart(2,"0");
-    const active = dashState.months.has(mm);
-    wrapMo.appendChild(mkBtn(`${i}월`, {
-      active,
-      onClick: ()=>{
-        if(active) dashState.months.delete(mm); else dashState.months.add(mm);
-        refreshDashboardFromCache(); renderDashButtons();
-      }
-    }));
-  }
-
-  // categories/subcategories from master
-  const wrapC = byId("dashBtnsCategory");
-  wrapC.innerHTML = "";
-  wrapC.appendChild(mkBtn("전체", {
-    active: dashState.categories.size === 0,
-    onClick: ()=>{ dashState.categories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
-  }));
-
-  const groups = (categoryMaster.groups || []).map(g=>g.name).filter(Boolean);
-  for(const gName of groups){
-    const active = dashState.categories.has(gName);
-    wrapC.appendChild(mkBtn(gName, {
-      active,
-      onClick: ()=>{
-        if(active) dashState.categories.delete(gName); else dashState.categories.add(gName);
-        // when group filter changes, clear subcategory selections that no longer belong
-        if(dashState.categories.size){
-          const allowedSubs = new Set(getAllowedSubNamesForSelectedGroups());
-          for(const s of [...dashState.subcategories]){
-            if(!allowedSubs.has(s)) dashState.subcategories.delete(s);
-          }
-        }
-        refreshDashboardFromCache(); renderDashButtons();
-      }
-    }));
-  }
-
-  const wrapS = byId("dashBtnsSubcategory");
-  wrapS.innerHTML = "";
-  wrapS.appendChild(mkBtn("전체", {
-    active: dashState.subcategories.size === 0,
-    onClick: ()=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
-  }));
-
-  const subsToShow = getAllowedSubNamesForSelectedGroups();
-  for(const sName of subsToShow){
-    const active = dashState.subcategories.has(sName);
-    wrapS.appendChild(mkBtn(sName, {
-      active,
-      onClick: ()=>{
-        if(active) dashState.subcategories.delete(sName); else dashState.subcategories.add(sName);
-        refreshDashboardFromCache(); renderDashButtons();
-      }
-    }));
-  }
-
-  // helper: selected groups -> subs
-  function getAllowedSubNamesForSelectedGroups(){
-    const selected = dashState.categories;
-    const allSubs = [];
-    if(selected.size === 0){
-      for(const s of (categoryMaster.subs || [])) allSubs.push(s.name);
-    }else{
-      // map group name -> group id
-      const nameToId = new Map((categoryMaster.groups||[]).map(g=>[g.name, g.id]));
-      for(const gName of selected){
-        const gid = nameToId.get(gName);
-        if(!gid) continue;
-        for(const s of (categoryMaster.subsByGroupId.get(gid) || [])){
-          allSubs.push(s.name);
-        }
-      }
-    }
-    return [...new Set(allSubs)].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
-  }
-
-  // hint text
-  const parts = [];
-  if(dashState.members.size) parts.push(`구분 ${dashState.members.size}개`);
-  if(dashState.years.size) parts.push(`연도 ${dashState.years.size}개`);
-  if(dashState.months.size) parts.push(`월 ${dashState.months.size}개`);
-  if(dashState.categories.size) parts.push(`대분류 ${dashState.categories.size}개`);
-  if(dashState.subcategories.size) parts.push(`소분류 ${dashState.subcategories.size}개`);
-  byId("dashSelectionHint").textContent = parts.length ? `선택됨: ${parts.join(" · ")}` : "* 버튼을 누르면 즉시 반영돼. (중복 선택은 합산)";
-}
-
-async function fetchAllEntriesForDash(){
-  // ✅ Dashboard는 entries를 최소 컬럼만 가져오고,
-  //    대분류/소분류 이름은 미리 로드된 categoryMaster(detailItemById 맵)로 로컬 매핑한다.
-  const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id");
-  url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("order", "entry_date.asc");
-  url.searchParams.set("limit", "12000");
-
-  const headers = { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + session.access_token };
-  const res = await fetch(url.toString(), { headers });
-  const data = await res.json();
-  if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
-
-  // attach master names
-  for(const r of (data || [])){
-    const di = r.detail_item_id ? detailItemById.get(r.detail_item_id) : null;
-    // detailItemById는 loadCategoryMaster에서 (id -> {name, sub_name, group_name}) 형태로 채움
-    r.detail_name = di?.name || "";
-    r.sub_name = di?.sub_name || "";
-    r.group_name = di?.group_name || "";
-  }
-
-  return data || [];
-}
-
-function computeMonthlyBuckets(rows, pred){
-  const map = new Map();
-  for(const r of rows){
-    if(!pred(r)) continue;
-    const mk = r.entry_date.slice(0,7);
-    const o = map.get(mk) || { expense:0, income:0, saving:0 };
-    o[r.flow_type] = (o[r.flow_type] || 0) + Number(r.amount||0);
-    map.set(mk, o);
-  }
-  const keys = [...map.keys()].sort();
-  return { keys, map };
-}
-
-function computeKpis(rows, pred){
-  let expense=0,income=0,saving=0;
-  const monthsSet = new Set();
-  for(const r of rows){
-    if(!pred(r)) continue;
-    monthsSet.add(r.entry_date.slice(0,7));
-    if(r.flow_type==="expense") expense += Number(r.amount||0);
-    else if(r.flow_type==="income") income += Number(r.amount||0);
-    else if(r.flow_type==="saving") saving += Number(r.amount||0);
-  }
-  const months = Math.max(1, monthsSet.size);
-  const net = income - expense - saving;
-  const savingRate = income > 0 ? Math.round((saving/income)*100) : 0;
+function chartCommonOpts(){
   return {
-    expense, income, saving, net, savingRate,
-    expenseAvg: Math.round(expense/months),
-    incomeAvg: Math.round(income/months),
-    savingAvg: Math.round(saving/months),
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{
+      legend:{ labels:{ color:"rgba(11,18,32,.72)" } },
+      datalabels:{
+        color:"rgba(11,18,32,.78)",
+        formatter:(v)=> (Number(v)||0)===0 ? "" : fmt(v),
+        clamp:true
+      },
+      tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } }
+    },
+    scales:{
+      x:{ ticks:{ color:"rgba(11,18,32,.72)" }, grid:{ color:"rgba(11,18,32,.06)" } },
+      y:{ ticks:{ color:"rgba(11,18,32,.72)", callback:(v)=>fmt(v) }, grid:{ color:"rgba(11,18,32,.06)" } }
+    }
   };
 }
-
+function computeKpis(rows, pred){
+  let expense=0,income=0,saving=0;
+  for(const r of rows){
+    if(!pred(r)) continue;
+    if(r.flow_code==="expense") expense += Number(r.amount||0);
+    if(r.flow_code==="income") income += Number(r.amount||0);
+    if(r.flow_code==="saving") saving += Number(r.amount||0);
+  }
+  return { expense, income, saving };
+}
 function computeCategoryExpense(rows, pred){
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
-    if(r.flow_type !== "expense") continue;
-    const k = (r.group_name || "미분류");
+    if(r.flow_code!=="expense") continue;
+    const k = r.category_name || "미분류";
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
 }
-
-function computeTop10(rows, pred){
-  // 지출 Top10: 소분류 기준 합산
+function computeTop10Sub(rows, pred){
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
-    if(r.flow_type !== "expense") continue;
-    const k = (r.sub_name || "미분류").trim() || "미분류";
+    if(r.flow_code!=="expense") continue;
+    const k = r.subcategory_name || "미분류";
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
 }
-
 function computeFlowShare(rows, pred){
-  // Share = 월급 수입 / 기타 수입 / 지출 (3개 합이 100%)
-  let salary=0, otherIncome=0, expense=0;
+  let e=0,i=0,s=0;
   for(const r of rows){
     if(!pred(r)) continue;
-    const amt = Number(r.amount||0);
-    if(!amt) continue;
-
-    if(r.flow_type==="expense"){
-      expense += amt;
-      continue;
-    }
-    if(r.flow_type==="income"){
-      const item = (r.item_name || "").trim();
-      if(item === "월급") salary += amt;
-      else otherIncome += amt;
-      continue;
-    }
-    // saving은 이 그래프 정의상 제외
+    if(r.flow_code==="expense") e += Number(r.amount||0);
+    else if(r.flow_code==="income") i += Number(r.amount||0);
+    else if(r.flow_code==="saving") s += Number(r.amount||0);
   }
-  const total = salary + otherIncome + expense;
-  return { salary, otherIncome, expense, total };
+  const total = e+i+s || 1;
+  return { e,i,s,total };
+}
+function computeMonthly(rows, pred){
+  const map = new Map();
+  for(const r of rows){
+    if(!pred(r)) continue;
+    const k = String(r.entry_date||"").slice(0,7);
+    const o = map.get(k) || { expense:0,income:0,saving:0 };
+    o[r.flow_code] = (o[r.flow_code]||0) + Number(r.amount||0);
+    map.set(k,o);
+  }
+  const keys = [...map.keys()].sort();
+  return {
+    keys,
+    exp: keys.map(k=>map.get(k)?.expense||0),
+    inc: keys.map(k=>map.get(k)?.income||0),
+    sav: keys.map(k=>map.get(k)?.saving||0)
+  };
 }
 
-
-function refreshDashboardFromCache(){
+function refreshDashboard(){
   const pred = buildDashPredicate();
-
   const k = computeKpis(dashRowsCache, pred);
   byId("kpiExpense").textContent = fmt(k.expense);
   byId("kpiIncome").textContent = fmt(k.income);
   byId("kpiSaving").textContent = fmt(k.saving);
-  byId("kpiExpenseAvg").textContent = fmt(k.expenseAvg);
-  byId("kpiIncomeAvg").textContent = fmt(k.incomeAvg);
-  byId("kpiSavingAvg").textContent = fmt(k.savingAvg);
 
-  // Category
   const catArr = computeCategoryExpense(dashRowsCache, pred);
-  const catLabels = catArr.map(x=>x[0]);
-  const catVals = catArr.map(x=>x[1]);
   if(chartCategory) chartCategory.destroy();
   chartCategory = new Chart(byId("chartCategory"), {
     type:"bar",
-    data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals }] },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
-      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-               y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } }
-    }
+    data:{ labels: catArr.map(x=>x[0]), datasets:[{ label:"지출", data: catArr.map(x=>x[1]) }]},
+    options:{ ...chartCommonOpts(), plugins:{ ...chartCommonOpts().plugins, legend:{ display:false }, datalabels:{ ...chartCommonOpts().plugins.datalabels, anchor:"end", align:"end" } } }
   });
 
-  // Top10
-  const topArr = computeTop10(dashRowsCache, pred);
-  const topLabels = topArr.map(x=>x[0]);
-  const topVals = topArr.map(x=>x[1]);
+  const topArr = computeTop10Sub(dashRowsCache, pred);
   if(chartTop10) chartTop10.destroy();
   chartTop10 = new Chart(byId("chartTop10"), {
     type:"bar",
-    data:{ labels: topLabels, datasets:[{ label:"지출", data: topVals }] },
-    options:{
-      indexAxis:"y",
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
-      scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } },
-               y:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } } }
-    }
+    data:{ labels: topArr.map(x=>x[0]), datasets:[{ label:"지출", data: topArr.map(x=>x[1]) }]},
+    options:{ ...chartCommonOpts(), plugins:{ ...chartCommonOpts().plugins, legend:{ display:false }, datalabels:{ ...chartCommonOpts().plugins.datalabels, anchor:"end", align:"end" } } }
   });
 
-  // Monthly line (3 series)
-  const { keys, map } = computeMonthlyBuckets(dashRowsCache, pred);
-  const exp = keys.map(k=> (map.get(k)?.expense)||0);
-  const inc = keys.map(k=> (map.get(k)?.income)||0);
-  const sav = keys.map(k=> (map.get(k)?.saving)||0);
-  if(chartMonthly) chartMonthly.destroy();
-  chartMonthly = new Chart(byId("chartMonthly"), {
-    type:"line",
-    data:{ labels: keys, datasets:[
-      { label:"지출", data: exp, tension:.25 },
-      { label:"수입", data: inc, tension:.25 },
-      { label:"저축", data: sav, tension:.25 },
-    ]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
-        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } },
-        datalabels:{
-          anchor:"end",
-          align:"top",
-          clamp:true,
-          formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
-        }
-      },
-      scales:{ 
-        x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-        y:{ ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } } 
-      }
-    }
-  });
-
-  // Flow share doughnut (월급 수입 / 기타 수입 / 지출)
   const share = computeFlowShare(dashRowsCache, pred);
-  const flowLabels = ["월급 수입","기타 수입","지출"];
-  const flowVals = [share.salary, share.otherIncome, share.expense];
-
   if(chartFlowShare) chartFlowShare.destroy();
   chartFlowShare = new Chart(byId("chartFlowShare"), {
     type:"doughnut",
-    data:{ labels: flowLabels, datasets:[{ data: flowVals }] },
+    data:{ labels:["지출","수입","저축"], datasets:[{ label:"비중", data:[share.e, share.i, share.s] }]},
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{
-        legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
-        tooltip:{ callbacks:{ 
-          label:(ctx)=> {
-            const total = (ctx.chart?.data?.datasets?.[0]?.data || []).reduce((a,b)=>a+Number(b||0),0) || 1;
-            const pct = Math.round((Number(ctx.raw||0)/total)*100);
-            return `${ctx.label}: ${fmt(ctx.raw)} 원 (${pct}%)`;
-          } 
-        }},
-        datalabels:{
-          formatter:(v,ctx)=>{
-            const data = (ctx.chart?.data?.datasets?.[0]?.data || []);
-            const total = data.reduce((a,b)=>a+Number(b||0),0) || 0;
-            if(!total || !v) return "";
-            const pct = Math.round((Number(v||0)/total)*100);
-            return pct ? `${pct}%` : "";
-          }
-        }
+        legend:{ position:"bottom", labels:{ color:"rgba(11,18,32,.72)" } },
+        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.label}: ${fmt(ctx.raw)} 원` } },
+        datalabels:{ color:"rgba(11,18,32,.78)", formatter:(v)=> (Number(v)||0)===0 ? "" : `${Math.round((Number(v||0)/share.total)*100)}%` }
       }
     }
   });
 
-  // percentages text: 지출% / (지출+저축)% 대신 -> 지출% / (지출+기타수입)% / (월급+기타=수입)%
-  try{
-    const total = (share.salary + share.otherIncome + share.expense) || 1;
-    const expPct = Math.round((share.expense/total)*100);
-    const incomePct = Math.round(((share.salary+share.otherIncome)/total)*100);
-    const nonSalaryPct = Math.round(((share.otherIncome+share.expense)/total)*100);
-    const el = byId("flowShareText");
-    if(el) el.textContent = `지출 ${expPct}% · 총수입 ${incomePct}% · (기타수입+지출) ${nonSalaryPct}%`;
-  }catch(_){}
+  const { keys, exp, inc, sav } = computeMonthly(dashRowsCache, pred);
 
-
-  // Monthly stacked bar
   if(chartMonthlyStack) chartMonthlyStack.destroy();
   chartMonthlyStack = new Chart(byId("chartMonthlyStack"), {
     type:"bar",
-    data:{ labels: keys, datasets:[
-      { label:"지출", data: exp, stack:"sum" },
-      { label:"수입", data: inc, stack:"sum" },
-      { label:"저축", data: sav, stack:"sum" },
-    ]},
+    data:{ labels: keys, datasets:[ { label:"지출", data: exp, stack:"sum" }, { label:"수입", data: inc, stack:"sum" }, { label:"저축", data: sav, stack:"sum" } ]},
     options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
-        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.raw)} 원` } },
-        datalabels:{
-          anchor:"center",
-          align:"center",
-          clamp:true,
-          formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
-        }
-      },
-      scales:{
-        x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-        y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
-      }
+      ...chartCommonOpts(),
+      scales:{ x:{ stacked:true, ticks:{ color:"rgba(11,18,32,.72)" }, grid:{ color:"rgba(11,18,32,.06)" } },
+               y:{ stacked:true, ticks:{ color:"rgba(11,18,32,.72)", callback:(v)=>fmt(v) }, grid:{ color:"rgba(11,18,32,.06)" } } },
+      plugins:{ ...chartCommonOpts().plugins, datalabels:{ color:"rgba(11,18,32,.78)", anchor:"center", align:"center", formatter:(v)=> (Number(v)||0)===0 ? "" : fmt(v) } }
     }
+  });
+
+  if(chartMonthly) chartMonthly.destroy();
+  chartMonthly = new Chart(byId("chartMonthly"), {
+    type:"line",
+    data:{ labels: keys, datasets:[ { label:"지출", data: exp, tension:.25 }, { label:"수입", data: inc, tension:.25 }, { label:"저축", data: sav, tension:.25 } ]},
+    options:{ ...chartCommonOpts(), plugins:{ ...chartCommonOpts().plugins, datalabels:{ ...chartCommonOpts().plugins.datalabels, anchor:"end", align:"top" } } }
   });
 }
 
-async function refreshDashboard(){
-  dashRowsCache = await fetchAllEntriesForDash();
-  renderDashButtons();
-  refreshDashboardFromCache();
+/** LIST */
+function escapeHtml(s){
+  return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function listFilters(){
+  return { from: byId("listFrom").value || "1900-01-01", to: byId("listTo").value || todayISO(), flowId: byId("listFlow").value, memberId: byId("listMember").value, q: (byId("listQ").value||"").trim() };
+}
+async function loadList(){
+  const f = listFilters();
+  const flowCode = (f.flowId==="all") ? "all" : (flowsCache.find(x=>x.id===f.flowId)?.code || "all");
+
+  const url = new URL(SUPABASE_URL + "/rest/v1/v_entries_master");
+  url.searchParams.set("select", "entry_date,amount,member_id,flow_name,flow_code,category_name,subcategory_name,detail_name,memo");
+  url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
+  url.searchParams.set("entry_date", `gte.${f.from}`);
+  url.searchParams.append("entry_date", `lte.${f.to}`);
+  if(flowCode !== "all") url.searchParams.set("flow_code", `eq.${flowCode}`);
+  if(f.memberId !== "all") url.searchParams.set("member_id", `eq.${f.memberId}`);
+  url.searchParams.set("order", "entry_date.desc");
+  url.searchParams.set("limit", "4000");
+
+  const headers = { "apikey": SUPABASE_KEY, "Authorization":"Bearer "+session.access_token };
+  const res = await fetch(url.toString(), { headers });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
+
+  const rows = (f.q) ? (data||[]).filter(r => (r.detail_name||"").includes(f.q) || (r.memo||"").includes(f.q)) : (data||[]);
+  const tbody = byId("listTbody");
+  tbody.innerHTML = "";
+  for(const r of rows){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="py-2 px-3 border-b">${escapeHtml(r.entry_date)}</td>
+      <td class="py-2 px-3 border-b">${escapeHtml(memberNameById(r.member_id))}</td>
+      <td class="py-2 px-3 border-b">${escapeHtml(r.flow_name || r.flow_code || "")}</td>
+      <td class="py-2 px-3 border-b">${escapeHtml(r.category_name || "")}</td>
+      <td class="py-2 px-3 border-b">${escapeHtml(r.subcategory_name || "")}</td>
+      <td class="py-2 px-3 border-b">${escapeHtml(r.detail_name || "")}</td>
+      <td class="py-2 px-3 border-b text-right font-semibold">${fmt(r.amount)}</td>
+      <td class="py-2 px-3 border-b muted">${escapeHtml(r.memo || "")}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  byId("listCount").textContent = `${rows.length}건`;
 }
 
-/** =========================
- * 8) Tabs
- * ========================= */
-function switchTab(tab){
-  for(const b of document.querySelectorAll(".tab-btn")){
-    const on = b.dataset.tab === tab;
-    b.dataset.active = on ? "true" : "false";
-  }
-  for(const sec of ["dash","edit","all","cat"]){
-    byId(`tab-${sec}`).classList.toggle("hidden", sec !== tab);
-  }
+/** ENTRY SAVE */
+async function saveEntry(){
+  const entry_date = byId("entryDate").value;
+  const member_id = byId("memberSelect").value;
+  const detail_item_id = byId("detailSelect").value;
+  const amount = Number(byId("amount").value||0);
+  const memo = (byId("memo").value||"").trim();
+
+  if(!entry_date) throw new Error("날짜를 선택해줘");
+  if(!member_id) throw new Error("구분을 선택해줘");
+  if(!detail_item_id) throw new Error("상세항목을 선택해줘");
+  if(!Number.isFinite(amount) || amount < 0) throw new Error("금액을 확인해줘");
+
+  const payload = { ledger_id: currentLedgerId, entry_date, member_id, detail_item_id, amount, created_by: session.user.id };
+  if(memo) payload.memo = memo;
+
+  await apiFetch("/rest/v1/entries", { method:"POST", body: payload });
 }
 
-document.addEventListener("click", (e)=>{
-  const btn = e.target.closest(".tab-btn");
-  if(!btn) return;
+/** TEMPLATE DOWNLOAD */
+function downloadBlob(filename, contentType, bytes){
+  const blob = new Blob([bytes], { type: contentType });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+function buildTemplateRows(){
+  const rows = [];
+  rows.push(["사용법: 날짜는 YYYY-MM-DD. 금액 공란은 스킵(업로드 시)."]);
+  rows.push(["날짜","흐름","대분류","소분류","상세항목","예시","돌프","천사","공통"]);
 
-  const tab = btn.dataset.tab;
-  if(tab === "bulk"){
-    // bulk UI lives inside edit tab
-    switchTab("edit");
-    const el = byId("editBulkWrap");
-    if(el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+  const subById = new Map(subcategoriesCache.map(s=>[s.id,s]));
+  const catById = new Map(categoriesCache.map(c=>[c.id,c]));
+  const flowByIdMap = new Map(flowsCache.map(f=>[f.id,f]));
+  const items = [...detailItemsCache].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0) || (a.name||"").localeCompare(b.name||"", "ko"));
+
+  for(const di of items){
+    const sub = subById.get(di.subcategory_id);
+    const cat = sub ? catById.get(sub.category_id) : null;
+    const flow = cat ? flowByIdMap.get(cat.flow_id) : null;
+    rows.push(["", flow?.name || flow?.code || "", cat?.name || "", sub?.name || "", di.name || "", (di.example_note||""), "", "", ""]);
+  }
+  return rows;
+}
+function downloadTemplate(){
+  const ym = new Date().toISOString().slice(0,7).replace("-","");
+  const fname = `record_template_${ym}.xlsx`;
+  const rows = buildTemplateRows();
+
+  if(window.XLSX && window.XLSX.utils && window.XLSX.writeFile){
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{wch:14},{wch:10},{wch:14},{wch:14},{wch:18},{wch:28},{wch:12},{wch:12},{wch:12}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "기록");
+    XLSX.writeFile(wb, fname);
     return;
   }
 
-  switchTab(tab);
+  const csv = rows.map(r => r.map(x=>{
+    const s = String(x??"");
+    if(/[",\n]/.test(s)) return '"' + s.replaceAll('"','""') + '"';
+    return s;
+  }).join(",")).join("\n");
+  downloadBlob(fname.replace(".xlsx",".csv"), "text/csv;charset=utf-8", csv);
+}
+
+/** CATEGORY VIEW */
+let catSelectedId = null;
+let subSelectedId = null;
+function renderCategoryView(){
+  const catList = byId("catList");
+  const subList = byId("subList");
+  const detList = byId("detailList");
+  catList.innerHTML = ""; subList.innerHTML = ""; detList.innerHTML = "";
+
+  const flowByIdMap = new Map(flowsCache.map(f=>[f.id,f]));
+  const cats = [...categoriesCache].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0) || (a.name||"").localeCompare(b.name||"", "ko"));
+
+  for(const c of cats){
+    const f = flowByIdMap.get(c.flow_id);
+    const btn = document.createElement("button");
+    btn.className = "btn rounded-xl px-3 py-2 text-sm w-full text-left";
+    btn.innerHTML = `<div class="font-semibold">${escapeHtml(c.name)}</div><div class="text-xs muted mt-0.5">${escapeHtml(f?.name || f?.code || "")}</div>`;
+    btn.addEventListener("click", ()=>{ catSelectedId = c.id; subSelectedId = null; renderCategoryView(); });
+    if(catSelectedId === null) catSelectedId = cats[0]?.id || null;
+    if(catSelectedId === c.id) btn.style.outline = "2px solid rgba(124,58,237,.35)";
+    catList.appendChild(btn);
+  }
+
+  const subs = subcategoriesCache.filter(s=>!catSelectedId || s.category_id===catSelectedId)
+    .sort((a,b)=>(a.sort_order??0)-(b.sort_order??0) || (a.name||"").localeCompare(b.name||"", "ko"));
+  for(const s of subs){
+    const btn = document.createElement("button");
+    btn.className = "btn rounded-xl px-3 py-2 text-sm w-full text-left";
+    btn.textContent = s.name;
+    btn.addEventListener("click", ()=>{ subSelectedId = s.id; renderCategoryView(); });
+    if(subSelectedId === null) subSelectedId = subs[0]?.id || null;
+    if(subSelectedId === s.id) btn.style.outline = "2px solid rgba(37,99,235,.30)";
+    subList.appendChild(btn);
+  }
+
+  const dets = detailItemsCache.filter(d=>!subSelectedId || d.subcategory_id===subSelectedId)
+    .sort((a,b)=>(a.sort_order??0)-(b.sort_order??0) || (a.name||"").localeCompare(b.name||"", "ko"));
+  for(const d of dets){
+    const div = document.createElement("div");
+    div.className = "btn rounded-xl px-3 py-2 text-sm w-full text-left";
+    div.innerHTML = `<div class="font-semibold">${escapeHtml(d.name)}</div>${d.example_note ? `<div class="text-xs muted mt-0.5">예시: ${escapeHtml(d.example_note)}</div>` : ""}`;
+    detList.appendChild(div);
+  }
+}
+
+/** FILTER BINDING */
+function refreshDashFilterOptions(){
+  fillFlowSelect(byId("dashFlow"), true);
+
+  const onFlowChange = ()=>{
+    const flowId = byId("dashFlow").value;
+    fillCategorySelect(byId("dashCategory"), flowId==="all" ? null : flowId, true);
+    onCategoryChange();
+  };
+  const onCategoryChange = ()=>{
+    const catId = byId("dashCategory").value;
+    fillSubcategorySelect(byId("dashSubcategory"), catId==="all" ? null : catId, true);
+    onSubChange();
+  };
+  const onSubChange = ()=>{
+    const subId = byId("dashSubcategory").value;
+    fillDetailSelect(byId("dashDetailItem"), subId==="all" ? null : subId, true);
+    onDetailChange();
+  };
+  const onDetailChange = ()=> setExampleHint(byId("dashDetailItem").value, byId("dashExample"));
+
+  byId("dashFlow").onchange = ()=>{ onFlowChange(); refreshDashboard(); };
+  byId("dashCategory").onchange = ()=>{ onCategoryChange(); refreshDashboard(); };
+  byId("dashSubcategory").onchange = ()=>{ onSubChange(); refreshDashboard(); };
+  byId("dashDetailItem").onchange = ()=>{ onDetailChange(); refreshDashboard(); };
+  byId("dashMember").onchange = ()=> refreshDashboard();
+  byId("dashFrom").onchange = ()=> refreshDashboard();
+  byId("dashTo").onchange = ()=> refreshDashboard();
+
+  onFlowChange();
+  fillMemberSelect(byId("dashMember"), true);
+}
+function refreshEntrySelectOptions(){
+  fillFlowSelect(byId("flowSelect"), false);
+
+  const onFlowChange = ()=>{
+    const flowId = byId("flowSelect").value;
+    fillCategorySelect(byId("categorySelect"), flowId, false);
+    onCategoryChange();
+  };
+  const onCategoryChange = ()=>{
+    const catId = byId("categorySelect").value;
+    fillSubcategorySelect(byId("subcategorySelect"), catId, false);
+    onSubChange();
+  };
+  const onSubChange = ()=>{
+    const subId = byId("subcategorySelect").value;
+    fillDetailSelect(byId("detailSelect"), subId, false);
+    onDetailChange();
+  };
+  const onDetailChange = ()=> setExampleHint(byId("detailSelect").value, byId("exampleHint"));
+
+  byId("flowSelect").onchange = onFlowChange;
+  byId("categorySelect").onchange = onCategoryChange;
+  byId("subcategorySelect").onchange = onSubChange;
+  byId("detailSelect").onchange = onDetailChange;
+
+  onFlowChange();
+}
+
+/** TABS */
+function switchTab(tab){
+  for(const b of document.querySelectorAll(".tab")){
+    b.dataset.active = (b.dataset.tab === tab) ? "true" : "false";
+  }
+  for(const sec of ["dash","edit","cat"]){
+    byId(`tab-${sec}`).classList.toggle("hidden", sec !== tab);
+  }
+}
+document.addEventListener("click", (e)=>{
+  const btn = e.target.closest(".tab");
+  if(!btn) return;
+  switchTab(btn.dataset.tab);
 });
 
-/** =========================
- * 9) Refresh all
- * ========================= */
+/** FULL REFRESH */
 async function refreshEverything(){
-  await loadMembers();
-  // category master (대분류>소분류>상세항목)
-  try{ await loadCategoryMaster(); }catch(e){ /* ignore; RLS may block until policies are set */ }
-  await loadEntries();
-  await refreshDashboard();
-  await refreshMatrix();
+  await ensureDefaultLedger();
+  await Promise.all([loadMembers(), loadFlows(), loadCategories(), loadSubcategories(), loadDetailItems()]);
+  if(!byId("dashFrom").value) byId("dashFrom").value = "2026-01-01";
+  if(!byId("dashTo").value) byId("dashTo").value = todayISO();
+  if(!byId("entryDate").value) byId("entryDate").value = todayISO();
+  if(!byId("listFrom").value) byId("listFrom").value = "2026-01-01";
+  if(!byId("listTo").value) byId("listTo").value = todayISO();
+
+  fillMemberSelect(byId("memberSelect"), false);
+  refreshEntrySelectOptions();
+
+  fillFlowSelect(byId("listFlow"), true);
+  fillMemberSelect(byId("listMember"), true);
+
+  refreshDashFilterOptions();
+
+  dashRowsCache = await fetchDashRows();
+  refreshDashboard();
+  await loadList();
+  renderCategoryView();
 }
 
 async function refreshUI(){
   const authed = !!(session?.access_token && session?.user?.id);
-
   byId("authBox").classList.toggle("hidden", authed);
-  // appWrap은 "승인 후"에만 노출 (아래 분기에서 제어)
-  byId("appWrap").classList.add("hidden");
+  byId("appWrap").classList.toggle("hidden", !authed);
   byId("btnLogout").classList.toggle("hidden", !authed);
   byId("whoPill").classList.toggle("hidden", !authed);
 
-  if(!authed){
-    byId("ledgerName").textContent = "";
-    byId("whoPill").textContent = "";
-    byId("pendingBox").classList.add("hidden");
-    setStatus("로그인 상태가 아니야.");
-    return;
-  }
-
+  if(!authed){ setStatus("로그인 상태가 아니야."); return; }
   byId("whoPill").textContent = `로그인: ${session.user.email}`;
 
-  // show owner badge if applicable (after ledger access)
-
-  // defaults
-  if(!byId("filterFrom").value) byId("filterFrom").value = DEFAULT_START_DATE;
-  if(!byId("filterTo").value) byId("filterTo").value = todayISO();
-  if(!byId("entryDate").value) byId("entryDate").value = todayISO();
-  if(!byId("bulkYm").value) byId("bulkYm").value = new Date().toISOString().slice(0,7);
-
-  setStatus("로그인됨. 장부 확인 중...");
-  // ✅ 승인 여부 분기
-  byId("pendingBox").classList.add("hidden");
-  try{
-    await ensureDefaultLedger();
-  await loadMyMembership(); // 승인 전이면 PENDING_APPROVAL throw
-  }catch(e){
-    if((e?.message || "") === "PENDING_APPROVAL"){
-      byId("pendingBox").classList.remove("hidden");
-      setStatus("승인 대기 중");
-      setError("");
-      return; // ✅ 승인 전에는 데이터 로딩/탭 진입 금지
-    }
-    throw e;
-  }
-
-  // ✅ 승인된 경우에만 앱 로딩
-  byId("appWrap").classList.remove("hidden");
-
-  // owner badge refresh (guarded)
-  try{ await refreshOwnerRequestBadge(); }catch(_){ /* ignore for non-owner / RLS */ }
   setStatus("데이터 로딩 중...");
   await refreshEverything();
   setStatus("준비 완료!");
 }
 
-/** =========================
- * 10) Boot
- * ========================= */
 window.addEventListener("DOMContentLoaded", async ()=>{
   try{
     const s = loadSession();
     if(s) session = s;
-
-    // if token exists but user missing, fetch user
     if(session?.access_token && !session.user){
       try{
         const user = await fetchUser();
         saveSession({ ...session, user });
-      }catch(e){
-        // expired token etc
+      }catch(_){
         saveSession(null);
       }
     }
 
-    // bind auth
     byId("btnLogin").addEventListener("click", async ()=>{
       try{
-        setError("");
-        setStatus("로그인 중...");
+        setError(""); setStatus("로그인 중...");
         const email = (byId("email").value||"").trim();
         const pw = (byId("password").value||"").trim();
         if(!email || !pw) throw new Error("이메일/비밀번호를 입력해줘");
         await loginWithPassword(email, pw);
         await refreshUI();
-      }catch(e){
-        setError(e?.message || String(e));
-        setStatus("");
-      }
+      }catch(e){ setError(e?.message || String(e)); setStatus(""); }
     });
 
     byId("btnSignUp").addEventListener("click", async ()=>{
       try{
-        setError("");
-        setStatus("회원가입 중...");
+        setError(""); setStatus("회원가입 중...");
         const email = (byId("email").value||"").trim();
         const pw = (byId("password").value||"").trim();
         if(!email || !pw) throw new Error("이메일/비밀번호를 입력해줘");
         await signUp(email, pw);
         await refreshUI();
-      }catch(e){
-        setError(e?.message || String(e));
-        setStatus("");
-      }
+      }catch(e){ setError(e?.message || String(e)); setStatus(""); }
     });
 
-    byId("btnLogout").addEventListener("click", async ()=>{
-      await logout();
-      await refreshUI();
-    });
+    byId("btnLogout").addEventListener("click", async ()=>{ await logout(); await refreshUI(); });
 
-    // owner approval requests (bell badge + modal)
-    byId("btnRequests")?.addEventListener("click", async ()=>{
-      openReqModal();
-      await loadReqModal();
-    });
-    byId("btnReqModalClose")?.addEventListener("click", ()=> closeReqModal());
-    byId("btnReqRefresh")?.addEventListener("click", async ()=>{ await loadReqModal(); });
-
-    // click outside modal content closes
-    byId("reqModal")?.addEventListener("click", (e)=>{
-      if(e.target?.id === "reqModal") closeReqModal();
-    });
-    // close when clicking backdrop
-    document.querySelector("#reqModal > div")?.addEventListener("click", ()=> closeReqModal());
-
-    // edit form
-    byId("entryForm").addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      try{
-        setError("");
-        setStatus("저장 중...");
-        await upsertEntryFromForm();
-        await refreshEverything();
-        setStatus("저장 완료!");
-      }catch(err){
-        setError(err?.message || String(err));
-        setStatus("");
-      }
-    });
-    byId("btnCancelEdit").addEventListener("click", ()=> cancelEdit());
-
-    // list filters
-    byId("btnReload").addEventListener("click", async ()=>{ try{ setError(""); await loadEntries(); }catch(e){ setError(e.message); } });
-    byId("btnApplyFilter").addEventListener("click", async ()=>{ try{ setError(""); await loadEntries(); }catch(e){ setError(e.message); } });
-
-    // dashboard actions (즉시 반영)
     byId("btnDashClear").addEventListener("click", ()=>{
-      clearDashState();
-      refreshDashboardFromCache();
-      renderDashButtons();
+      byId("dashFrom").value = "2026-01-01";
+      byId("dashTo").value = todayISO();
+      byId("dashFlow").value = "all";
+      refreshDashFilterOptions();
+      byId("dashMember").value = "all";
+      refreshDashboard();
     });
 
     byId("btnDashRefetch").addEventListener("click", async ()=>{
       try{
-        setError("");
-        setStatus("대시보드 데이터 새로고침...");
-        await refreshDashboard(); // refetch + render
+        setError(""); setStatus("대시보드 새로고침...");
+        dashRowsCache = await fetchDashRows();
+        refreshDashboard();
         setStatus("준비 완료!");
-      }catch(e){
-        setError(e?.message || String(e));
-        setStatus("");
-      }
+      }catch(e){ setError(e?.message || String(e)); setStatus(""); }
     });
 
-// bulk
-    byId("btnDownloadTemplate").addEventListener("click", async ()=>{
-  try{
-    setError("");
-    setStatus("템플릿 생성 중...");
-    await downloadMonthlyTemplate();
-    setStatus("다운로드 시작!");
-  }catch(e){
-    const msg = e?.message || String(e);
-    setError(msg);
-    setStatus("");
-    alert("템플릿 다운로드 실패: " + msg);
-  }
-});
-
-    byId("btnBulkUpload").addEventListener("click", async ()=>{
+    byId("entryForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
       try{
-        setError("");
-        await bulkUpload();
-      }catch(e){
-        setError(e?.message || String(e));
-      }
+        setError(""); setStatus("저장 중...");
+        await saveEntry();
+        dashRowsCache = await fetchDashRows();
+        refreshDashboard();
+        await loadList();
+        byId("amount").value = "";
+        byId("memo").value = "";
+        setStatus("저장 완료!");
+      }catch(err){ setError(err?.message || String(err)); setStatus(""); }
     });
 
+    byId("btnListReload").addEventListener("click", async ()=>{ try{ setError(""); await loadList(); }catch(e){ setError(e.message); } });
+    byId("btnListApply").addEventListener("click", async ()=>{ try{ setError(""); await loadList(); }catch(e){ setError(e.message); } });
 
-    // bulk placeholder button
-    byId("btnGoEditBulk")?.addEventListener("click", ()=>{
-      switchTab("edit");
-      const el = byId("editBulkWrap");
-      if(el) el.scrollIntoView({ behavior:"smooth", block:"start" });
-    });
+    byId("btnDownloadTemplate").addEventListener("click", ()=>{ try{ downloadTemplate(); }catch(e){ setError(e.message); } });
 
-    // matrix tab (월별 매트릭스)
-    byId("btnMxReload").addEventListener("click", async ()=>{
-      try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); setStatus(""); }
-    });
-    byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
-    byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
-byId("btnRenameApply").addEventListener("click", async ()=>{
-  try{
-    setError("");
-    await renameCategoryBatch();
-  }catch(e){
-    setError(e?.message || String(e));
-    setStatus("");
-  }
-});
-
-byId("btnRenameClear").addEventListener("click", ()=>{
-  byId("renameOldCategory").value = "";
-  byId("renameNewCategory").value = "";
-  try{ byId("renameOldCategory").dispatchEvent(new Event("change")); }catch(_){}
-  try{ byId("renameNewCategory").dispatchEvent(new Event("change")); }catch(_){}
-  byId("renameOldSubcategory").value = "";
-  byId("renameOldDetail").value = "";
-  byId("renameNewSubcategory").value = "";
-  byId("renameNewDetail").value = "";
-  byId("renameHint").textContent = "";
-});
-
-    // pending approval UI
-    byId("btnPendingRefresh")?.addEventListener("click", async ()=>{
+    byId("btnCatReload").addEventListener("click", async ()=>{
       try{
-        setError("");
-        setStatus("상태 확인 중...");
-        await refreshUI();
-      }catch(e){
-        setError(e?.message || String(e));
-        setStatus("");
-      }
-    });
-
-    byId("btnRequestAccess")?.addEventListener("click", async ()=>{
-      try{
-        setError("");
-        setStatus("승인 요청 보내는 중...");
-
-        // 중복 요청 방지: pending 있으면 다시 만들지 않음
-        const existing = await apiFetch("/rest/v1/ledger_access_requests", {
-          query:{
-            select:"id,status,created_at",
-            ledger_id:`eq.${MAIN_LEDGER_ID}`,
-            requester_user_id:`eq.${session.user.id}`,
-            order:"created_at.desc",
-            limit:"1"
-          },
-          preferReturn:false
-        });
-
-        const last = (existing && existing.length) ? existing[0] : null;
-        if(last && last.status === "pending"){
-          byId("pendingHint").textContent = "이미 승인 요청을 보낸 상태야. (승인 대기 중)";
-          setStatus("승인 대기 중");
-          return;
-        }
-
-        await apiFetch("/rest/v1/ledger_access_requests", {
-          method:"POST",
-          preferReturn:false,
-          body:{
-            ledger_id: MAIN_LEDGER_ID,
-            requester_user_id: session.user.id,
-            status: "pending"
-          }
-        });
-
-        byId("pendingHint").textContent = "요청을 보냈어. 주인이 승인하면 들어갈 수 있어.";
-        setStatus("승인 대기 중");
-      }catch(e){
-        setError(e?.message || String(e));
-        setStatus("");
-      }
-    });
-
-
-
-    // category admin
-    const safeBind = (id, fn)=>{
-      const el = byId(id);
-      if(el) el.addEventListener("click", fn);
-    };
-
-    safeBind("btnCatReload", async ()=>{ try{ setError(""); setStatus("카테고리 새로고침..."); await refreshCategoryAdmin(); setStatus("준비 완료!"); }catch(e){ setError(e.message); setStatus(""); } });
-
-    safeBind("btnAddGroup", async ()=>{
-      try{
-        requireOwner();
-        const name = (byId("catNewGroup").value||"").trim();
-        if(!name) throw new Error("대분류 이름을 입력해줘");
-        await apiFetch("/rest/v1/category_groups", { method:"POST", body:{ ledger_id: currentLedgerId, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
-        byId("catNewGroup").value = "";
-        await refreshCategoryAdmin();
-      }catch(e){ setError(e.message); }
-    });
-
-    safeBind("btnAddSub", async ()=>{
-      try{
-        requireOwner();
-        const group_id = byId("catPickGroup").value;
-        const name = (byId("catNewSub").value||"").trim();
-        if(!group_id) throw new Error("대분류를 선택해줘");
-        if(!name) throw new Error("소분류 이름을 입력해줘");
-        await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, group_id, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
-        byId("catNewSub").value = "";
-        await refreshCategoryAdmin();
-      }catch(e){ setError(e.message); }
-    });
-
-    safeBind("btnAddDetail", async ()=>{
-      try{
-        requireOwner();
-        const subcategory_id = byId("catPickSub").value;
-        const name = (byId("catNewDetail").value||"").trim();
-        const example_note = (byId("catNewExample").value||"").trim();
-        if(!subcategory_id) throw new Error("소분류를 선택해줘");
-        if(!name) throw new Error("상세항목 이름을 입력해줘");
-        await apiFetch("/rest/v1/detail_items", { method:"POST", body:{ ledger_id: currentLedgerId, subcategory_id, name, example_note, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
-        byId("catNewDetail").value = "";
-        byId("catNewExample").value = "";
-        await refreshCategoryAdmin();
-      }catch(e){ setError(e.message); }
-    });
-
-    byId("catPickGroup")?.addEventListener("change", ()=> renderCategoryAdmin());
-    byId("catPickSub")?.addEventListener("change", ()=> renderCategoryAdmin());
-
-    // list actions (sort / deactivate)
-    byId("tab-cat")?.addEventListener("click", async (e)=>{
-      const b = e.target.closest("button[data-act]");
-      if(!b) return;
-      try{
-        const act = b.dataset.act;
-        const id = b.dataset.id;
-        if(act === "g-up") await bumpSort("category_groups", id, "up");
-        if(act === "g-down") await bumpSort("category_groups", id, "down");
-        if(act === "g-off") await deactivateRow("category_groups", id);
-
-        if(act === "s-up") await bumpSort("subcategories", id, "up");
-        if(act === "s-down") await bumpSort("subcategories", id, "down");
-        if(act === "s-off") await deactivateRow("subcategories", id);
-
-        if(act === "d-up") await bumpSort("detail_items", id, "up");
-        if(act === "d-down") await bumpSort("detail_items", id, "down");
-        if(act === "d-off") await deactivateRow("detail_items", id);
-
-        await refreshCategoryAdmin();
-      }catch(err){ setError(err.message); }
-    });
-
-    // sync across tabs
-    window.addEventListener("storage", async (e)=>{
-      if(e.key !== SS_KEY) return;
-      session = loadSession();
-      try{
-        if(session?.access_token && !session.user){
-          const user = await fetchUser();
-          saveSession({ ...session, user });
-        }
-      }catch(_){}
-      await refreshUI();
+        setError(""); setStatus("카테고리 로딩...");
+        await Promise.all([loadFlows(), loadCategories(), loadSubcategories(), loadDetailItems()]);
+        renderCategoryView();
+        setStatus("준비 완료!");
+      }catch(e){ setError(e?.message || String(e)); setStatus(""); }
     });
 
     await refreshUI();
-
-    // periodically refresh owner request badge (owner only)
-    setInterval(()=>{ refreshOwnerRequestBadge(); }, 20000);
   }catch(e){
     console.error(e);
     setError(e?.message || String(e));
