@@ -341,7 +341,7 @@ thead{ background: rgba(255,255,255,.86) !important; }
               </div>
 
               <div id="dashSelectionHint" class="text-xs text-black/50">
-                * 버튼을 누르면 즉시 반영돼. (중복 선택=합산, Shift+클릭=단일 선택)
+                * 버튼을 누르면 즉시 반영돼. (중복 선택은 합산)
               </div>
             </div>
           </div>
@@ -774,8 +774,9 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const DEFAULT_LEDGER_NAME = "우리집";
 
-const MAIN_LEDGER_ID = "d123437f-bed2-489d-ad5d-f3a57d96d78c"; // 공용 장부(승인 대상)
+const MAIN_LEDGER_ID = "873e11dd-0acb-422a-90d0-52a0ad8a9c93"; // 공용 장부(승인 대상)
 const DEFAULT_START_DATE = "2026-01-01";
+const ENTRY_SELECT = "id,entry_date,flow_type,amount,detail_item_id,detail,memo,member_id,created_at,detail_items(name,subcategories(name,categories(name)))";
 const SS_KEY = "ledger_session_v2";
 
 let session = null; // { access_token, refresh_token, user }
@@ -1208,7 +1209,7 @@ async function loadMyMembership(){
 
 /** =========================
  * 3.5) Category master (대분류>소분류>상세항목) dropdown sources
- *   - DB: category_groups / subcategories / detail_items
+ *   - DB: categories / subcategories / detail_items
  *   - entries에는 detail_item_id만 저장(표시는 join으로 이름 가져옴)
  * ========================= */
 
@@ -1253,9 +1254,9 @@ function fillSelectOptions(sel, arr, { includeBlank=false, blankLabel="(선택)"
 }
 
 
-async function loadCategoryMasterFull(){
+async function loadCategoryMasterLegacy(){
   // 1) groups
-  const groups = await apiFetch("/rest/v1/category_groups", {
+  const groups = await apiFetch("/rest/v1/categories", {
     query:{
       select:"id,name,sort_order,is_active",
       ledger_id:`eq.${currentLedgerId}`,
@@ -1267,7 +1268,7 @@ async function loadCategoryMasterFull(){
   // 2) subcategories
   const subs = await apiFetch("/rest/v1/subcategories", {
     query:{
-      select:"id,name,group_id,sort_order,is_active",
+      select:"id,name,category_id,sort_order,is_active",
       ledger_id:`eq.${currentLedgerId}`,
       order:"sort_order.asc,name.asc",
       limit:"12000"
@@ -1276,7 +1277,7 @@ async function loadCategoryMasterFull(){
 
   // 3) detail items + join (for dashboard/template)
   const url = new URL(SUPABASE_URL + "/rest/v1/detail_items");
-  url.searchParams.set("select", "id,name,example_note,subcategory_id,is_active,sort_order,subcategories(id,name,group_id,category_groups(id,name))");
+  url.searchParams.set("select", "id,name,example_note,subcategory_id,is_active,sort_order,subcategories(id,name,category_id,categories(id,name))");
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("order", "sort_order.asc,name.asc");
   url.searchParams.set("limit", "12000");
@@ -1293,14 +1294,14 @@ async function loadCategoryMasterFull(){
     .filter(r => r.is_active !== false)
     .map(r=>{
       const sub = r.subcategories || null;
-      const grp = sub?.category_groups || null;
+      const grp = sub?.categories || null;
       return {
         id: r.id,
         name: r.name || "",
         example_note: r.example_note || "",
         sort_order: r.sort_order ?? 9999,
         subcategory_id: r.subcategory_id,
-        subcategory: sub ? { id: sub.id, name: sub.name || "", group_id: sub.group_id, group: grp ? { id: grp.id, name: grp.name || "" } : null } : null
+        subcategory: sub ? { id: sub.id, name: sub.name || "", category_id: sub.category_id, group: grp ? { id: grp.id, name: grp.name || "" } : null } : null
       };
     });
 
@@ -1325,7 +1326,7 @@ function renderCategoryAdmin(){
   const gId = selG.value || masterGroups?.[0]?.id || "";
   selG.value = gId;
 
-  const subs = masterSubcategories.filter(s => s.group_id === gId);
+  const subs = masterSubcategories.filter(s => s.category_id === gId);
   selS.innerHTML = subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
   const sId = selS.value || subs?.[0]?.id || "";
   selS.value = sId;
@@ -1375,7 +1376,7 @@ function renderCategoryAdmin(){
 }
 
 async function refreshCategoryAdmin(){
-  await loadCategoryMasterAll();
+  await loadCategoryMaster();
   renderCategoryAdmin();
   // 드롭다운/대시보드도 마스터 기반이라 같이 새로 렌더
   renderMasterDropdowns?.();
@@ -1528,7 +1529,7 @@ function getFilters(){
 async function loadEntries(){
   const f = getFilters();
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "id,entry_date,flow_type,amount,detail_item_id,detail,memo,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
+  url.searchParams.set("select", ENTRY_SELECT);
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("entry_date", `gte.${f.from}`);
   url.searchParams.append("entry_date", `lte.${f.to}`);
@@ -1571,7 +1572,7 @@ function renderEntries(rows){
   const tbody = byId("entriesTbody");
   tbody.innerHTML = "";
   for(const r of rows){
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const g = r.detail_items?.subcategories?.categories?.name || "";
     const s = r.detail_items?.subcategories?.name || "";
     const d = r.detail_items?.name || "";
 
@@ -1612,7 +1613,7 @@ function startEdit(r){
   byId("detailNote").value = r.detail || "";
   byId("memo").value = r.memo || "";
 
-  const g = r.detail_items?.subcategories?.category_groups?.name || "";
+  const g = r.detail_items?.subcategories?.categories?.name || "";
   const s = r.detail_items?.subcategories?.name || "";
   const d = r.detail_items?.name || "";
 
@@ -1776,7 +1777,7 @@ function getMatrixMembers3(){
 
 async function fetchEntriesForMatrix(year, flow_type){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id,created_at,detail_items(name,subcategories(name,category_groups(name)))");
+  url.searchParams.set("select", ENTRY_SELECT);
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("flow_type", `eq.${flow_type}`);
   url.searchParams.set("entry_date", `gte.${year}-01-01`);
@@ -1790,7 +1791,7 @@ async function fetchEntriesForMatrix(year, flow_type){
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
   const rows = data || [];
   return rows.map(r=>{
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const g = r.detail_items?.subcategories?.categories?.name || "";
     const s = r.detail_items?.subcategories?.name || "";
     const d = r.detail_items?.name || "";
     return { ...r, group_name:g, sub_name:s, item_name:d };
@@ -1817,7 +1818,7 @@ function renderMatrixTable3({ year, flow_type, rows }){
     const mk = (r.entry_date||"").slice(5,7);
     if(!months.includes(mk)) continue;
 
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const g = r.detail_items?.subcategories?.categories?.name || "";
     const s = r.detail_items?.subcategories?.name || "";
     const d = r.detail_items?.name || "";
     const key = buildMatrixRowKey(flow_type, r.detail_item_id);
@@ -2147,7 +2148,7 @@ async function downloadMonthlyTemplate(){
 
   // ✅ 마스터 카테고리 기준으로 템플릿 생성
   setStatus("카테고리 마스터 불러오는 중...");
-  await loadCategoryMasterAll();
+  await loadCategoryMaster();
 
   const ym = ymFromInput() || new Date().toISOString().slice(0,7);
 
@@ -2445,7 +2446,7 @@ if (window.ChartDataLabels) {
 
 let categoryMaster = {
   groups: [],   // [{id,name,sort_order,is_active}]
-  subs: [],     // [{id,name,group_id,sort_order,is_active}]
+  subs: [],     // [{id,name,category_id,sort_order,is_active}]
   details: [],  // [{id,name,subcategory_id,sort_order,is_active}]
   groupNameById: new Map(),
   subById: new Map(),
@@ -2453,10 +2454,10 @@ let categoryMaster = {
   detailsBySubId: new Map(),
 };
 
-async function loadCategoryMasterDash(){
+async function loadCategoryMaster(){
   // Pull full master (active) for dashboard dropdowns & edit dropdowns
   // If RLS blocks, this will throw; caller should catch.
-  const groups = await apiFetch("/rest/v1/category_groups", {
+  const groups = await apiFetch("/rest/v1/categories", {
     query:{
       select:"id,name,sort_order,is_active",
       ledger_id:`eq.${currentLedgerId}`,
@@ -2468,7 +2469,7 @@ async function loadCategoryMasterDash(){
 
   const subs = await apiFetch("/rest/v1/subcategories", {
     query:{
-      select:"id,name,group_id,sort_order,is_active",
+      select:"id,name,category_id,sort_order,is_active",
       ledger_id:`eq.${currentLedgerId}`,
       is_active:"eq.true",
       order:"sort_order.asc,name.asc",
@@ -2478,7 +2479,7 @@ async function loadCategoryMasterDash(){
 
   const details = await apiFetch("/rest/v1/detail_items", {
     query:{
-      select:"id,name,subcategory_id,sort_order,is_active",
+      select:"id,name,example_note,subcategory_id,sort_order,is_active",
       ledger_id:`eq.${currentLedgerId}`,
       is_active:"eq.true",
       order:"sort_order.asc,name.asc",
@@ -2490,14 +2491,63 @@ async function loadCategoryMasterDash(){
   categoryMaster.subs = subs || [];
   categoryMaster.details = details || [];
 
+  // --- ALSO populate master structures used by dropdowns/template/admin ---
+  masterGroups = (categories || []).filter(g=>g.is_active!==false);
+  masterSubcategories = (subs || []).filter(s=>s.is_active!==false);
+
+  // maps for name lookup
+  const catById = new Map(masterGroups.map(c=>[c.id, c]));
+  const subByIdLocal = new Map(masterSubcategories.map(s=>[s.id, s]));
+
+  masterDetailItems = (details || [])
+    .filter(d=>d.is_active!==false)
+    .map(d=>{
+      const sub = subByIdLocal.get(d.subcategory_id) || null;
+      const cat = sub ? (catById.get(sub.category_id) || null) : null;
+      return {
+        id: d.id,
+        name: d.name || "",
+        example_note: d.example_note || "",
+        sort_order: d.sort_order ?? 9999,
+        subcategory_id: d.subcategory_id,
+        subcategory: sub ? {
+          id: sub.id,
+          name: sub.name || "",
+          category_id: sub.category_id,
+          category: cat ? { id: cat.id, name: cat.name || "" } : null
+        } : null
+      };
+    });
+
+  // fast maps for edit dropdowns + template
+  detailItemById = new Map(masterDetailItems.map(d => [d.id, d]));
+  // NOTE: subById and groupById vars exist in file; keep them but point to current maps
+  subById = new Map(masterSubcategories.map(s => [s.id, s]));
+  groupById = new Map(masterGroups.map(c => [c.id, c]));
+
+  // build name cascades + detailKeyToId
+  groupToSubsMap = new Map();
+  subToDetailsMap = new Map();
+  detailKeyToId = new Map();
+  for(const it of masterDetailItems){
+    const catName = it.subcategory?.category?.name || "";
+    const subName = it.subcategory?.name || "";
+    const detName = it.name || "";
+    if(catName && subName) mapAddSet(groupToSubsMap, catName, subName);
+    if(subName && detName) mapAddSet(subToDetailsMap, subName, detName);
+    if(catName && subName && detName){
+      detailKeyToId.set(`${catName}||${subName}||${detName}`, it.id);
+    }
+  }
+
   categoryMaster.groupNameById = new Map(categoryMaster.groups.map(g=>[g.id, g.name]));
   categoryMaster.subById = new Map(categoryMaster.subs.map(s=>[s.id, s]));
 
   categoryMaster.subsByGroupId = new Map();
   for(const s of categoryMaster.subs){
-    const arr = categoryMaster.subsByGroupId.get(s.group_id) || [];
+    const arr = categoryMaster.subsByGroupId.get(s.category_id) || [];
     arr.push(s);
-    categoryMaster.subsByGroupId.set(s.group_id, arr);
+    categoryMaster.subsByGroupId.set(s.category_id, arr);
   }
 
   categoryMaster.detailsBySubId = new Map();
@@ -2506,15 +2556,6 @@ async function loadCategoryMasterDash(){
     arr.push(d);
     categoryMaster.detailsBySubId.set(d.subcategory_id, arr);
   }
-}
-
-
-async function loadCategoryMasterAll(){
-  // Full master (with join & example_note) for template + edit dropdowns
-  await loadCategoryMasterFull();
-
-  // Slim master for dashboard quick mapping (safe even if RLS differs)
-  try{ await loadCategoryMasterDash(); }catch(_){ /* ignore */ }
 }
 
 let dashRowsCache = [];
@@ -2564,37 +2605,27 @@ function mkBtn(label, { active=false, onClick, title="" } = {}){
   b.dataset.active = active ? "true" : "false";
   b.textContent = label;
   if(title) b.title = title;
-  b.addEventListener("click", (e)=> onClick?.(e));
+  b.addEventListener("click", onClick);
   return b;
 }
 
 function renderDashButtons(){
-
-  const toggleSet = (setObj, value, e)=>{
-    if(e && e.shiftKey){
-      setObj.clear();
-      setObj.add(value);
-      return;
-    }
-    if(setObj.has(value)) setObj.delete(value);
-    else setObj.add(value);
-  };
   // member buttons (from membersCache)
   const wrapM = byId("dashBtnsMember");
   wrapM.innerHTML = "";
   // "전체" means no filter => empty set
   wrapM.appendChild(mkBtn("전체", {
     active: dashState.members.size === 0,
-    onClick: (e)=>{ dashState.members.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+    onClick: ()=>{ dashState.members.clear(); refreshDashboardFromCache(); renderDashButtons(); },
     title:"구분 전체"
   }));
   for(const m of membersCache){
     const active = dashState.members.has(m.id);
     wrapM.appendChild(mkBtn(m.name, {
       active,
-      onClick: (e)=>{
+      onClick: ()=>{
         if(dashState.members.size===0){ /* from all -> start selecting */ }
-        toggleSet(dashState.members, m.id, e);
+        if(active) dashState.members.delete(m.id); else dashState.members.add(m.id);
         // if all removed => treat as 전체
         if(dashState.members.size===0){ /* ok */ }
         refreshDashboardFromCache(); renderDashButtons();
@@ -2608,14 +2639,14 @@ function renderDashButtons(){
   wrapY.innerHTML = "";
   wrapY.appendChild(mkBtn("전체", {
     active: dashState.years.size === 0,
-    onClick: (e)=>{ dashState.years.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+    onClick: ()=>{ dashState.years.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
   for(const y of years){
     const active = dashState.years.has(y);
     wrapY.appendChild(mkBtn(`${y}년`, {
       active,
-      onClick: (e)=>{
-        toggleSet(dashState.years, y, e);
+      onClick: ()=>{
+        if(active) dashState.years.delete(y); else dashState.years.add(y);
         refreshDashboardFromCache(); renderDashButtons();
       }
     }));
@@ -2626,15 +2657,15 @@ function renderDashButtons(){
   wrapMo.innerHTML = "";
   wrapMo.appendChild(mkBtn("전체", {
     active: dashState.months.size === 0,
-    onClick: (e)=>{ dashState.months.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+    onClick: ()=>{ dashState.months.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
   for(let i=1;i<=12;i++){
     const mm = String(i).padStart(2,"0");
     const active = dashState.months.has(mm);
     wrapMo.appendChild(mkBtn(`${i}월`, {
       active,
-      onClick: (e)=>{
-        toggleSet(dashState.months, mm, e);
+      onClick: ()=>{
+        if(active) dashState.months.delete(mm); else dashState.months.add(mm);
         refreshDashboardFromCache(); renderDashButtons();
       }
     }));
@@ -2645,7 +2676,7 @@ function renderDashButtons(){
   wrapC.innerHTML = "";
   wrapC.appendChild(mkBtn("전체", {
     active: dashState.categories.size === 0,
-    onClick: (e)=>{ dashState.categories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+    onClick: ()=>{ dashState.categories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
 
   const groups = (categoryMaster.groups || []).map(g=>g.name).filter(Boolean);
@@ -2653,8 +2684,8 @@ function renderDashButtons(){
     const active = dashState.categories.has(gName);
     wrapC.appendChild(mkBtn(gName, {
       active,
-      onClick: (e)=>{
-        toggleSet(dashState.categories, gName, e);
+      onClick: ()=>{
+        if(active) dashState.categories.delete(gName); else dashState.categories.add(gName);
         // when group filter changes, clear subcategory selections that no longer belong
         if(dashState.categories.size){
           const allowedSubs = new Set(getAllowedSubNamesForSelectedGroups());
@@ -2671,7 +2702,7 @@ function renderDashButtons(){
   wrapS.innerHTML = "";
   wrapS.appendChild(mkBtn("전체", {
     active: dashState.subcategories.size === 0,
-    onClick: (e)=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
+    onClick: ()=>{ dashState.subcategories.clear(); refreshDashboardFromCache(); renderDashButtons(); },
   }));
 
   const subsToShow = getAllowedSubNamesForSelectedGroups();
@@ -2679,8 +2710,8 @@ function renderDashButtons(){
     const active = dashState.subcategories.has(sName);
     wrapS.appendChild(mkBtn(sName, {
       active,
-      onClick: (e)=>{
-        toggleSet(dashState.subcategories, sName, e);
+      onClick: ()=>{
+        if(active) dashState.subcategories.delete(sName); else dashState.subcategories.add(sName);
         refreshDashboardFromCache(); renderDashButtons();
       }
     }));
@@ -2713,12 +2744,12 @@ function renderDashButtons(){
   if(dashState.months.size) parts.push(`월 ${dashState.months.size}개`);
   if(dashState.categories.size) parts.push(`대분류 ${dashState.categories.size}개`);
   if(dashState.subcategories.size) parts.push(`소분류 ${dashState.subcategories.size}개`);
-  byId("dashSelectionHint").textContent = parts.length ? `선택됨: ${parts.join(" · ")}` : "* 버튼을 누르면 즉시 반영돼. (중복 선택=합산, Shift+클릭=단일 선택)";
+  byId("dashSelectionHint").textContent = parts.length ? `선택됨: ${parts.join(" · ")}` : "* 버튼을 누르면 즉시 반영돼. (중복 선택은 합산)";
 }
 
 async function fetchAllEntriesForDash(){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-  url.searchParams.set("select", "entry_date,flow_type,amount,detail_item_id,member_id,detail_items(name,subcategories(name,category_groups(name)))");
+  url.searchParams.set("select", ENTRY_SELECT);
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
   url.searchParams.set("order", "entry_date.asc");
   url.searchParams.set("limit", "8000");
@@ -2729,7 +2760,7 @@ async function fetchAllEntriesForDash(){
   if(!res.ok) throw new Error(data?.message || JSON.stringify(data));
   const rows = data || [];
   return rows.map(r=>{
-    const g = r.detail_items?.subcategories?.category_groups?.name || "";
+    const g = r.detail_items?.subcategories?.categories?.name || "";
     const s = r.detail_items?.subcategories?.name || "";
     const d = r.detail_items?.name || "";
     return { ...r, group_name:g, sub_name:s, item_name:d };
@@ -3008,7 +3039,7 @@ document.addEventListener("click", (e)=>{
 async function refreshEverything(){
   await loadMembers();
   // category master (대분류>소분류>상세항목)
-  try{ await loadCategoryMasterAll(); }catch(e){ /* ignore; RLS may block until policies are set */ }
+  try{ await loadCategoryMaster(); }catch(e){ /* ignore; RLS may block until policies are set */ }
   await loadEntries();
   await refreshDashboard();
   await refreshMatrix();
@@ -3319,7 +3350,7 @@ byId("btnRenameClear").addEventListener("click", ()=>{
         requireOwner();
         const name = (byId("catNewGroup").value||"").trim();
         if(!name) throw new Error("대분류 이름을 입력해줘");
-        await apiFetch("/rest/v1/category_groups", { method:"POST", body:{ ledger_id: currentLedgerId, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        await apiFetch("/rest/v1/categories", { method:"POST", body:{ ledger_id: currentLedgerId, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
         byId("catNewGroup").value = "";
         await refreshCategoryAdmin();
       }catch(e){ setError(e.message); }
@@ -3328,11 +3359,11 @@ byId("btnRenameClear").addEventListener("click", ()=>{
     safeBind("btnAddSub", async ()=>{
       try{
         requireOwner();
-        const group_id = byId("catPickGroup").value;
+        const category_id = byId("catPickGroup").value;
         const name = (byId("catNewSub").value||"").trim();
-        if(!group_id) throw new Error("대분류를 선택해줘");
+        if(!category_id) throw new Error("대분류를 선택해줘");
         if(!name) throw new Error("소분류 이름을 입력해줘");
-        await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, group_id, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, category_id, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
         byId("catNewSub").value = "";
         await refreshCategoryAdmin();
       }catch(e){ setError(e.message); }
@@ -3363,9 +3394,9 @@ byId("btnRenameClear").addEventListener("click", ()=>{
       try{
         const act = b.dataset.act;
         const id = b.dataset.id;
-        if(act === "g-up") await bumpSort("category_groups", id, "up");
-        if(act === "g-down") await bumpSort("category_groups", id, "down");
-        if(act === "g-off") await deactivateRow("category_groups", id);
+        if(act === "g-up") await bumpSort("categories", id, "up");
+        if(act === "g-down") await bumpSort("categories", id, "down");
+        if(act === "g-off") await deactivateRow("categories", id);
 
         if(act === "s-up") await bumpSort("subcategories", id, "up");
         if(act === "s-down") await bumpSort("subcategories", id, "down");
