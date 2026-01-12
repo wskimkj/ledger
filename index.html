@@ -631,6 +631,21 @@ function pillBtn(active){
 function renderToggleGroup(containerEl, items, selectedSet, getId, getLabel, after){
   if(!containerEl) return;
   containerEl.innerHTML = "";
+
+  // [전체] 버튼: selectedSet 비어있으면 전체 활성
+  const allBtn = document.createElement("button");
+  const allActive = selectedSet.size === 0;
+  allBtn.className = pillBtn(allActive);
+  allBtn.textContent = "전체";
+  if(allActive) allBtn.style.outline = "2px solid rgba(124,58,237,.35)";
+  allBtn.onclick = ()=>{
+    selectedSet.clear();
+    after?.();
+    updateDashSummary();
+    refreshDashboard();
+  };
+  containerEl.appendChild(allBtn);
+
   for(const it of items){
     const id = String(getId(it));
     const active = selectedSet.has(id);
@@ -652,6 +667,21 @@ function renderToggleGroup(containerEl, items, selectedSet, getId, getLabel, aft
 function renderToggleGroupNum(containerEl, nums, selectedSet, labelFn, after){
   if(!containerEl) return;
   containerEl.innerHTML = "";
+
+  // [전체] 버튼: selectedSet 비어있으면 전체 활성
+  const allBtn = document.createElement("button");
+  const allActive = selectedSet.size === 0;
+  allBtn.className = pillBtn(allActive);
+  allBtn.textContent = "전체";
+  if(allActive) allBtn.style.outline = "2px solid rgba(124,58,237,.35)";
+  allBtn.onclick = ()=>{
+    selectedSet.clear();
+    after?.();
+    updateDashSummary();
+    refreshDashboard();
+  };
+  containerEl.appendChild(allBtn);
+
   for(const n of nums){
     const id = String(n);
     const active = selectedSet.has(id);
@@ -792,7 +822,8 @@ function renderDashButtonFilters(){
   );
 
   const { yearsArr, monthsArr } = computeAvailableYearsMonths(dashRowsCache);
-  if(dashState.years.size === 0 || dashState.months.size === 0){
+  // 자동 기본값은 "데이터가 있을 때"에만 1회 적용 (전체 버튼 사용성 위해 강제 선택 최소화)
+  if((dashState.years.size === 0 || dashState.months.size === 0) && dashRowsCache && dashRowsCache.length){
     setDashDefaultYearMonth();
   }
   renderToggleGroupNum(byId("dashYearBtns"), yearsArr, dashState.years, (y)=>`${y}년`);
