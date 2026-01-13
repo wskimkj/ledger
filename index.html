@@ -1419,6 +1419,28 @@ function getAllDetailsSorted(){
   return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
 }
 
+/**
+ * 카테고리 마스터 변경 시
+ * 입력/수정 화면에서 사용하는 모든 드롭다운을 재렌더링
+ */
+function renderMasterDropdowns(){
+  // 거래 입력/수정 화면
+  if (typeof refreshEntryFormCategoryDropdowns === "function") {
+    refreshEntryFormCategoryDropdowns();
+  }
+
+  // 카테고리/설명 일괄 변경 영역
+  if (typeof refreshBatchRenameDropdowns === "function") {
+    refreshBatchRenameDropdowns();
+  }
+
+  // (미래 대비용 – 아직 없으면 자동 스킵)
+  if (typeof refreshUploadCategoryMapping === "function") {
+    refreshUploadCategoryMapping();
+  }
+}
+
+
 function refreshEntryFormCategoryDropdowns(){
   const selG = byId("category");     // UI상 '대분류' (group)
   const selS = byId("subcategory");  // UI상 '소분류' (subcategory)
