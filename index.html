@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>우리집 가계부 (STEP 2 · 카테고리 관리 포함)</title>
+  <title>우리집 가계부</title>
 
   <!-- Tailwind (UI) -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -223,12 +223,11 @@ thead{ background: rgba(255,255,255,.86) !important; }
       <div class="flex items-center gap-2">
         <div id="whoPill" class="pill rounded-full px-3 py-2 text-sm text-white/80 hidden">
 
-<button
-  id="tabCatBtn"
-  class="tab-btn btn rounded-xl px-4 py-2 text-sm hidden"
-  data-tab="cat">
-  카테고리 관리
+<button class="tab-btn btn rounded-xl px-4 py-2 text-sm"
+        data-tab="settings">
+  <i class="fa-solid fa-gear mr-2"></i>설정
 </button>
+
 
 </div>
 
@@ -673,9 +672,9 @@ thead{ background: rgba(255,255,255,.86) !important; }
         </div>
       </section>
       <!-- CATEGORY MANAGEMENT -->
-      <section id="tab-cat" class="mt-4 hidden">
+<section id="tab-settings" class="mt-4 hidden">
         <div class="glass rounded-2xl p-4">
-          <div class="flex items-end justify-between gap-3 flex-wrap">
+    <h2 class="text-lg font-semibold mb-3">설정</h2>
             <div>
               <div class="text-sm font-semibold">카테고리 관리 (대분류 → 소분류 → 상세항목)</div>
               <div class="text-xs text-black/60 mt-1">
@@ -3019,7 +3018,7 @@ function switchTab(tab){
     const on = b.dataset.tab === tab;
     b.dataset.active = on ? "true" : "false";
   }
-  for(const sec of ["dash","edit","all","cat"]){
+  for(const sec of ["dash","edit","all","settings"]){
     byId(`tab-${sec}`).classList.toggle("hidden", sec !== tab);
   }
 }
