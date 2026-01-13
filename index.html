@@ -1665,11 +1665,10 @@ async function upsertEntryFromForm(){
   const entry_date = byId("entryDate").value;
   const member_id = byId("memberSelect").value;
   const amount = Number(byId("amount").value || 0);
+  const flow_type = byId("flowType").value;
 
   // category master selections
   const groupName = (byId("category").value || "").trim();
-  // keep UI in sync (flow is derived from 대분류)
-  try{ byId("flowType").value = flow_type; }catch(_){ }
   const subName = (byId("subcategory").value || "").trim();
   const detailName = (byId("detail").value || "").trim();
   const detail_item_id = detailItemIdFromSelections(groupName, subName, detailName);
