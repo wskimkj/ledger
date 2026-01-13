@@ -1442,12 +1442,16 @@ function renderMasterDropdowns(){
 
 
 function refreshEntryFormCategoryDropdowns(){
+  const flow = byId("flowType").value; 
   const selG = byId("category");     // UI상 '대분류' (group)
   const selS = byId("subcategory");  // UI상 '소분류' (subcategory)
   const selD = byId("detail");       // UI상 '상세항목' (detail_item)
   if(!selG || !selS || !selD) return;
 
-  const groups = [...groupToSubsMap.keys()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"ko"));
+ const groups = [...groupToSubsMap.keys()]
+  .filter(g => flowFromGroup(g) === flow)
+  .sort((a,b)=>a.localeCompare(b,"ko"));
+
   fillSelectOptions(selG, groups, { includeBlank:true, blankLabel:"(대분류 선택)" });
 
   const applySubs = ()=>{
@@ -3278,9 +3282,19 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
     // category master selection => derive flow automatically
   
-    byId("category").addEventListener("change", ()=>{ try{ refreshEntryFormCategoryDropdowns(); }catch(_){ } 
+    // 1. 흐름 변경 → 전체 리셋
+byId("flowType").addEventListener("change", ()=>{
+  byId("category").value = "";
+  byId("subcategory").value = "";
+  byId("detail").value = "";
+  refreshEntryFormCategoryDropdowns();
 });
-    // run once
+
+// 2. 대분류 변경 → 소/상세 갱신
+byId("category").addEventListener("change", ()=>{
+  refreshEntryFormCategoryDropdowns();
+});
+
 
 byId("btnRenameApply").addEventListener("click", async ()=>{
   try{
