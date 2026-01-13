@@ -1668,7 +1668,6 @@ async function upsertEntryFromForm(){
 
   // category master selections
   const groupName = (byId("category").value || "").trim();
-  const flow_type = flowFromGroup(groupName);
   // keep UI in sync (flow is derived from 대분류)
   try{ byId("flowType").value = flow_type; }catch(_){ }
   const subName = (byId("subcategory").value || "").trim();
@@ -3279,18 +3278,10 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
     byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
     // category master selection => derive flow automatically
-    const syncFlowFromGroup = ()=>{
-      try{
-        const groupName = (byId("category").value || "").trim();
-        const f = flowFromGroup(groupName);
-        byId("flowType").value = f;
-        // optionally disable manual change (flow is derived)
-        byId("flowType").disabled = true;
-      }catch(_){}
-    };
-    byId("category").addEventListener("change", ()=>{ syncFlowFromGroup(); try{ refreshEntryFormCategoryDropdowns(); }catch(_){ } });
+  
+    byId("category").addEventListener("change", ()=>{ try{ refreshEntryFormCategoryDropdowns(); }catch(_){ } 
+});
     // run once
-    syncFlowFromGroup();
 
 byId("btnRenameApply").addEventListener("click", async ()=>{
   try{
