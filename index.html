@@ -557,7 +557,7 @@ thead{ background: rgba(255,255,255,.86) !important; }
               </div>
             </div>
 
-            <div class="mt-4 overflow-auto thin-scroll">
+            <div class="mt-4 overflow-auto thin-scroll max-h-[70vh]">
               <table class="w-full text-sm border-separate border-spacing-0">
                 <thead class="text-white/70">
                   <tr>
@@ -1879,8 +1879,8 @@ const thead = byId("mxThead");
 thead.innerHTML = `
   <tr>
     <th class="text-left py-3 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30">대분류</th>
-    <th class="text-left py-3 px-3 border-b sticky left-[160px] bg-white/70 backdrop-blur z-30">소분류</th>
-    <th class="text-left py-3 px-3 border-b sticky left-[320px] bg-white/70 backdrop-blur z-30">설명</th>
+    <th class="text-left py-3 px-3 border-b sticky left-[110px] bg-white/70 backdrop-blur z-30">소분류</th>
+    <th class="text-left py-3 px-3 border-b sticky left-[230px] bg-white/70 backdrop-blur z-30">상세항목</th>
     ${months.map(mm => `
       <th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">
         ${Number(mm)}월
@@ -1909,15 +1909,15 @@ thead.innerHTML = `
     const tr = document.createElement("tr");
 
     const tdCat = document.createElement("td");
-    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
+    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[110px] max-w-[110px] truncate";
     tdCat.textContent = row.group || "미분류";
 
     const tdSub = document.createElement("td");
-    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
+    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[120px] max-w-[120px] truncate";
     tdSub.textContent = row.subcategory || "";
 
     const tdDet = document.createElement("td");
-    tdDet.className = "py-2 px-3 border-b sticky left-[320px] bg-white/60 backdrop-blur z-20 min-w-[260px] max-w-[360px] truncate";
+    tdDet.className = "py-2 px-3 border-b sticky left-[320px] bg-white/60 backdrop-blur z-20 min-w-[160px] max-w-[160px] truncate";
     tdDet.textContent = row.detail || "";
 
     tr.appendChild(tdCat);
@@ -1937,7 +1937,9 @@ thead.innerHTML = `
         td.dataset.group = row.group || "";
         td.dataset.subcategory = row.subcategory || "";
         td.dataset.detail = row.detail || "";
-        td.textContent = fmt((row.cell?.[mm]?.[m.id]) || 0);
+        const v = row.cell?.[mm]?.[m.id] || 0;
+td.textContent = v === 0 ? "" : fmt(v);
+
         cellCount++;
 
         td.addEventListener("dblclick", ()=> startCellEdit3(td));
