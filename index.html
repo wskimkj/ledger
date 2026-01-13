@@ -3064,12 +3064,19 @@ document.addEventListener("click", (e)=>{
  * ========================= */
 async function refreshEverything(){
   await loadMembers();
-  // category master (대분류>소분류>상세항목)
-  try{ await loadCategoryMaster(); }catch(e){ /* ignore; RLS may block until policies are set */ }
+
+  try{
+    await loadCategoryMaster();
+    renderMasterDropdowns(); // ✅ 이 줄이 핵심
+  }catch(e){
+    console.warn("카테고리 마스터 로드 실패", e);
+  }
+
   await loadEntries();
   await refreshDashboard();
   await refreshMatrix();
 }
+
 
 async function refreshUI(){
   const authed = !!(session?.access_token && session?.user?.id);
