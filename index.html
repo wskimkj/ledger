@@ -2931,7 +2931,7 @@ byId("flowShareText").textContent = `지출 ${expPct}% · 저축 ${savPct}%`;
       },
       scales:{
         x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-        y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
+        y:{ stacked:true, ticks:{ display:false }, callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
       }
     }
   });
