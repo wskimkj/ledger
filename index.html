@@ -534,7 +534,7 @@ thead{ background: rgba(255,255,255,.86) !important; }
                     <th class="text-left py-3 px-3 border-b">소분류</th>
                     <th class="text-left py-3 px-3 border-b">상세항목</th>
                     <th class="text-left py-3 px-3 border-b">상세 메모</th>
-                    <th class="text-right py-3 px-3 border-b">금액</th
+                    <th class="text-right py-3 px-3 border-b">금액</th>
                     <th class="text-left py-3 px-3 border-b">메모</th>
                     <th class="text-left py-3 px-3 border-b">관리</th>
                   </tr>
@@ -2944,7 +2944,7 @@ byId("flowShareText").textContent = `지출 ${expPct}% · 저축 ${savPct}%`;
     grid:{ color:"rgba(0,0,0,.06)" }
   }
 }
-
+});
 
 async function refreshDashboard(){
   dashRowsCache = await fetchAllEntriesForDash();
