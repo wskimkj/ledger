@@ -1010,37 +1010,21 @@ async function handleRejectRequest(req){
 /** =========================
  * 1) Auth (email+password)
  * ========================= */
-<script>
 async function loginWithPassword(email, password){
-  const res = await fetch(
-    SUPABASE_URL + "/auth/v1/token?grant_type=password",
-    {
-      method: "POST",
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: "email=" + encodeURIComponent(email) +
-            "&password=" + encodeURIComponent(password)
-    }
-  );
-
-  const data = await res.json();
-
-  if(!res.ok){
-    alert("로그인 실패: " + (data.error_description || data.error));
-    return;
-  }
-
-  localStorage.setItem("sb-access", data.access_token);
-  localStorage.setItem("sb-refresh", data.refresh_token);
-
-  alert("로그인 성공");
-  location.reload();
+  const data = await apiFetch("/auth/v1/token", {
+    method:"POST",
+    auth:false,
+    preferReturn:false,
+    query:{ grant_type:"password" },
+    body:{ email, password }
+  });
+  const access_token = data?.access_token;
+  const refresh_token = data?.refresh_token;
+  if(!access_token) throw new Error("로그인 실패: 토큰이 없어");
+  saveSession({ access_token, refresh_token, user:null });
+  const user = await fetchUser();
+  saveSession({ ...session, user });
 }
-</script>
-
-
 
 async function signUp(email, password){
   await apiFetch("/auth/v1/signup", {
