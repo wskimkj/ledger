@@ -534,7 +534,7 @@ thead{ background: rgba(255,255,255,.86) !important; }
                     <th class="text-left py-3 px-3 border-b">소분류</th>
                     <th class="text-left py-3 px-3 border-b">상세항목</th>
                     <th class="text-left py-3 px-3 border-b">상세 메모</th>
-                    <th class="text-right py-3 px-3 border-b">금액</th>
+                    <th class="text-right py-3 px-3 border-b">금액</th
                     <th class="text-left py-3 px-3 border-b">메모</th>
                     <th class="text-left py-3 px-3 border-b">관리</th>
                   </tr>
@@ -2781,13 +2781,22 @@ function computeFlowShare(rows, pred){
     if(!pred(r)) continue;
     const amt = Number(r.amount||0);
     if(!amt) continue;
-
     if(r.flow_type === "expense") expense += amt;
     if(r.flow_type === "saving") saving += amt;
   }
   return { expense, saving };
 }
-
+    if(r.flow_type==="income"){
+      const item = (r.item_name || "").trim();
+      if(item === "월급") salary += amt;
+      else otherIncome += amt;
+      continue;
+    }
+    // saving은 이 그래프 정의상 제외
+  }
+  const total = salary + otherIncome + expense;
+  return { salary, otherIncome, expense, total };
+}
 
 
 function refreshDashboardFromCache(){
@@ -2832,7 +2841,7 @@ function refreshDashboardFromCache(){
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
       scales:{ x:{ min:0, max: topPaddedMax, ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } },
-               y:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } } }
+               y:{ ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
   });
 
@@ -2868,44 +2877,48 @@ function refreshDashboardFromCache(){
     }
   });
 
-  // Flow share doughnut 
-const share = computeFlowShare(dashRowsCache, pred);
-const flowLabels = ["지출", "저축"];
-const flowVals = [share.expense, share.saving];
+  // Flow share doughnut (월급 수입 / 기타 수입 / 지출)
+  const share = computeFlowShare(dashRowsCache, pred);
+  const flowLabels = ["월급 수입","기타 수입","지출"];
+  const flowVals = [share.salary, share.otherIncome, share.expense];
 
-chartFlowShare = new Chart(byId("chartFlowShare"), {
-  type:"doughnut",
-  data:{ labels: flowLabels, datasets:[{ data: flowVals }] },
-  options:{
-    responsive:true,
-    maintainAspectRatio:false,
-    plugins:{
-      legend:{ position:"bottom" },
-      tooltip:{
-        callbacks:{
-          label:(ctx)=>{
-            const total = flowVals.reduce((a,b)=>a+b,0) || 1;
-            const pct = Math.round((ctx.raw/total)*100);
+  if(chartFlowShare) chartFlowShare.destroy();
+  chartFlowShare = new Chart(byId("chartFlowShare"), {
+    type:"doughnut",
+    data:{ labels: flowLabels, datasets:[{ data: flowVals }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
+      plugins:{
+        legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
+        tooltip:{ callbacks:{ 
+          label:(ctx)=> {
+            const total = (ctx.chart?.data?.datasets?.[0]?.data || []).reduce((a,b)=>a+Number(b||0),0) || 1;
+            const pct = Math.round((Number(ctx.raw||0)/total)*100);
             return `${ctx.label}: ${fmt(ctx.raw)} 원 (${pct}%)`;
+          } 
+        }},
+        datalabels:{
+          formatter:(v,ctx)=>{
+            const data = (ctx.chart?.data?.datasets?.[0]?.data || []);
+            const total = data.reduce((a,b)=>a+Number(b||0),0) || 0;
+            if(!total || !v) return "";
+            const pct = Math.round((Number(v||0)/total)*100);
+            return pct ? `${pct}%` : "";
           }
-        }
-      },
-      datalabels:{
-        formatter:(v,ctx)=>{
-          const total = flowVals.reduce((a,b)=>a+b,0);
-          if(!v || !total) return "";
-          return `${Math.round((v/total)*100)}%`;
         }
       }
     }
-  }
-});
+  });
 
-
- const total = share.expense + share.saving || 1;
-const expPct = Math.round((share.expense/total)*100);
-const savPct = 100 - expPct;
-byId("flowShareText").textContent = `지출 ${expPct}% · 저축 ${savPct}%`;
+  // percentages text: 지출% / (지출+저축)% 대신 -> 지출% / (지출+기타수입)% / (월급+기타=수입)%
+  try{
+    const total = (share.salary + share.otherIncome + share.expense) || 1;
+    const expPct = Math.round((share.expense/total)*100);
+    const incomePct = Math.round(((share.salary+share.otherIncome)/total)*100);
+    const nonSalaryPct = Math.round(((share.otherIncome+share.expense)/total)*100);
+    const el = byId("flowShareText");
+    if(el) el.textContent = `지출 ${expPct}% · 총수입 ${incomePct}% · (기타수입+지출) ${nonSalaryPct}%`;
+  }catch(_){}
 
 
   // Monthly stacked bar
@@ -2929,22 +2942,13 @@ byId("flowShareText").textContent = `지출 ${expPct}% · 저축 ${savPct}%`;
           formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
         }
       },
-     scales:{
-  x:{
-    stacked:true,
-    ticks:{ color:"rgba(0,0,0,.7)" },
-    grid:{ color:"rgba(0,0,0,.06)" }
-  },
-  y:{
-    stacked:true,
-    ticks:{
-      display:false,
-      callback:(v)=> fmt(v)
-    },
-    grid:{ color:"rgba(0,0,0,.06)" }
-  }
+      scales:{
+        x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
+        y:{ stacked:true, ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } }
+      }
+    }
+  });
 }
-});
 
 async function refreshDashboard(){
   dashRowsCache = await fetchAllEntriesForDash();
