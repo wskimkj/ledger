@@ -1010,34 +1010,36 @@ async function handleRejectRequest(req){
 /** =========================
  * 1) Auth (email+password)
  * ========================= */
+<script>
 async function loginWithPassword(email, password){
-  const form = new URLSearchParams();
-  form.append("email", email);
-  form.append("password", password);
-
   const res = await fetch(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    SUPABASE_URL + "/auth/v1/token?grant_type=password",
     {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
         "Content-Type": "application/x-www-form-urlencoded"
       },
-      body: form.toString()
+      body: "email=" + encodeURIComponent(email) +
+            "&password=" + encodeURIComponent(password)
     }
   );
 
   const data = await res.json();
+
   if(!res.ok){
-    throw new Error(data.error_description || "로그인 실패");
+    alert("로그인 실패: " + (data.error_description || data.error));
+    return;
   }
 
-  const { access_token, refresh_token } = data;
-  saveSession({ access_token, refresh_token, user:null });
+  localStorage.setItem("sb-access", data.access_token);
+  localStorage.setItem("sb-refresh", data.refresh_token);
 
-  const user = await fetchUser();
-  saveSession({ ...session, user });
+  alert("로그인 성공");
+  location.reload();
 }
+</script>
+
 
 
 async function signUp(email, password){
