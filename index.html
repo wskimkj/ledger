@@ -1011,20 +1011,34 @@ async function handleRejectRequest(req){
  * 1) Auth (email+password)
  * ========================= */
 async function loginWithPassword(email, password){
-  const data = await apiFetch("/auth/v1/token", {
-    method:"POST",
-    auth:false,
-    preferReturn:false,
-    query:{ grant_type:"password" },
-    body:{ email, password }
-  });
-  const access_token = data?.access_token;
-  const refresh_token = data?.refresh_token;
-  if(!access_token) throw new Error("로그인 실패: 토큰이 없어");
+  const form = new URLSearchParams();
+  form.append("email", email);
+  form.append("password", password);
+
+  const res = await fetch(
+    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: form.toString()
+    }
+  );
+
+  const data = await res.json();
+  if(!res.ok){
+    throw new Error(data.error_description || "로그인 실패");
+  }
+
+  const { access_token, refresh_token } = data;
   saveSession({ access_token, refresh_token, user:null });
+
   const user = await fetchUser();
   saveSession({ ...session, user });
 }
+
 
 async function signUp(email, password){
   await apiFetch("/auth/v1/signup", {
