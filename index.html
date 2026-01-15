@@ -440,11 +440,28 @@ body{
     <!-- Header -->
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-3xl font-bold tracking-tight">SECRET</h1>
+        
+<h1 class="text-4xl font-extrabold tracking-tight flex items-center gap-3">
+  <span class="bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500
+               bg-clip-text text-transparent drop-shadow-sm">
+    SECRET
+  </span>
+  <span class="px-2.5 py-1 text-xs rounded-full
+               bg-purple-600/10 text-purple-700 border border-purple-500/20">
+    Budget Matrix
+  </span>
+</h1>
+
         <div class="text-white/60 text-sm mt-1">
         </div>
+      
+      <div class="mt-2 h-1 w-40 rounded-full
+                  bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400
+                  shadow-[0_0_18px_rgba(168,85,247,0.55)]">
       </div>
+    </div>
       <div class="flex items-center gap-2">
+
         <div id="whoPill" class="pill rounded-full px-3 py-2 text-sm text-white/80 hidden">
 
 
@@ -1543,8 +1560,14 @@ function renderCategoryAdmin(){
   const wrapG = byId("catGroupList");
   wrapG.innerHTML = masterGroups.map(g=>`
     <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium">${escapeHtml(g.name)}</div>
+      <div class="font-medium">${escapeHtml(g.name)}
+      <div class="mt-2 h-1 w-40 rounded-full
+                  bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400
+                  shadow-[0_0_18px_rgba(168,85,247,0.55)]">
+      </div>
+    </div>
       <div class="flex items-center gap-2">
+
         <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-up" data-id="${g.id}">↑</button>
         <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-down" data-id="${g.id}">↓</button>
         <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="g-off" data-id="${g.id}">비활성</button>
@@ -1556,8 +1579,14 @@ function renderCategoryAdmin(){
   const wrapS = byId("catSubList");
   wrapS.innerHTML = subs.map(s=>`
     <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium">${escapeHtml(s.name)}</div>
+      <div class="font-medium">${escapeHtml(s.name)}
+      <div class="mt-2 h-1 w-40 rounded-full
+                  bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400
+                  shadow-[0_0_18px_rgba(168,85,247,0.55)]">
+      </div>
+    </div>
       <div class="flex items-center gap-2">
+
         <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-up" data-id="${s.id}">↑</button>
         <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-down" data-id="${s.id}">↓</button>
         <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="s-off" data-id="${s.id}">비활성</button>
