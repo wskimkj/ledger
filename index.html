@@ -890,6 +890,12 @@ body{
 <script>
 Chart.defaults.color = "#64748B";
 Chart.defaults.font.family = "Inter, Poppins, Noto Sans KR, sans-serif";
+Chart.defaults.plugins = Chart.defaults.plugins || {};
+Chart.defaults.plugins.datalabels = {
+  color: "#334155",
+  font: { weight: 600 }
+};
+
 Chart.defaults.elements.bar.borderRadius = 10;
 
 /* === Subtle Neon for Charts Only === */
@@ -3060,12 +3066,12 @@ function refreshDashboardFromCache(){
       cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{
-      formatter:(v,ctx)=>{
-        const data = ctx.chart.data.datasets[0].data||[];
-        const total = data.reduce((a,b)=>a+Number(b||0),0)||0;
-        if(!total||!v) return "";
-        const pct = Math.round(v/total*100);
-        return pct ? `${pct}%` : "";
+      anchor: "end",
+      align: "top",
+      color: "#2563EB",
+      font:{ weight: 600 },
+      formatter:(value)=>{
+        return value ? `${fmt(value)}원` : "";
       }
     } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
@@ -3101,6 +3107,7 @@ function refreshDashboardFromCache(){
       plugins:{
         legend:{ position:"bottom" },
         datalabels:{
+          color:"#111827", font:{weight:600},
           formatter:(value,ctx)=>{
             const data = ctx.chart.data.datasets[0].data||[];
             const total = data.reduce((a,b)=>a+Number(b||0),0)||0;
@@ -3135,7 +3142,7 @@ function refreshDashboardFromCache(){
       indexAxis:"y",
       cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", color:"#7C3AED", font:{weight:600}, formatter:(v)=> v?`${fmt(v)}원`:"", clamp:true } },
       scales:{ x:{ min:0, max: topPaddedMax, ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
@@ -3164,6 +3171,13 @@ function refreshDashboardFromCache(){
           anchor:"end",
           align:"top",
           clamp:true,
+          color:(ctx)=>{
+            const l = ctx.dataset.label;
+            if(l==="지출") return "#EC4899";
+            if(l==="수입") return "#2563EB";
+            if(l==="저축") return "#10B981";
+            return "#334155";
+          },
           formatter:(value, ctx)=>{
             const data = ctx.dataset.data || [];
             const lastIndex = data.length - 1;
@@ -3202,7 +3216,7 @@ function refreshDashboardFromCache(){
             return `${ctx.label}: ${fmt(ctx.raw)}원`;
           } 
         }},
-        datalabels:{ formatter:(v,ctx)=>{ const data = ctx.chart.data.datasets[0].data||[]; const total=data.reduce((a,b)=>a+Number(b||0),0)||0; if(!total||!v) return ""; const pct=Math.round(v/total*100); return pct?`${pct}%`:""; } }
+        datalabels:{ color:(ctx)=> ctx.dataIndex===0 ? "#10B981" : "#EC4899", font:{weight:600}, formatter:(v,ctx)=>{ const data = ctx.chart.data.datasets[0].data||[]; const total=data.reduce((a,b)=>a+Number(b||0),0)||0; if(!total||!v) return ""; const pct=Math.round(v/total*100); return pct?`${pct}%`:""; } }
       }
     }
   });
@@ -3237,6 +3251,14 @@ function refreshDashboardFromCache(){
           anchor:"center",
           align:"center",
           clamp:true,
+          color:(ctx)=>{
+            const l = ctx.dataset.label;
+            if(l==="지출") return "#EC4899";
+            if(l==="수입") return "#2563EB";
+            if(l==="저축") return "#10B981";
+            return "#334155";
+          },
+          font:{weight:600},
           formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
         }
       },
