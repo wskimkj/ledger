@@ -2052,11 +2052,16 @@ function renderMatrixTable3({ year, flow_type, rows }){
     }
   }
 
-  const arr = [...map.values()].sort((a,b)=>{
-    const A = `${a.group}||${a.subcategory}||${a.detail}`;
-    const B = `${b.group}||${b.subcategory}||${b.detail}`;
-    return A.localeCompare(B, "ko");
-  });
+const orderIndex = new Map(
+  DETAIL_ORDER.map((name, idx) => [name, idx])
+);
+
+const arr = [...map.values()].sort((a, b) => {
+  const ai = orderIndex.get(a.detail) ?? 9999;
+  const bi = orderIndex.get(b.detail) ?? 9999;
+  return ai - bi;
+});
+
 
   // THEAD (2 rows: month colspans + member names)
 const thead = byId("mxThead");
@@ -2095,11 +2100,12 @@ thead.innerHTML = `
 
    
 
- const tdDet = document.createElement("td");
+const tdDet = document.createElement("td");
 tdDet.className =
-  "mx-sticky-col px-3 py-2 border-b font-semibold truncate";
-tdDet.textContent = row.detail || "";
+  "mx-sticky-col sticky left-0 z-30 px-3 py-2 border-b font-semibold bg-white";
+tdDet.textContent = row.detail;
 tr.appendChild(tdDet);
+
 
 
     for(const mm of months){
