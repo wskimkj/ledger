@@ -464,7 +464,7 @@ body{
     <div class="mt-4 glass rounded-2xl p-4">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div class="hidden"><span id="ledgerName"></span><div id="status"></div></div>
-        <div id="error" class="text-red-300 text-xs"></div>
+        <div id="error" class="text-red-300 text-xs hidden mt-2"></div>
 
         <!-- Auth box -->
         <div id="authBox" class="glass2 rounded-2xl p-4 w-full md:w-[520px]">
@@ -704,6 +704,18 @@ body{
     <div><div class="text-xs text-white/60 mb-1">소분류</div><select id="subcategory" class="w-full rounded-xl px-3 py-2 text-sm"></select></div>
     <div class="col-span-2"><div class="text-xs text-white/60 mb-1">&nbsp;</div><select id="detail" class="w-full rounded-xl px-3 py-2 text-sm"></select></div>
   </div>
+  <input type="hidden" id="editId" />
+
+  <div>
+    <div class="text-xs text-white/60 mb-1">상세 메모</div>
+    <input id="detailNote" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="상세 메모" />
+  </div>
+
+  <div>
+    <div class="text-xs text-white/60 mb-1">메모</div>
+    <input id="memo" class="w-full rounded-xl px-3 py-2 text-sm" placeholder="메모" />
+  </div>
+
   <div class="flex gap-2">
     <button id="btnSubmit" type="submit" class="btn btn-primary rounded-xl px-4 py-2 text-sm w-full">추가</button>
     <button id="btnCancelEdit" type="button" class="btn rounded-xl px-4 py-2 text-sm w-full hidden">수정 취소</button>
@@ -975,7 +987,17 @@ const byId = (id) => document.getElementById(id);
 const fmt = (n) => Number(n||0).toLocaleString("ko-KR");
 
 function setStatus(msg){ byId("status").textContent = msg || ""; }
-function setError(msg){ byId("error").textContent = msg || ""; }
+function setError(msg){
+  const el = byId("error");
+  if(!el) return;
+  if(msg){
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }else{
+    el.textContent = "";
+    el.classList.add("hidden");
+  }
+}
 function todayISO(){
   const d = new Date();
   const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
