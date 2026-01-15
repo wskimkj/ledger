@@ -212,6 +212,73 @@ thead{ background: rgba(255,255,255,.86) !important; }
   .max-w-7xl{ max-width: 1240px !important; }
 }
 </style>
+
+<style>
+/* --- Light Fintech UI Override --- */
+:root{
+  --bg0:#F5F7FB;
+  --bg1:#EEF2FF;
+  --card:#FFFFFF;
+  --ink:#0F172A;
+}
+body{
+  background: linear-gradient(180deg, #F6F8FF 0%, #FFFFFF 60%);
+}
+.glass, .glass2{
+  background:#FFFFFF;
+  border:1px solid rgba(15,23,42,.08);
+  box-shadow: 0 10px 30px rgba(15,23,42,.08);
+}
+.tab-btn[data-active="true"]{
+  background: linear-gradient(135deg, #6366F1, #60A5FA);
+}
+</style>
+
+
+<style>
+/* === FINTECH SOFT PASTEL THEME (FINCHECK-LIKE) === */
+:root{
+  --bg-main:#F6F8FC;
+  --card-bg:#FFFFFF;
+  --ink:#1E293B;
+  --muted:#64748B;
+
+  --blue:#6EC1FF;
+  --purple:#B7A6FF;
+  --pink:#FFB7D5;
+  --mint:#7EE0C3;
+  --yellow:#FFE29A;
+}
+
+body{
+  background: var(--bg-main);
+  font-family: 'Inter','Poppins','Noto Sans KR',sans-serif;
+}
+
+.glass, .glass2{
+  background: var(--card-bg);
+  border: none;
+  box-shadow: 0 12px 30px rgba(15,23,42,.08);
+  border-radius: 18px;
+}
+
+h1,h2,h3,.font-semibold{
+  color: var(--ink) !important;
+}
+
+.text-white,
+.text-white\/60,
+.text-white\/70,
+.text-white\/80{
+  color: var(--muted) !important;
+}
+
+.tab-btn[data-active="true"]{
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  color:#fff !important;
+}
+</style>
+
 </head>
 
 <body class="text-white">
@@ -414,7 +481,16 @@ thead{ background: rgba(255,255,255,.86) !important; }
               </div>
             </div>
 
+            
             <div class="glass rounded-2xl p-4 md:col-span-1">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold"><i class="fa-solid fa-chart-pie mr-2"></i>지출별 비중</div>
+              </div>
+              <div class="mt-3 h-[260px]">
+                <canvas id="chartExpenseShare"></canvas>
+              </div>
+            </div>
+<div class="glass rounded-2xl p-4 md:col-span-1">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-solid fa-list-ol mr-2"></i>지출 Top 10</div>
               </div>
@@ -678,6 +754,22 @@ thead{ background: rgba(255,255,255,.86) !important; }
       </div>
     </div>
   </div>
+
+
+<script>
+Chart.defaults.color = "#64748B";
+Chart.defaults.font.family = "Inter, Poppins, Noto Sans KR, sans-serif";
+Chart.defaults.elements.bar.borderRadius = 10;
+
+const PASTEL = {
+  blue:"#6EC1FF",
+  purple:"#B7A6FF",
+  pink:"#FFB7D5",
+  mint:"#7EE0C3",
+  yellow:"#FFE29A",
+};
+
+</script>
 
 <script>
 /** =========================
@@ -2388,6 +2480,9 @@ let chartMonthly = null;
 let chartFlowShare = null;
 let chartMonthlyStack = null;
 
+let chartExpenseShare = null;
+
+
 // Chart.js datalabels
 if (window.ChartDataLabels) {
   Chart.register(ChartDataLabels);
@@ -2753,50 +2848,43 @@ function computeKpis(rows, pred){
 }
 
 function computeCategoryExpense(rows, pred){
+  // 지출 비중: 소분류 기준
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
     if(r.flow_type !== "expense") continue;
-    const k = (r.group_name || "미분류");
+    const k = (r.sub_name || "미분류");
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
 }
 
 function computeTop10(rows, pred){
-  // 지출 Top10: 소분류 기준 합산
+  // 지출 Top10: 상세항목 기준 합산
   const map = new Map();
   for(const r of rows){
     if(!pred(r)) continue;
     if(r.flow_type !== "expense") continue;
-    const k = (r.sub_name || "미분류").trim() || "미분류";
+    const k = (r.item_name || "미분류").trim() || "미분류";
     map.set(k, (map.get(k)||0) + Number(r.amount||0));
   }
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
 }
 
 function computeFlowShare(rows, pred){
-  // Share = 월급 수입 / 기타 수입 / 지출 (3개 합이 100%)
-  let salary=0, otherIncome=0, expense=0;
+  // Share = 저축 vs 지출
+  
+  let saving = 0, expense = 0;
   for(const r of rows){
     if(!pred(r)) continue;
     const amt = Number(r.amount||0);
     if(!amt) continue;
-
-    if(r.flow_type==="expense"){
-      expense += amt;
-      continue;
-    }
-    if(r.flow_type==="income"){
-      const item = (r.item_name || "").trim();
-      if(item === "월급") salary += amt;
-      else otherIncome += amt;
-      continue;
-    }
-    // saving은 이 그래프 정의상 제외
+    if(r.flow_type === "expense") expense += amt;
+    if(r.flow_type === "saving") saving += amt;
   }
-  const total = salary + otherIncome + expense;
-  return { salary, otherIncome, expense, total };
+  const total = saving + expense;
+  return { saving, expense, total };
+
 }
 
 
@@ -2818,16 +2906,49 @@ function refreshDashboardFromCache(){
   if(chartCategory) chartCategory.destroy();
   chartCategory = new Chart(byId("chartCategory"), {
     type:"bar",
-    data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals }] },
+    data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals, backgroundColor: PASTEL.blue }] },
     options:{
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{
+      formatter:(v,ctx)=>{
+        const data = ctx.chart.data.datasets[0].data||[];
+        const total = data.reduce((a,b)=>a+Number(b||0),0)||0;
+        if(!total||!v) return "";
+        const pct = Math.round(v/total*100);
+        return pct ? `${pct}%` : "";
+      }
+    } },
       scales:{ x:{ ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
                y:{ grace:"20%", ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } } }
     }
   });
 
-  // Top10
+  
+  // Expense share doughnut (지출별 비중)
+  const expArr = computeCategoryExpense(dashRowsCache, pred);
+  const expLabels = expArr.map(x=>x[0]);
+  const expVals = expArr.map(x=>x[1]);
+  if(chartExpenseShare) chartExpenseShare.destroy();
+  chartExpenseShare = new Chart(byId("chartExpenseShare"), {
+    type:"doughnut",
+    data:{ labels: expLabels, datasets:[{ data: expVals, backgroundColor:[PASTEL.blue,PASTEL.purple,PASTEL.pink,PASTEL.mint,PASTEL.yellow] }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:"bottom" },
+        tooltip:{ callbacks:{
+          label:(ctx)=>{
+            const total = (ctx.chart.data.datasets[0].data||[]).reduce((a,b)=>a+Number(b||0),0)||1;
+            const pct = Math.round((Number(ctx.raw||0)/total)*100);
+            return `${ctx.label}: ${fmt(ctx.raw)}원`;
+          }
+        }}
+      }
+    }
+  });
+
+
+// Top10
   const topArr = computeTop10(dashRowsCache, pred);
   const topLabels = topArr.map(x=>x[0]);
   const topVals = topArr.map(x=>x[1]);
@@ -2836,7 +2957,7 @@ function refreshDashboardFromCache(){
   const topPaddedMax = Math.ceil(topMax * 1.2);
   chartTop10 = new Chart(byId("chartTop10"), {
     type:"bar",
-    data:{ labels: topLabels, datasets:[{ label:"지출", data: topVals }] },
+    data:{ labels: topLabels, datasets:[{ label:"지출", data: topVals, backgroundColor: PASTEL.purple }] },
     options:{
       indexAxis:"y",
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
@@ -2855,9 +2976,9 @@ function refreshDashboardFromCache(){
   chartMonthly = new Chart(byId("chartMonthly"), {
     type:"line",
     data:{ labels: keys, datasets:[
-      { label:"지출", data: exp, tension:.25 },
-      { label:"수입", data: inc, tension:.25 },
-      { label:"저축", data: sav, tension:.25 },
+      { label:"지출", data: exp, tension:.25, borderColor:PASTEL.pink, backgroundColor:"rgba(255,183,213,.25)" },
+      { label:"수입", data: inc, tension:.25, borderColor:PASTEL.blue, backgroundColor:"rgba(110,193,255,.25)" },
+      { label:"저축", data: sav, tension:.25, borderColor:PASTEL.mint, backgroundColor:"rgba(126,224,195,.25)" },
     ]},
     options:{
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
@@ -2880,13 +3001,13 @@ function refreshDashboardFromCache(){
 
   // Flow share doughnut (월급 수입 / 기타 수입 / 지출)
   const share = computeFlowShare(dashRowsCache, pred);
-  const flowLabels = ["월급 수입","기타 수입","지출"];
-  const flowVals = [share.salary, share.otherIncome, share.expense];
+  const flowLabels = ["저축","지출"];
+  const flowVals = [share.saving, share.expense];
 
   if(chartFlowShare) chartFlowShare.destroy();
   chartFlowShare = new Chart(byId("chartFlowShare"), {
     type:"doughnut",
-    data:{ labels: flowLabels, datasets:[{ data: flowVals }] },
+    data:{ labels: flowLabels, datasets:[{ data: flowVals, backgroundColor:[PASTEL.mint,PASTEL.pink] }] },
     options:{
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{
@@ -2895,18 +3016,10 @@ function refreshDashboardFromCache(){
           label:(ctx)=> {
             const total = (ctx.chart?.data?.datasets?.[0]?.data || []).reduce((a,b)=>a+Number(b||0),0) || 1;
             const pct = Math.round((Number(ctx.raw||0)/total)*100);
-            return `${ctx.label}: ${fmt(ctx.raw)} 원 (${pct}%)`;
+            return `${ctx.label}: ${fmt(ctx.raw)}원`;
           } 
         }},
-        datalabels:{
-          formatter:(v,ctx)=>{
-            const data = (ctx.chart?.data?.datasets?.[0]?.data || []);
-            const total = data.reduce((a,b)=>a+Number(b||0),0) || 0;
-            if(!total || !v) return "";
-            const pct = Math.round((Number(v||0)/total)*100);
-            return pct ? `${pct}%` : "";
-          }
-        }
+        datalabels:{ formatter:(v,ctx)=>{ const data = ctx.chart.data.datasets[0].data||[]; const total=data.reduce((a,b)=>a+Number(b||0),0)||0; if(!total||!v) return ""; const pct=Math.round(v/total*100); return pct?`${pct}%`:""; } }
       }
     }
   });
@@ -2927,9 +3040,9 @@ function refreshDashboardFromCache(){
   chartMonthlyStack = new Chart(byId("chartMonthlyStack"), {
     type:"bar",
     data:{ labels: keys, datasets:[
-      { label:"지출", data: exp, stack:"sum" },
-      { label:"수입", data: inc, stack:"sum" },
-      { label:"저축", data: sav, stack:"sum" },
+      { label:"지출", data: exp, stack:"sum", backgroundColor:PASTEL.pink },
+      { label:"수입", data: inc, stack:"sum", backgroundColor:PASTEL.blue },
+      { label:"저축", data: sav, stack:"sum", backgroundColor:PASTEL.mint },
     ]},
     options:{
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
@@ -2945,7 +3058,7 @@ function refreshDashboardFromCache(){
       },
       scales:{
         x:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)" }, grid:{ color:"rgba(0,0,0,.06)" } },
-        y:{ stacked:true, ticks:{ color:"rgba(0,0,0,.7)", callback:(v)=> fmt(v) }, grid:{ color:"rgba(0,0,0,.06)" } }
+        y:{ stacked:true, ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } }
       }
     }
   });
