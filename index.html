@@ -207,33 +207,6 @@ thead{ background: rgba(255,255,255,.86) !important; }
 .kpi-dot.purple{ background: var(--purple); }
 .kpi-dot.pink{ background: var(--pink); }
 .kpi-dot.lime{ background: var(--lime); }
-/* === [FIX] 전체데이터 매트릭스 고정열 정리 === */
-.mx-sticky-col,
-.mx-sticky-col-header {
-  position: sticky;
-  left: 0;
-  z-index: 30;
-
-  background: linear-gradient(
-    90deg,
-    rgba(248,250,252,0.98) 0%,
-    rgba(248,250,252,0.94) 70%,
-    rgba(248,250,252,0.85) 100%
-  );
-
-  backdrop-filter: blur(6px);
-  box-shadow: 2px 0 0 rgba(15,23,42,.08);
-}
-
-.mx-sticky-col-header {
-  font-weight: 700;
-  background: linear-gradient(
-    90deg,
-    #EEF2FF 0%,
-    rgba(238,242,255,.9) 80%,
-    rgba(238,242,255,.75) 100%
-  );
-}
 
 /* desktop-first spacing */
 @media (min-width: 1024px){
@@ -2017,41 +1990,6 @@ function fillMatrixFilters(years){
   ySel.value = years.includes(prevY) ? prevY : (years.at(-1) || new Date().getFullYear().toString());
 }
 
-// === 상세항목 고정 순서 (엑셀 기준) ===
-const DETAIL_ORDER = [
-  "식재료",
-  "외식",
-  "배달",
-  "중식",
-  "카페/간식",
-  "쇼핑",
-  "미용",
-  "구독",
-  "생활편의",
-  "여행",
-  "문화생활",
-  "운동",
-  "보험",
-  "병원·약국",
-  "건강식품",
-  "회비",
-  "경조/선물",
-  "친목",
-  "기부",
-  "기타",
-  "주거/통신",
-  "교통",
-  "공과금",
-  "저축",
-  "투자",
-  "부채상환",
-  "월급",
-  "기타수입",
-  "금융이자",
-  "주식매도"
-];
-
-
 function renderMatrixTable3({ year, flow_type, rows }){
   const months = monthLabels();
   const members3 = getMatrixMembers3();
@@ -2087,26 +2025,18 @@ function renderMatrixTable3({ year, flow_type, rows }){
     }
   }
 
-const orderIndex = new Map(
-  DETAIL_ORDER.map((name, idx) => [name, idx])
-);
-
-const arr = [...map.values()].sort((a, b) => {
-  const ai = orderIndex.get(a.detail) ?? 9999;
-  const bi = orderIndex.get(b.detail) ?? 9999;
-  return ai - bi;
-});
-
+  const arr = [...map.values()].sort((a,b)=>{
+    const A = `${a.group}||${a.subcategory}||${a.detail}`;
+    const B = `${b.group}||${b.subcategory}||${b.detail}`;
+    return A.localeCompare(B, "ko");
+  });
 
   // THEAD (2 rows: month colspans + member names)
 const thead = byId("mxThead");
 thead.innerHTML = `
   <tr>
     
-    <th class="mx-sticky-col-header text-left py-3 px-3 border-b">
-  상세항목
-</th>
-
+    <th class="text-left py-3 px-3 border-b sticky left-[230px] bg-white/70 backdrop-blur z-30">상세항목</th>
     ${months.map(mm => `
       <th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">
         ${Number(mm)}월
@@ -2115,7 +2045,7 @@ thead.innerHTML = `
   </tr>
   <tr>
     
-    <th class="border-b bg-white/70"></th>
+    <th class="border-b sticky left-[320px] bg-white/70 backdrop-blur z-30"></th>
     ${months.map(()=>members3.map(m=>`
       <th class="text-right py-2 px-3 border-b bg-white/70 backdrop-blur min-w-[110px]">
         ${escapeHtml(m.name)}
@@ -2133,15 +2063,21 @@ thead.innerHTML = `
   for(const row of arr){
     const tr = document.createElement("tr");
 
-   
+    const tdCat = document.createElement("td");
+    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[90px] max-w-[90px] truncate";
+    tdCat.textContent = row.group || "미분류";
 
-const tdDet = document.createElement("td");
-tdDet.className =
-  "mx-sticky-col sticky left-0 z-30 px-3 py-2 border-b font-semibold bg-white";
-tdDet.textContent = row.detail;
-tr.appendChild(tdDet);
+    const tdSub = document.createElement("td");
+    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[120px] max-w-[120px] truncate";
+    tdSub.textContent = row.subcategory || "";
 
+    const tdDet = document.createElement("td");
+    tdDet.className = "py-2 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30 min-w-[180px] max-w-[180px] truncate font-semibold";
+    tdDet.textContent = row.detail || "";
 
+    tr.appendChild(tdCat);
+    tr.appendChild(tdSub);
+    tr.appendChild(tdDet);
 
     for(const mm of months){
       for(const m of members3){
