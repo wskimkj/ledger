@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ko">
 <head>
@@ -277,6 +278,90 @@ h1,h2,h3,.font-semibold{
   background: linear-gradient(135deg, var(--blue), var(--purple));
   color:#fff !important;
 }
+
+/* === Soft Fintech Pastel Theme === */
+:root{
+  --bg-main:#F3F5FB;
+  --card-bg:#FFFFFF;
+  --ink:#1F2937;
+  --muted:#6B7280;
+}
+body{
+  background: linear-gradient(180deg, #F4F6FC 0%, #FFFFFF 65%);
+  color: var(--ink);
+}
+.glass, .glass2{
+  background: var(--card-bg);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(15,23,42,.08);
+}
+.text-white,
+.text-white\/60,
+.text-white\/70,
+.text-white\/80{
+  color: var(--muted) !important;
+}
+
+
+/* === Glassmorphism polish for donut cards === */
+.glass{
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 12px 30px rgba(15,23,42,.10),
+    inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+
+/* === Neon Glass Enhancement === */
+.glass, .glass2{
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow:
+    0 18px 40px rgba(99,102,241,.18),
+    0 0 0 1px rgba(255,255,255,.45),
+    inset 0 1px 0 rgba(255,255,255,.75);
+}
+
+/* subtle neon edge */
+.glass::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  box-shadow:
+    0 0 18px rgba(183,166,255,.35),
+    inset 0 0 12px rgba(123,185,255,.25);
+}
+
+/* neon hover */
+.glass:hover{
+  box-shadow:
+    0 22px 50px rgba(99,102,241,.25),
+    0 0 28px rgba(183,166,255,.45),
+    inset 0 1px 0 rgba(255,255,255,.85);
+}
+
+
+/* === Soft Glass (Neon Reduced) === */
+.glass, .glass2{
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(12px) saturate(115%);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
+  box-shadow:
+    0 12px 28px rgba(15,23,42,.12),
+    inset 0 1px 0 rgba(255,255,255,.7);
+}
+
+.glass:hover{
+  box-shadow:
+    0 16px 36px rgba(99,102,241,.15),
+    inset 0 1px 0 rgba(255,255,255,.8);
+}
+
 </style>
 
 </head>
@@ -471,6 +556,7 @@ h1,h2,h3,.font-semibold{
               <div class="text-xs text-white/50 mt-2">월평균: <span id="kpiExpenseAvg">0</span> 원</div>
             </div>
 
+            <!-- Row 1: 지출 요약 + Top10 -->
             <div class="glass rounded-2xl p-4 md:col-span-2">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-regular fa-chart-bar mr-2"></i>지출 요약 (대분류)</div>
@@ -481,16 +567,7 @@ h1,h2,h3,.font-semibold{
               </div>
             </div>
 
-            
             <div class="glass rounded-2xl p-4 md:col-span-1">
-              <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-solid fa-chart-pie mr-2"></i>지출별 비중</div>
-              </div>
-              <div class="mt-3 h-[260px]">
-                <canvas id="chartExpenseShare"></canvas>
-              </div>
-            </div>
-<div class="glass rounded-2xl p-4 md:col-span-1">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-solid fa-list-ol mr-2"></i>지출 Top 10</div>
               </div>
@@ -499,7 +576,16 @@ h1,h2,h3,.font-semibold{
               </div>
             </div>
 
-            
+            <!-- Row 2: 지출별 비중 + 흐름 비중 -->
+            <div class="glass rounded-2xl p-4 md:col-span-1">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold"><i class="fa-solid fa-chart-pie mr-2"></i>지출별 비중</div>
+              </div>
+              <div class="mt-3 h-[260px]">
+                <canvas id="chartExpenseShare"></canvas>
+              </div>
+            </div>
+
             <div class="glass rounded-2xl p-4 md:col-span-1">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-solid fa-chart-pie mr-2"></i>흐름 비중</div>
@@ -510,6 +596,7 @@ h1,h2,h3,.font-semibold{
               <div id="flowShareText" class="text-xs text-black/60 mt-2"></div>
             </div>
 
+            <!-- Row 3: 월별 합계(스택) -->
             <div class="glass rounded-2xl p-4 md:col-span-2">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-semibold"><i class="fa-solid fa-layer-group mr-2"></i>월별 합계(스택)</div>
@@ -761,12 +848,19 @@ Chart.defaults.color = "#64748B";
 Chart.defaults.font.family = "Inter, Poppins, Noto Sans KR, sans-serif";
 Chart.defaults.elements.bar.borderRadius = 10;
 
+/* === Subtle Neon for Charts Only === */
+Chart.defaults.elements.line.borderWidth = 2;
+Chart.defaults.elements.line.borderCapStyle = 'round';
+Chart.defaults.elements.point.radius = 4;
+Chart.defaults.elements.point.hoverRadius = 6;
+
+
 const PASTEL = {
-  blue:"#6EC1FF",
-  purple:"#B7A6FF",
-  pink:"#FFB7D5",
-  mint:"#7EE0C3",
-  yellow:"#FFE29A",
+  blue:"#7BB9FF",
+  purple:"#B9B2FF",
+  pink:"#FFB8D2",
+  mint:"#8EE3C8",
+  yellow:"#FFE3A3",
 };
 
 </script>
@@ -2482,6 +2576,19 @@ let chartMonthlyStack = null;
 
 let chartExpenseShare = null;
 
+function makeDonutGradients(chart, colors){
+  const {ctx, chartArea} = chart;
+  if(!chartArea) return colors.map(c=>c.end);
+  const {top, bottom} = chartArea;
+  return colors.map(c=>{
+    const g = ctx.createLinearGradient(0, top, 0, bottom);
+    g.addColorStop(0, c.start);
+    g.addColorStop(1, c.end);
+    return g;
+  });
+}
+
+
 
 // Chart.js datalabels
 if (window.ChartDataLabels) {
@@ -2908,6 +3015,7 @@ function refreshDashboardFromCache(){
     type:"bar",
     data:{ labels: catLabels, datasets:[{ label:"지출", data: catVals, backgroundColor: PASTEL.blue }] },
     options:{
+      cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{
       formatter:(v,ctx)=>{
@@ -2930,12 +3038,35 @@ function refreshDashboardFromCache(){
   const expVals = expArr.map(x=>x[1]);
   if(chartExpenseShare) chartExpenseShare.destroy();
   chartExpenseShare = new Chart(byId("chartExpenseShare"), {
+    plugins:[{
+      id:'donutGradient',
+      beforeDatasetDraw(chart){
+        const ds = chart.data.datasets[0];
+        ds.backgroundColor = makeDonutGradients(chart, [
+          {start:'#FFD6E7', end:'#FFB8D2'},
+          {start:'#E7E4FF', end:'#B9B2FF'},
+          {start:'#E9FBF4', end:'#8EE3C8'},
+          {start:'#EEF4FF', end:'#7BB9FF'},
+          {start:'#FFF6DA', end:'#FFE3A3'},
+        ]);
+      }
+    }],
     type:"doughnut",
-    data:{ labels: expLabels, datasets:[{ data: expVals, backgroundColor:[PASTEL.blue,PASTEL.purple,PASTEL.pink,PASTEL.mint,PASTEL.yellow] }] },
+    data:{ labels: expLabels, datasets:[{ data: expVals, backgroundColor:[PASTEL.blue,PASTEL.purple,PASTEL.pink,PASTEL.mint,PASTEL.yellow], hoverOffset: 10, borderWidth: 0 }] },
     options:{
+      cutout:'72%',
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{ position:"bottom" },
+        datalabels:{
+          formatter:(value,ctx)=>{
+            const data = ctx.chart.data.datasets[0].data||[];
+            const total = data.reduce((a,b)=>a+Number(b||0),0)||0;
+            if(!total || !value) return "";
+            const pct = Math.round((value/total)*100);
+            return pct ? `${pct}%` : "";
+          }
+        },
         tooltip:{ callbacks:{
           label:(ctx)=>{
             const total = (ctx.chart.data.datasets[0].data||[]).reduce((a,b)=>a+Number(b||0),0)||1;
@@ -2960,6 +3091,7 @@ function refreshDashboardFromCache(){
     data:{ labels: topLabels, datasets:[{ label:"지출", data: topVals, backgroundColor: PASTEL.purple }] },
     options:{
       indexAxis:"y",
+      cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=> `${fmt(ctx.raw)} 원` } }, datalabels:{ anchor:"end", align:"end", formatter:(v)=> v?fmt(v):"", clamp:true } },
       scales:{ x:{ min:0, max: topPaddedMax, ticks:{ display:false }, grid:{ color:"rgba(0,0,0,.06)" } },
@@ -2976,11 +3108,12 @@ function refreshDashboardFromCache(){
   chartMonthly = new Chart(byId("chartMonthly"), {
     type:"line",
     data:{ labels: keys, datasets:[
-      { label:"지출", data: exp, tension:.25, borderColor:PASTEL.pink, backgroundColor:"rgba(255,183,213,.25)" },
-      { label:"수입", data: inc, tension:.25, borderColor:PASTEL.blue, backgroundColor:"rgba(110,193,255,.25)" },
-      { label:"저축", data: sav, tension:.25, borderColor:PASTEL.mint, backgroundColor:"rgba(126,224,195,.25)" },
+      { label:"지출", data: exp, tension:.25, borderColor:PASTEL.pink, shadowColor:'rgba(255,184,210,.55)', shadowBlur:8, borderWidth:2, backgroundColor:"rgba(255,183,213,.25)" },
+      { label:"수입", data: inc, tension:.25, borderColor:PASTEL.blue, shadowColor:'rgba(123,185,255,.55)', shadowBlur:8, borderWidth:2, backgroundColor:"rgba(110,193,255,.25)" },
+      { label:"저축", data: sav, tension:.25, borderColor:PASTEL.mint, shadowColor:'rgba(142,227,200,.55)', shadowBlur:8, borderWidth:2, backgroundColor:"rgba(126,224,195,.25)" },
     ]},
     options:{
+      cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{
         legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
@@ -2989,7 +3122,14 @@ function refreshDashboardFromCache(){
           anchor:"end",
           align:"top",
           clamp:true,
-          formatter:(v)=> (Number(v||0)>0 ? fmt(v) : "")
+          formatter:(value, ctx)=>{
+            const data = ctx.dataset.data || [];
+            const lastIndex = data.length - 1;
+            if(ctx.dataIndex === lastIndex && Number(value) > 0){
+              return fmt(value);
+            }
+            return "";
+          }
         }
       },
       scales:{ 
@@ -3009,6 +3149,7 @@ function refreshDashboardFromCache(){
     type:"doughnut",
     data:{ labels: flowLabels, datasets:[{ data: flowVals, backgroundColor:[PASTEL.mint,PASTEL.pink] }] },
     options:{
+      cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{
         legend:{ position:"bottom", labels:{ color:"rgba(0,0,0,.7)" } },
@@ -3045,6 +3186,7 @@ function refreshDashboardFromCache(){
       { label:"저축", data: sav, stack:"sum", backgroundColor:PASTEL.mint },
     ]},
     options:{
+      cutout:'72%',
       responsive:true, maintainAspectRatio:false, layout:{padding:{top:28,right:16}},
       plugins:{
         legend:{ labels:{ color:"rgba(0,0,0,.7)" } },
