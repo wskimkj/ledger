@@ -2017,6 +2017,41 @@ function fillMatrixFilters(years){
   ySel.value = years.includes(prevY) ? prevY : (years.at(-1) || new Date().getFullYear().toString());
 }
 
+// === 상세항목 고정 순서 (엑셀 기준) ===
+const DETAIL_ORDER = [
+  "식재료",
+  "외식",
+  "배달",
+  "중식",
+  "카페/간식",
+  "쇼핑",
+  "미용",
+  "구독",
+  "생활편의",
+  "여행",
+  "문화생활",
+  "운동",
+  "보험",
+  "병원·약국",
+  "건강식품",
+  "회비",
+  "경조/선물",
+  "친목",
+  "기부",
+  "기타",
+  "주거/통신",
+  "교통",
+  "공과금",
+  "저축",
+  "투자",
+  "부채상환",
+  "월급",
+  "기타수입",
+  "금융이자",
+  "주식매도"
+];
+
+
 function renderMatrixTable3({ year, flow_type, rows }){
   const months = monthLabels();
   const members3 = getMatrixMembers3();
