@@ -207,6 +207,33 @@ thead{ background: rgba(255,255,255,.86) !important; }
 .kpi-dot.purple{ background: var(--purple); }
 .kpi-dot.pink{ background: var(--pink); }
 .kpi-dot.lime{ background: var(--lime); }
+/* === [FIX] 전체데이터 매트릭스 고정열 정리 === */
+.mx-sticky-col,
+.mx-sticky-col-header {
+  position: sticky;
+  left: 0;
+  z-index: 30;
+
+  background: linear-gradient(
+    90deg,
+    rgba(248,250,252,0.98) 0%,
+    rgba(248,250,252,0.94) 70%,
+    rgba(248,250,252,0.85) 100%
+  );
+
+  backdrop-filter: blur(6px);
+  box-shadow: 2px 0 0 rgba(15,23,42,.08);
+}
+
+.mx-sticky-col-header {
+  font-weight: 700;
+  background: linear-gradient(
+    90deg,
+    #EEF2FF 0%,
+    rgba(238,242,255,.9) 80%,
+    rgba(238,242,255,.75) 100%
+  );
+}
 
 /* desktop-first spacing */
 @media (min-width: 1024px){
@@ -2036,7 +2063,10 @@ const thead = byId("mxThead");
 thead.innerHTML = `
   <tr>
     
-    <th class="text-left py-3 px-3 border-b sticky left-[230px] bg-white/70 backdrop-blur z-30">상세항목</th>
+    <th class="mx-sticky-col-header text-left py-3 px-3 border-b">
+  상세항목
+</th>
+
     ${months.map(mm => `
       <th class="text-center py-3 px-3 border-b bg-white/70 backdrop-blur" colspan="${members3.length}">
         ${Number(mm)}월
@@ -2063,21 +2093,14 @@ thead.innerHTML = `
   for(const row of arr){
     const tr = document.createElement("tr");
 
-    const tdCat = document.createElement("td");
-    tdCat.className = "py-2 px-3 border-b sticky left-0 bg-white/60 backdrop-blur z-20 min-w-[90px] max-w-[90px] truncate";
-    tdCat.textContent = row.group || "미분류";
+   
 
-    const tdSub = document.createElement("td");
-    tdSub.className = "py-2 px-3 border-b sticky left-[160px] bg-white/60 backdrop-blur z-20 min-w-[120px] max-w-[120px] truncate";
-    tdSub.textContent = row.subcategory || "";
+ const tdDet = document.createElement("td");
+tdDet.className =
+  "mx-sticky-col px-3 py-2 border-b font-semibold truncate";
+tdDet.textContent = row.detail || "";
+tr.appendChild(tdDet);
 
-    const tdDet = document.createElement("td");
-    tdDet.className = "py-2 px-3 border-b sticky left-0 bg-white/70 backdrop-blur z-30 min-w-[180px] max-w-[180px] truncate font-semibold";
-    tdDet.textContent = row.detail || "";
-
-    tr.appendChild(tdCat);
-    tr.appendChild(tdSub);
-    tr.appendChild(tdDet);
 
     for(const mm of months){
       for(const m of members3){
