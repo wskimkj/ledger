@@ -645,7 +645,7 @@ body{
             <!-- Row 1: 지출 요약 + Top10 -->
             <div class="glass rounded-2xl p-4 md:col-span-2">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-regular fa-chart-bar mr-2"></i>지출 요약 (대분류)</div>
+                <div class="text-sm font-semibold"><i class="fa-regular fa-chart-bar mr-2"></i>지출 요약</div>
                 <div class="text-xs text-white/50">선택 조건 기준</div>
               </div>
               <div class="mt-3 h-[260px]">
@@ -685,7 +685,7 @@ body{
             <!-- Row 3: 월별 합계(스택) -->
             <div class="glass rounded-2xl p-4 md:col-span-2">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-solid fa-layer-group mr-2"></i>월별 합계(스택)</div>
+                <div class="text-sm font-semibold"><i class="fa-solid fa-layer-group mr-2"></i>월별 합계</div>
                 <div class="text-xs text-black/50">지출/수입/저축</div>
               </div>
               <div class="mt-3 h-[260px]">
@@ -694,8 +694,8 @@ body{
             </div>
 <div class="glass rounded-2xl p-4 md:col-span-3">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold"><i class="fa-regular fa-calendar mr-2"></i>월별 지출/수입/저축 추이</div>
-                <div class="text-xs text-white/50">연도=전체면 전체기간</div>
+                <div class="text-sm font-semibold"><i class="fa-regular fa-calendar mr-2"></i> 추이</div>
+                <div class="text-xs text-white/50">연도</div>
               </div>
               <div class="mt-3 h-[280px]">
                 <canvas id="chartMonthly"></canvas>
@@ -3291,7 +3291,7 @@ function refreshDashboardFromCache(){
     const incomePct = Math.round(((share.salary+share.otherIncome)/total)*100);
     const nonSalaryPct = Math.round(((share.otherIncome+share.expense)/total)*100);
     const el = byId("flowShareText");
-    if(el) el.textContent = `지출 ${expPct}% · 총수입 ${incomePct}% · (기타수입+지출) ${nonSalaryPct}%`;
+    if(el) el.textContent = ``;
   }catch(_){}
 
 
