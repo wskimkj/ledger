@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="ko">
 <head>
@@ -433,6 +434,309 @@ body{
 }
 </style>
 
+
+<style>
+/* === DB UX ENHANCEMENTS === */
+.db-context{
+  display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+}
+.db-chip{
+  padding:6px 12px; border-radius:999px;
+  background:rgba(99,102,241,.1);
+  color:#4338CA; font-size:12px; font-weight:600;
+}
+.db-summary{
+  background:#F8FAFC; border:1px solid rgba(15,23,42,.08);
+  border-radius:16px; padding:12px; font-size:12px;
+}
+.cell-editing{ background:rgba(99,102,241,.15)!important; }
+.cell-saved{ animation:flashGreen .6s; }
+@keyframes flashGreen{
+  0%{background:#ECFDF5;}100%{background:transparent;}
+}
+</style>
+
+
+<style>
+/* ===============================
+   DB MATRIX TABLE – CLEAN FINTECH
+   =============================== */
+
+/* table base */
+#mxTable{
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+/* header */
+#mxTable thead th{
+  background: #F8FAFF;
+  color:#334155;
+  font-weight:600;
+  border-bottom:1px solid rgba(15,23,42,.08);
+  text-align:right;
+}
+
+/* month group header */
+#mxTable thead th[colspan]{
+  text-align:center;
+  font-size:12px;
+  color:#475569;
+  background:#EEF2FF;
+}
+
+/* detail column */
+#mxTable td:first-child{
+  text-align:left;
+  font-weight:600;
+  color:#1E293B;
+  background:#FFFFFF;
+}
+
+/* sticky detail column */
+#mxTable td.sticky,
+#mxTable th.sticky{
+  background:#FFFFFF;
+  box-shadow: 2px 0 0 rgba(15,23,42,.04);
+}
+
+/* body cells */
+#mxTable tbody td{
+  border-bottom:1px solid rgba(15,23,42,.06);
+  padding:8px 10px;
+  color:#334155;
+}
+
+/* zebra */
+#mxTable tbody tr:nth-child(even){
+  background:#FAFBFF;
+}
+
+/* hover row */
+#mxTable tbody tr:hover{
+  background:#EEF2FF;
+}
+
+/* numeric emphasis */
+#mxTable tbody td[data-month]{
+  font-variant-numeric: tabular-nums;
+  font-weight:500;
+}
+
+/* editable hover */
+#mxTable tbody td[data-month]:hover{
+  background:rgba(99,102,241,.12);
+  cursor:pointer;
+}
+
+/* editing */
+#mxTable td.cell-editing{
+  background:rgba(99,102,241,.18)!important;
+}
+
+/* saved flash */
+#mxTable td.cell-saved{
+  animation: flashGreen .6s;
+}
+
+/* subtle grid edge */
+#mxTable tbody td:last-child{
+  border-right:1px solid rgba(15,23,42,.06);
+}
+
+/* header sticky polish */
+#mxTable thead{
+  box-shadow: 0 2px 0 rgba(15,23,42,.06);
+}
+</style>
+
+
+<style>
+/* ===============================
+   DB TAB FINAL CLEAN PATCH
+   =============================== */
+
+/* --- DB tab only: neutral scrollbar --- */
+#tab-all .thin-scroll::-webkit-scrollbar{
+  width:6px;
+  height:6px;
+}
+#tab-all .thin-scroll::-webkit-scrollbar-thumb{
+  background: rgba(148,163,184,.45);
+  border-radius: 999px;
+}
+#tab-all .thin-scroll::-webkit-scrollbar-track{
+  background: transparent;
+}
+
+/* --- Kill any neon / gradient bleed --- */
+#tab-all .glass::after{
+  display:none !important;
+}
+
+/* --- Sticky column fix --- */
+#mxTable td.sticky,
+#mxTable th.sticky{
+  background:#FFFFFF !important;
+  z-index:5;
+  box-shadow: 2px 0 0 rgba(15,23,42,.06);
+}
+
+/* --- Header z-index isolation --- */
+#mxTable thead th{
+  z-index:6;
+}
+
+/* --- Table font downscale --- */
+#mxTable{
+  font-size:10px;
+}
+#mxTable thead th{
+  font-size:10px;
+}
+#mxTable tbody td{
+  font-size:10px;
+}
+
+/* --- Tighten cell padding --- */
+#mxTable tbody td,
+#mxTable thead th{
+  padding:6px 8px;
+}
+
+/* --- Remove any accidental background overlays --- */
+#tab-all table *{
+  background-clip: padding-box;
+}
+</style>
+
+
+<style>
+/* ===============================
+   FIX FLOATING WHITE HEADER BOXES
+   =============================== */
+
+/* empty header cells (alignment placeholders) */
+#mxTable thead th:empty{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* left padding header cells before first month */
+#mxTable thead th.placeholder{
+  background: transparent !important;
+  border: none !important;
+}
+
+/* normalize header row height */
+#mxTable thead tr{
+  height: 36px;
+}
+
+/* ensure no radius leaks */
+#mxTable thead th{
+  border-radius: 0 !important;
+}
+</style>
+
+
+<style>
+/* ===============================
+   RESULT TABLE GLASS / NEON FRAME
+   =============================== */
+
+/* outer table container */
+#tab-all .thin-scroll{
+  position: relative;
+  border-radius: 18px;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(
+      135deg,
+      rgba(167,139,250,.55),
+      rgba(99,102,241,.45),
+      rgba(236,72,153,.35)
+    ) border-box;
+  border: 1px solid transparent;
+  box-shadow:
+    0 12px 30px rgba(99,102,241,.15),
+    inset 0 0 0 1px rgba(255,255,255,.6);
+}
+
+/* inner grid separators – ultra subtle */
+#mxTable tbody td{
+  border-bottom: 1px solid rgba(99,102,241,.06);
+}
+#mxTable thead th{
+  border-bottom: 1px solid rgba(99,102,241,.12);
+}
+
+/* vertical separators for month blocks */
+#mxTable thead th[colspan]{
+  box-shadow: inset -1px 0 0 rgba(99,102,241,.12);
+}
+#mxTable tbody td[data-month]{
+  box-shadow: inset -1px 0 0 rgba(99,102,241,.05);
+}
+
+/* glow on hover focus */
+#mxTable tbody tr:hover{
+  box-shadow:
+    inset 0 0 0 1px rgba(167,139,250,.25);
+}
+</style>
+
+
+<style>
+/* ===============================
+   HEADER STRUCTURE FINAL FIX
+   =============================== */
+
+/* collapse leading empty header cells completely */
+#mxTable thead tr:first-child th:not([colspan]){
+  width:0 !important;
+  min-width:0 !important;
+  padding:0 !important;
+  border:none !important;
+  background:transparent !important;
+}
+
+/* ensure month headers start exactly after item column */
+#mxTable thead tr:first-child{
+  grid-auto-flow: column;
+}
+
+/* normalize sub-header (돌프/천사/공통) */
+#mxTable thead tr:nth-child(2) th{
+  text-align:center;
+  padding:6px 0 !important;
+  font-weight:600;
+}
+
+/* force exact column alignment */
+#mxTable thead tr:nth-child(2) th,
+#mxTable tbody td[data-month]{
+  width: 88px;
+  min-width: 88px;
+  max-width: 88px;
+}
+
+/* kill any residual background blocks */
+#mxTable thead th{
+  background-clip: padding-box;
+}
+
+/* sticky left column width lock */
+#mxTable td.sticky,
+#mxTable th.sticky{
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
+}
+</style>
+
 </head>
 
 <body class="text-white">
@@ -811,6 +1115,16 @@ body{
       <!-- ALL DATA GRID (월별 매트릭스 편집) -->
       <section id="tab-all" class="mt-4 hidden">
         <div class="glass rounded-2xl p-4">
+
+<div class="hidden">
+  <div class="db-chip" id="dbCtxYear"></div>
+  <div class="db-chip" id="dbCtxFlow"></div>
+  <div class="db-chip"></div>
+</div>
+<div class="hidden">
+  
+</div>
+
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div class="text-sm font-semibold">월별 매트릭스</div>
@@ -2160,7 +2474,7 @@ td.textContent = v === 0 ? "" : fmt(v);
 
         cellCount++;
 
-        td.addEventListener("dblclick", ()=> startCellEdit3(td));
+        td.addEventListener("dblclick", ()=>{ td.classList.add('cell-editing'); startCellEdit3(td); });
         tr.appendChild(td);
       }
     }
