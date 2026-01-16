@@ -4091,5 +4091,115 @@ byId("btnRenameClear").addEventListener("click", ()=>{
   }
 });
 </script>
+
+<!-- === DB RESULT UI UPGRADE PATCH (Excel-like) === -->
+<style>
+/* Density + readability */
+#tab-all #mxTable{
+  font-size: 11px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+#tab-all #mxTable thead th{
+  position: sticky;
+  top: 0;
+  background: #F8FAFF;
+  z-index: 10;
+}
+#tab-all #mxTable thead tr:first-child th{
+  top: 0;
+}
+#tab-all #mxTable thead tr:nth-child(2) th{
+  top: 36px; /* stacked sticky header */
+}
+
+/* Left sticky detail column */
+#tab-all #mxTable td.sticky,
+#tab-all #mxTable th.sticky{
+  position: sticky;
+  left: 0;
+  background: #FFFFFF;
+  z-index: 12;
+  box-shadow: 2px 0 0 rgba(15,23,42,.06);
+}
+
+/* Zebra + hover like Excel */
+#tab-all #mxTable tbody tr:nth-child(even){ background:#FAFBFF; }
+#tab-all #mxTable tbody tr:hover{
+  background:#EEF2FF;
+  outline: 1px solid rgba(99,102,241,.25);
+}
+
+/* Active row/column focus */
+#tab-all #mxTable td.cell-focus{
+  outline: 2px solid rgba(99,102,241,.55);
+  outline-offset: -2px;
+}
+
+/* Column separators per month block */
+#tab-all #mxTable thead th[colspan]{
+  border-right: 2px solid rgba(99,102,241,.18);
+}
+#tab-all #mxTable tbody td[data-month]{
+  border-right: 1px solid rgba(99,102,241,.06);
+}
+
+/* Numeric alignment + monospace numerals */
+#tab-all #mxTable tbody td[data-month]{
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inline edit affordance */
+#tab-all #mxTable tbody td[data-month]::after{
+  content: '⏎';
+  opacity: .0;
+  font-size: 10px;
+  margin-left: 4px;
+}
+#tab-all #mxTable tbody td[data-month]:hover::after{
+  opacity: .4;
+}
+
+/* Header legend */
+#tab-all .db-legend{
+  display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+  font-size:11px; color:#475569;
+}
+#tab-all .db-legend span{
+  padding:4px 8px; border-radius:999px; background:#EEF2FF; border:1px solid rgba(99,102,241,.2);
+}
+</style>
+
+<script>
+/* === DB RESULT UX PATCH ===
+   - Click to focus row/column
+   - Keyboard hint overlay
+*/
+(function(){
+  const table = document.getElementById('mxTable');
+  if(!table) return;
+
+  table.addEventListener('click', (e)=>{
+    const td = e.target.closest('td[data-month]');
+    if(!td) return;
+    table.querySelectorAll('.cell-focus').forEach(x=>x.classList.remove('cell-focus'));
+    td.classList.add('cell-focus');
+    // highlight column
+    const month = td.dataset.month;
+    table.querySelectorAll('td[data-month="'+month+'"]').forEach(x=>x.classList.add('cell-focus'));
+  });
+
+  // Legend injection
+  const wrap = document.querySelector('#tab-all .glass2');
+  if(wrap && !wrap.querySelector('.db-legend')){
+    const div = document.createElement('div');
+    div.className = 'db-legend mt-2';
+    div.innerHTML = '<span>더블클릭: 편집</span><span>Enter: 저장</span><span>빈칸 저장: 삭제</span><span>행/열 클릭: 포커스</span>';
+    wrap.appendChild(div);
+  }
+})();
+</script>
+
 </body>
 </html>
