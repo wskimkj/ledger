@@ -20,681 +20,495 @@
   <!-- xlsx -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <style>
-/* Vivid Candy × Cute-but-Clean (Desktop-first) */
+<style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
+/* ========================================
+   1) THEME
+======================================== */
 :root{
-  --bg0:#F9FAFB;
-  --bg1:#F4F6FF;
-  --card:#FFFFFF;
-  --ink:#111827;
-  --ink2:rgba(17,24,39,.72);
-  --ink3:rgba(17,24,39,.52);
+  --bg-main:#F4F6FC;
+  --bg-soft:#EEF2FF;
+  --card-bg:rgba(255,255,255,.88);
+  --card-bg-solid:#FFFFFF;
 
-  --purple:#6D28D9;
-  --cyan:#22D3EE;
-  --lime:#A3E635;
-  --orange:#FB923C;
-  --pink:#EC4899;
+  --ink:#1F2937;
+  --muted:#6B7280;
+  --muted-2:rgba(31,41,55,.62);
 
-  --stroke:rgba(99,102,241,.16);
-  --stroke2:rgba(17,24,39,.08);
+  --line:rgba(15,23,42,.08);
+  --line-soft:rgba(15,23,42,.05);
 
-  --shadow: 0 16px 45px rgba(17,24,39,.10);
-  --shadow2: 0 10px 30px rgba(17,24,39,.08);
+  --blue:#7BB9FF;
+  --purple:#B9B2FF;
+  --pink:#FFB8D2;
+  --mint:#8EE3C8;
+  --yellow:#FFE3A3;
 
-  --r-xl: 22px;
-  --r-lg: 18px;
-  --r-md: 14px;
+  --primary-1:#8B5CF6;
+  --primary-2:#EC4899;
+  --primary-3:#60A5FA;
+
+  --danger:#E11D48;
+  --danger-bg:rgba(244,63,94,.10);
+  --danger-line:rgba(244,63,94,.18);
+
+  --shadow-sm:0 8px 20px rgba(15,23,42,.06);
+  --shadow-md:0 12px 28px rgba(15,23,42,.10);
+  --shadow-lg:0 18px 40px rgba(15,23,42,.12);
+
+  --r-xl:22px;
+  --r-lg:18px;
+  --r-md:14px;
 }
 
 html, body{ height:100%; }
+
 body{
-  font-family: "Poppins","Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: "Poppins","Noto Sans KR",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(900px 520px at 14% 0%, rgba(34,211,238,.22), transparent 60%),
-    radial-gradient(880px 520px at 90% 8%, rgba(236,72,153,.18), transparent 60%),
-    radial-gradient(760px 520px at 40% 100%, rgba(163,230,53,.16), transparent 60%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 55%, #FFFFFF 120%);
+    radial-gradient(900px 520px at 14% 0%, rgba(123,185,255,.18), transparent 60%),
+    radial-gradient(880px 520px at 90% 8%, rgba(255,184,210,.16), transparent 60%),
+    radial-gradient(760px 520px at 40% 100%, rgba(142,227,200,.14), transparent 60%),
+    linear-gradient(180deg, #F6F8FF 0%, #FFFFFF 68%);
 }
 
-/* subtle grain */
 body:before{
   content:"";
-  position:fixed; inset:0;
+  position:fixed;
+  inset:0;
   pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
   mix-blend-mode:multiply;
 }
 
-/* cards */
-.glass, .glass2{
-  background: rgba(255,255,255,.92);
-  border: 1px solid var(--stroke2);
-  box-shadow: var(--shadow2);
-  backdrop-filter: blur(14px);
-}
-.glass{ border-color: rgba(109,40,217,.14); box-shadow: var(--shadow); }
-.glass2{ border-color: rgba(99,102,241,.12); }
-
-/* scrollbar */
-.thin-scroll::-webkit-scrollbar{ height:10px; width:10px; }
-.thin-scroll::-webkit-scrollbar-thumb{
-  background: linear-gradient(180deg, rgba(109,40,217,.55), rgba(236,72,153,.45));
-  border-radius: 999px;
-}
-.thin-scroll::-webkit-scrollbar-track{
-  background: rgba(17,24,39,.06);
-  border-radius: 999px;
+@media (min-width:1024px){
+  .max-w-7xl{ max-width:1240px !important; }
 }
 
-/* tabs */
+/* ========================================
+   2) COMMON UI
+======================================== */
+.glass,
+.glass2{
+  position:relative;
+  background: var(--card-bg);
+  backdrop-filter: blur(12px) saturate(115%);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.70);
+  border: 1px solid rgba(255,255,255,.55);
+}
+
+.glass:hover,
+.glass2:hover{
+  box-shadow: 0 16px 36px rgba(99,102,241,.12), inset 0 1px 0 rgba(255,255,255,.82);
+}
+
 .tab-btn{
-  border:1px solid rgba(109,40,217,.16);
-  background: rgba(255,255,255,.78);
+  border:1px solid rgba(139,92,246,.14);
+  background: rgba(255,255,255,.84);
   box-shadow: 0 6px 16px rgba(17,24,39,.06);
-  border-radius: 16px;
+  border-radius:16px;
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
-.tab-btn:hover{ transform: translateY(-1px); box-shadow: 0 12px 26px rgba(17,24,39,.10); }
-.tab-btn[data-active="true"]{
-  background: linear-gradient(135deg, rgba(109,40,217,.98), rgba(236,72,153,.92));
-  border-color: rgba(109,40,217,.30);
-  color: #fff !important;
+
+.tab-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(17,24,39,.08);
 }
 
-/* pill + chips */
-.pill{
-  border:1px solid rgba(109,40,217,.18);
-  background: rgba(255,255,255,.78);
+.tab-btn[data-active="true"]{
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  border-color: rgba(99,102,241,.22);
+  color:#fff !important;
 }
+
+.pill{
+  border:1px solid rgba(139,92,246,.14);
+  background: rgba(255,255,255,.82);
+}
+
 .chip{
-  border:1.5px solid rgba(109,40,217,.16);
+  border:1.5px solid rgba(139,92,246,.14);
   background: rgba(255,255,255,.92);
-  color: rgba(88,28,135,.98);
-  border-radius: 999px;
-  box-shadow: 0 10px 22px rgba(17,24,39,.07);
+  color: #6D28D9;
+  border-radius:999px;
+  box-shadow: 0 10px 22px rgba(17,24,39,.06);
   backdrop-filter: blur(10px);
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
   user-select:none;
 }
+
 .chip:hover{
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(17,24,39,.10);
-}
-.chip[data-active="true"]{
-  background: linear-gradient(135deg, rgba(109,40,217,1), rgba(34,211,238,.92));
-  border-color: rgba(34,211,238,.55);
-  color: #fff;
+  box-shadow: 0 12px 24px rgba(17,24,39,.08);
 }
 
-/* buttons */
+.chip[data-active="true"]{
+  background: linear-gradient(135deg, var(--primary-1), var(--primary-3));
+  color:#fff;
+  border-color: rgba(96,165,250,.45);
+}
+
 .btn{
-  border:1px solid rgba(109,40,217,.14);
-  background: rgba(255,255,255,.88);
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(17,24,39,.06);
+  border:1px solid rgba(139,92,246,.12);
+  background: rgba(255,255,255,.92);
+  border-radius:16px;
+  box-shadow: var(--shadow-sm);
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease, filter .12s ease;
 }
+
 .btn:hover{
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(17,24,39,.10);
+  box-shadow: 0 14px 28px rgba(17,24,39,.09);
   background: rgba(255,255,255,.98);
 }
+
 .btn:active{ transform: translateY(0) scale(.98); }
 
 .btn-primary{
-  background: linear-gradient(135deg, var(--purple), var(--pink));
-  border-color: rgba(109,40,217,.32);
-  color: #fff !important;
-  box-shadow: 0 14px 34px rgba(109,40,217,.18);
+  background: linear-gradient(135deg, var(--primary-1), var(--primary-2));
+  border-color: rgba(139,92,246,.28);
+  color:#fff !important;
+  box-shadow: 0 14px 30px rgba(139,92,246,.16);
 }
+
 .btn-primary:hover{
   filter: brightness(1.03);
   background: linear-gradient(135deg, #7C3AED, #F472B6);
 }
-.btn-danger{
-  background: rgba(244,63,94,.10);
-  border-color: rgba(244,63,94,.22);
-  color: rgba(159,18,57,.98) !important;
-}
-.btn-danger:hover{ background: rgba(244,63,94,.14); }
 
-/* inputs */
+.btn-danger{
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+  color: #9F1239 !important;
+}
+
+.btn-danger:hover{
+  background: rgba(244,63,94,.14);
+}
+
 input, select{
-  background: rgba(255,255,255,.94) !important;
-  border: 1px solid rgba(109,40,217,.16) !important;
-  border-radius: 16px !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 1px solid rgba(139,92,246,.14) !important;
+  border-radius:16px !important;
   color: var(--ink) !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.0);
-  transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0);
+  transition: box-shadow .12s ease, border-color .12s ease;
 }
+
 input:focus, select:focus{
-  outline: none !important;
-  border-color: rgba(34,211,238,.65) !important;
-  box-shadow: 0 0 0 4px rgba(34,211,238,.18) !important;
+  outline:none !important;
+  border-color: rgba(96,165,250,.55) !important;
+  box-shadow: 0 0 0 4px rgba(96,165,250,.14) !important;
 }
+
 input::placeholder{ color: rgba(17,24,39,.45); }
 option{ color: var(--ink); }
 
-/* tables */
-table th, table td { 
-  border-color: rgba(17,24,39,.10) !important; 
+table th, table td{
+  border-color: rgba(17,24,39,.08) !important;
   padding: 6px 8px;
   font-size: 13px;
 }
-thead{ background: rgba(255,255,255,.86) !important; }
 
-/* text overrides to ensure previous markup remains readable */
+thead{ background: rgba(255,255,255,.90) !important; }
+
 .text-white{ color: var(--ink) !important; }
-.text-white\/80{ color: rgba(17,24,39,.80) !important; }
-.text-white\/70{ color: rgba(17,24,39,.70) !important; }
-.text-white\/60{ color: rgba(17,24,39,.60) !important; }
-.text-white\/50{ color: rgba(17,24,39,.50) !important; }
+.text-white\/80{ color: rgba(31,41,55,.82) !important; }
+.text-white\/70{ color: rgba(31,41,55,.72) !important; }
+.text-white\/60{ color: rgba(31,41,55,.62) !important; }
+.text-white\/50{ color: rgba(31,41,55,.50) !important; }
 .text-red-300{ color: rgba(225,29,72,.95) !important; }
 
-/* cute KPI badges (optional) */
 .kpi-badge{
-  display:inline-flex; align-items:center; gap:.4rem;
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
   padding:.35rem .65rem;
   border-radius:999px;
   font-size:12px;
   border:1px solid rgba(17,24,39,.08);
   background: rgba(255,255,255,.92);
 }
-.kpi-dot{ width:10px; height:10px; border-radius:999px; box-shadow: 0 8px 18px rgba(17,24,39,.12); }
-.kpi-dot.purple{ background: var(--purple); }
-.kpi-dot.pink{ background: var(--pink); }
-.kpi-dot.lime{ background: var(--lime); }
 
-/* desktop-first spacing */
-@media (min-width: 1024px){
-  .max-w-7xl{ max-width: 1240px !important; }
-}
-</style>
-
-<style>
-/* --- Light Fintech UI Override --- */
-:root{
-  --bg0:#F5F7FB;
-  --bg1:#EEF2FF;
-  --card:#FFFFFF;
-  --ink:#0F172A;
-}
-body{
-  background: linear-gradient(180deg, #F6F8FF 0%, #FFFFFF 60%);
-}
-.glass, .glass2{
-  background:#FFFFFF;
-  border:1px solid rgba(15,23,42,.08);
-  box-shadow: 0 10px 30px rgba(15,23,42,.08);
-}
-.tab-btn[data-active="true"]{
-  background: linear-gradient(135deg, #6366F1, #60A5FA);
-}
-</style>
-
-
-<style>
-/* === FINTECH SOFT PASTEL THEME (FINCHECK-LIKE) === */
-:root{
-  --bg-main:#F6F8FC;
-  --card-bg:#FFFFFF;
-  --ink:#1E293B;
-  --muted:#64748B;
-
-  --blue:#6EC1FF;
-  --purple:#B7A6FF;
-  --pink:#FFB7D5;
-  --mint:#7EE0C3;
-  --yellow:#FFE29A;
+.kpi-dot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  box-shadow: 0 8px 18px rgba(17,24,39,.12);
 }
 
-body{
-  background: var(--bg-main);
-  font-family: 'Inter','Poppins','Noto Sans KR',sans-serif;
+.kpi-dot.purple{ background: var(--primary-1); }
+.kpi-dot.pink{ background: var(--primary-2); }
+.kpi-dot.lime{ background: #84CC16; }
+
+/* ========================================
+   3) SCROLLBAR
+======================================== */
+.thin-scroll::-webkit-scrollbar{
+  width:8px;
+  height:8px;
 }
 
-.glass, .glass2{
-  background: var(--card-bg);
-  border: none;
-  box-shadow: 0 12px 30px rgba(15,23,42,.08);
-  border-radius: 18px;
+.thin-scroll::-webkit-scrollbar-thumb{
+  background: linear-gradient(180deg, rgba(139,92,246,.50), rgba(236,72,153,.38));
+  border-radius:999px;
 }
 
-h1,h2,h3,.font-semibold{
-  color: var(--ink) !important;
+.thin-scroll::-webkit-scrollbar-track{
+  background: rgba(15,23,42,.05);
+  border-radius:999px;
 }
 
-.text-white,
-.text-white\/60,
-.text-white\/70,
-.text-white\/80{
-  color: var(--muted) !important;
+/* ========================================
+   4) TAB-EDIT 거래목록 테이블 최종본
+======================================== */
+#tab-edit .thin-scroll{
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
-.tab-btn[data-active="true"]{
-  background: linear-gradient(135deg, var(--blue), var(--purple));
-  color:#fff !important;
-}
-
-/* === Soft Fintech Pastel Theme === */
-:root{
-  --bg-main:#F3F5FB;
-  --card-bg:#FFFFFF;
-  --ink:#1F2937;
-  --muted:#6B7280;
-}
-body{
-  background: linear-gradient(180deg, #F4F6FC 0%, #FFFFFF 65%);
-  color: var(--ink);
-}
-.glass, .glass2{
-  background: var(--card-bg);
-  border-radius: 20px;
-  box-shadow: 0 12px 30px rgba(15,23,42,.08);
-}
-.text-white,
-.text-white\/60,
-.text-white\/70,
-.text-white\/80{
-  color: var(--muted) !important;
-}
-
-
-/* === Glassmorphism polish for donut cards === */
-.glass{
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow:
-    0 12px 30px rgba(15,23,42,.10),
-    inset 0 1px 0 rgba(255,255,255,.6);
-}
-
-
-/* === Neon Glass Enhancement === */
-.glass, .glass2{
-  background: rgba(255,255,255,0.78);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow:
-    0 18px 40px rgba(99,102,241,.18),
-    0 0 0 1px rgba(255,255,255,.45),
-    inset 0 1px 0 rgba(255,255,255,.75);
-}
-
-/* subtle neon edge */
-.glass::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius: inherit;
-  pointer-events:none;
-  box-shadow:
-    0 0 18px rgba(183,166,255,.35),
-    inset 0 0 12px rgba(123,185,255,.25);
-}
-
-/* neon hover */
-.glass:hover{
-  box-shadow:
-    0 22px 50px rgba(99,102,241,.25),
-    0 0 28px rgba(183,166,255,.45),
-    inset 0 1px 0 rgba(255,255,255,.85);
-}
-
-
-/* === Soft Glass (Neon Reduced) === */
-.glass, .glass2{
-  background: rgba(255,255,255,0.88);
-  backdrop-filter: blur(12px) saturate(115%);
-  -webkit-backdrop-filter: blur(12px) saturate(115%);
-  box-shadow:
-    0 12px 28px rgba(15,23,42,.12),
-    inset 0 1px 0 rgba(255,255,255,.7);
-}
-
-.glass:hover{
-  box-shadow:
-    0 16px 36px rgba(99,102,241,.15),
-    inset 0 1px 0 rgba(255,255,255,.8);
-}
-
-</style>
-
-
-<style>
-/* === Matrix table UI 개선 (가독성 강화) === */
-#mxTable tbody tr:nth-child(even){
-  background: rgba(15,23,42,0.025);
-}
-#mxTable tbody tr:hover{
-  background: rgba(99,102,241,0.10);
-}
-#mxTable tbody td{
-  border-bottom: 1px solid rgba(15,23,42,0.10);
-}
-
-/* 좌측 고정 컬럼 강조 */
-#mxTable td.sticky{
-  background: rgba(255,255,255,0.9) !important;
-  font-weight: 600;
-}
-
-/* 편집 가능 셀 강조 */
-#mxTable tbody td[data-month]{
-  transition: background .12s ease, box-shadow .12s ease;
-}
-#mxTable tbody td[data-month]:hover{
-  background: rgba(236,72,153,0.12);
-  box-shadow: inset 0 0 0 1px rgba(236,72,153,0.25);
-}
-
-/* 숫자 정렬 가독성 */
-#mxTable tbody td{
-  font-variant-numeric: tabular-nums;
-}
-</style>
-
-
-
-<style>
-/* === MX TABLE FINAL FIX === */
-#mxTable thead th {
-  height: 48px;
-  line-height: 48px;
-  vertical-align: middle;
-}
-#mxTable thead tr:first-child th {
-  height: 52px;
-  line-height: 52px;
-}
-#mxTable thead tr:nth-child(2) th {
-  height: 44px;
-  line-height: 44px;
-}
-</style>
-
-
-<style>
-/* === Month Grouping UI === */
-#mxTable thead th[colspan] {
-  border-left: 2px solid rgba(99,102,241,.25);
-}
-
-#mxTable tbody td[data-month]:nth-child(3n+2) {
-  background: rgba(99,102,241,.04);
-}
-
-#mxTable tbody td[data-month]:nth-child(3n+4) {
-  border-right: 2px solid rgba(99,102,241,.25);
-}
-</style>
-
-
-<style>
-/* === DB UX ENHANCEMENTS === */
-.db-context{
-  display:flex; gap:12px; align-items:center; flex-wrap:wrap;
-}
-.db-chip{
-  padding:6px 12px; border-radius:999px;
-  background:rgba(99,102,241,.1);
-  color:#4338CA; font-size:12px; font-weight:600;
-}
-.db-summary{
-  background:#F8FAFC; border:1px solid rgba(15,23,42,.08);
-  border-radius:16px; padding:12px; font-size:12px;
-}
-.cell-editing{ background:rgba(99,102,241,.15)!important; }
-.cell-saved{ animation:flashGreen .6s; }
-@keyframes flashGreen{
-  0%{background:#ECFDF5;}100%{background:transparent;}
-}
-</style>
-
-
-<style>
-/* ===============================
-   DB MATRIX TABLE – CLEAN FINTECH
-   =============================== */
-
-/* table base */
-#mxTable{
+#tab-edit table{
+  width:100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
 }
 
-/* header */
-#mxTable thead th{
-  background: #F8FAFF;
-  color:#334155;
-  font-weight:600;
-  border-bottom:1px solid rgba(15,23,42,.08);
-  text-align:right;
+#tab-edit table th,
+#tab-edit table td{
+  font-size: 14px;
+  line-height: 1.35;
+  padding: 10px 12px;
+  vertical-align: middle;
+  white-space: nowrap;
+  border-color: rgba(17,24,39,.08) !important;
 }
 
-/* month group header */
-#mxTable thead th[colspan]{
-  text-align:center;
-  font-size:12px;
-  color:#475569;
-  background:#EEF2FF;
+#tab-edit table thead{
+  background: transparent !important;
 }
 
-/* detail column */
-#mxTable td:first-child{
-  text-align:left;
-  font-weight:600;
-  color:#1E293B;
-  background:#FFFFFF;
+#tab-edit table th{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(255,255,255,.96) !important;
+  color: rgba(55,65,81,.95) !important;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: inset 0 -1px 0 rgba(17,24,39,.08);
 }
 
-/* sticky detail column */
-#mxTable td.sticky,
-#mxTable th.sticky{
-  background:#FFFFFF;
-  box-shadow: 2px 0 0 rgba(15,23,42,.04);
+#tab-edit table tbody tr{
+  transition: background .12s ease;
 }
 
-/* body cells */
-#mxTable tbody td{
-  border-bottom:1px solid rgba(15,23,42,.06);
-  padding:8px 10px;
-  color:#334155;
+#tab-edit table tbody tr:nth-child(even){
+  background: rgba(15,23,42,.018);
 }
 
-/* zebra */
-#mxTable tbody tr:nth-child(even){
-  background:#FAFBFF;
+#tab-edit table tbody tr:hover{
+  background: rgba(99,102,241,.06);
 }
 
-/* hover row */
-#mxTable tbody tr:hover{
-  background:#EEF2FF;
+#entriesTbody td{
+  color: rgba(55,65,81,.92);
+  background: transparent;
 }
 
-/* numeric emphasis */
-#mxTable tbody td[data-month]{
+#tab-edit table td.truncate,
+#tab-edit table td[data-ellipsis="true"]{
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#tab-edit table td.text-right{
   font-variant-numeric: tabular-nums;
-  font-weight:500;
+  font-weight: 700;
+  color: #1F2937;
 }
 
-/* editable hover */
-#mxTable tbody td[data-month]:hover{
-  background:rgba(99,102,241,.12);
-  cursor:pointer;
+#tab-edit table td:last-child .flex{
+  gap: 6px !important;
+  flex-wrap: nowrap !important;
 }
 
-/* editing */
-#mxTable td.cell-editing{
-  background:rgba(99,102,241,.18)!important;
+#tab-edit table td:last-child .btn{
+  padding: 6px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  min-width: auto !important;
 }
 
-/* saved flash */
-#mxTable td.cell-saved{
-  animation: flashGreen .6s;
+#tab-edit table th:nth-child(1),
+#tab-edit table td:nth-child(1){ width:110px; } /* 날짜 */
+
+#tab-edit table th:nth-child(2),
+#tab-edit table td:nth-child(2){ width:78px; } /* 구분 */
+
+#tab-edit table th:nth-child(3),
+#tab-edit table td:nth-child(3){ width:78px; } /* 흐름 */
+
+#tab-edit table th:nth-child(4),
+#tab-edit table td:nth-child(4){ width:92px; } /* 대분류 */
+
+#tab-edit table th:nth-child(5),
+#tab-edit table td:nth-child(5){ width:92px; } /* 소분류 */
+
+#tab-edit table th:nth-child(6),
+#tab-edit table td:nth-child(6){ width:150px; } /* 상세항목 */
+
+#tab-edit table th:nth-child(7),
+#tab-edit table td:nth-child(7){ width:110px; } /* 금액 */
+
+#tab-edit table th:nth-child(8),
+#tab-edit table td:nth-child(8){ width:120px; } /* 관리 */
+
+#tab-edit table thead tr th:first-child{
+  border-top-left-radius: 12px;
 }
 
-/* subtle grid edge */
-#mxTable tbody td:last-child{
-  border-right:1px solid rgba(15,23,42,.06);
+#tab-edit table thead tr th:last-child{
+  border-top-right-radius: 12px;
 }
 
-/* header sticky polish */
-#mxTable thead{
-  box-shadow: 0 2px 0 rgba(15,23,42,.06);
+@media (max-width:1280px){
+  #tab-edit table th,
+  #tab-edit table td{
+    font-size:13px;
+    padding: 9px 10px;
+  }
+
+  #tab-edit table td:last-child .btn{
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+  }
 }
-</style>
 
+/* ========================================
+   5) DB TAB / MATRIX TABLE
+======================================== */
+.db-context{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+}
 
-<style>
-/* ===============================
-   DB TAB FINAL CLEAN PATCH
-   =============================== */
+.db-chip{
+  padding:6px 12px;
+  border-radius:999px;
+  background:rgba(99,102,241,.10);
+  color:#4338CA;
+  font-size:12px;
+  font-weight:600;
+}
 
-/* --- DB tab only: neutral scrollbar --- */
+.db-summary{
+  background:#F8FAFC;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:16px;
+  padding:12px;
+  font-size:12px;
+}
+
+.cell-editing{ background:rgba(99,102,241,.15)!important; }
+.cell-saved{ animation:flashGreen .6s; }
+
+@keyframes flashGreen{
+  0%{ background:#ECFDF5; }
+  100%{ background:transparent; }
+}
+
+/* DB 탭 스크롤바 중립화 */
 #tab-all .thin-scroll::-webkit-scrollbar{
   width:6px;
   height:6px;
 }
+
 #tab-all .thin-scroll::-webkit-scrollbar-thumb{
   background: rgba(148,163,184,.45);
-  border-radius: 999px;
+  border-radius:999px;
 }
+
 #tab-all .thin-scroll::-webkit-scrollbar-track{
   background: transparent;
 }
 
-/* --- Kill any neon / gradient bleed --- */
+/* DB 카드 내부 glow 제거 */
 #tab-all .glass::after{
   display:none !important;
 }
 
-/* --- Sticky column fix --- */
-#mxTable td.sticky,
-#mxTable th.sticky{
-  background:#FFFFFF !important;
-  z-index:5;
-  box-shadow: 2px 0 0 rgba(15,23,42,.06);
-}
-
-/* --- Header z-index isolation --- */
-#mxTable thead th{
-  z-index:6;
-}
-
-/* --- Table font downscale --- */
-#mxTable{
-  font-size:10px;
-}
-#mxTable thead th{
-  font-size:10px;
-}
-#mxTable tbody td{
-  font-size:10px;
-}
-
-/* --- Tighten cell padding --- */
-#mxTable tbody td,
-#mxTable thead th{
-  padding:6px 8px;
-}
-
-/* --- Remove any accidental background overlays --- */
-#tab-all table *{
-  background-clip: padding-box;
-}
-</style>
-
-
-<style>
-/* ===============================
-   FIX FLOATING WHITE HEADER BOXES
-   =============================== */
-
-/* empty header cells (alignment placeholders) */
-#mxTable thead th:empty{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* left padding header cells before first month */
-#mxTable thead th.placeholder{
-  background: transparent !important;
-  border: none !important;
-}
-
-/* normalize header row height */
-#mxTable thead tr{
-  height: 36px;
-}
-
-/* ensure no radius leaks */
-#mxTable thead th{
-  border-radius: 0 !important;
-}
-</style>
-
-
-<style>
-/* ===============================
-   RESULT TABLE GLASS / NEON FRAME
-   =============================== */
-
-/* outer table container */
+/* 결과 테이블 외곽 */
 #tab-all .thin-scroll{
-  position: relative;
-  border-radius: 18px;
+  position:relative;
+  border-radius:18px;
   background:
-    linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(
-      135deg,
-      rgba(167,139,250,.55),
-      rgba(99,102,241,.45),
-      rgba(236,72,153,.35)
-    ) border-box;
-  border: 1px solid transparent;
+    linear-gradient(#ffffff,#ffffff) padding-box,
+    linear-gradient(135deg, rgba(167,139,250,.55), rgba(99,102,241,.45), rgba(236,72,153,.35)) border-box;
+  border:1px solid transparent;
   box-shadow:
     0 12px 30px rgba(99,102,241,.15),
     inset 0 0 0 1px rgba(255,255,255,.6);
 }
 
-/* inner grid separators – ultra subtle */
-#mxTable tbody td{
-  border-bottom: 1px solid rgba(99,102,241,.06);
-}
-#mxTable thead th{
-  border-bottom: 1px solid rgba(99,102,241,.12);
+/* matrix base */
+#mxTable{
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 10px;
 }
 
-/* vertical separators for month blocks */
+#mxTable thead{
+  box-shadow: 0 2px 0 rgba(15,23,42,.06);
+}
+
+#mxTable thead th{
+  z-index:6;
+  font-size:10px;
+  background:#F8FAFF;
+  color:#334155;
+  font-weight:600;
+  border-bottom:1px solid rgba(99,102,241,.12);
+  text-align:right;
+  padding:6px 8px;
+  background-clip: padding-box;
+  border-radius:0 !important;
+}
+
 #mxTable thead th[colspan]{
+  text-align:center;
+  font-size:12px;
+  color:#475569;
+  background:#EEF2FF;
+  border-left:2px solid rgba(99,102,241,.25);
   box-shadow: inset -1px 0 0 rgba(99,102,241,.12);
 }
-#mxTable tbody td[data-month]{
-  box-shadow: inset -1px 0 0 rgba(99,102,241,.05);
+
+#mxTable thead tr{
+  height:36px;
 }
 
-/* glow on hover focus */
-#mxTable tbody tr:hover{
-  box-shadow:
-    inset 0 0 0 1px rgba(167,139,250,.25);
+#mxTable thead tr:first-child th{
+  height:52px;
+  line-height:52px;
 }
-</style>
 
+#mxTable thead tr:nth-child(2) th{
+  height:44px;
+  line-height:44px;
+  text-align:center;
+  padding:6px 0 !important;
+  font-weight:600;
+}
 
-<style>
-/* ===============================
-   HEADER STRUCTURE FINAL FIX
-   =============================== */
-
-/* collapse leading empty header cells completely */
 #mxTable thead tr:first-child th:not([colspan]){
   width:0 !important;
   min-width:0 !important;
@@ -703,37 +517,84 @@ body{
   background:transparent !important;
 }
 
-/* ensure month headers start exactly after item column */
-#mxTable thead tr:first-child{
-  grid-auto-flow: column;
+#mxTable thead th:empty,
+#mxTable thead th.placeholder{
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
 }
 
-/* normalize sub-header (돌프/천사/공통) */
-#mxTable thead tr:nth-child(2) th{
-  text-align:center;
-  padding:6px 0 !important;
+#mxTable td:first-child{
+  text-align:left;
   font-weight:600;
+  color:#1E293B;
+  background:#FFFFFF;
 }
 
-/* force exact column alignment */
-#mxTable thead tr:nth-child(2) th,
-#mxTable tbody td[data-month]{
-  width: 88px;
-  min-width: 88px;
-  max-width: 88px;
-}
-
-/* kill any residual background blocks */
-#mxTable thead th{
-  background-clip: padding-box;
-}
-
-/* sticky left column width lock */
 #mxTable td.sticky,
 #mxTable th.sticky{
-  width: 160px;
-  min-width: 160px;
-  max-width: 160px;
+  background:#FFFFFF !important;
+  width:160px;
+  min-width:160px;
+  max-width:160px;
+  z-index:5;
+  box-shadow:2px 0 0 rgba(15,23,42,.06);
+}
+
+#mxTable tbody td{
+  font-size:10px;
+  padding:6px 8px;
+  color:#334155;
+  border-bottom:1px solid rgba(99,102,241,.06);
+  font-variant-numeric: tabular-nums;
+}
+
+#mxTable tbody td:last-child{
+  border-right:1px solid rgba(15,23,42,.06);
+}
+
+#mxTable tbody tr:nth-child(even){
+  background:#FAFBFF;
+}
+
+#mxTable tbody tr:hover{
+  background:#EEF2FF;
+  box-shadow: inset 0 0 0 1px rgba(167,139,250,.25);
+}
+
+#mxTable tbody td[data-month]{
+  width:88px;
+  min-width:88px;
+  max-width:88px;
+  font-weight:500;
+  transition: background .12s ease, box-shadow .12s ease;
+  box-shadow: inset -1px 0 0 rgba(99,102,241,.05);
+}
+
+#mxTable tbody td[data-month]:hover{
+  background:rgba(99,102,241,.12);
+  cursor:pointer;
+}
+
+#mxTable tbody td[data-month]:nth-child(3n+2){
+  background:rgba(99,102,241,.04);
+}
+
+#mxTable tbody td[data-month]:nth-child(3n+4){
+  border-right:2px solid rgba(99,102,241,.25);
+}
+
+#mxTable td.cell-editing{
+  background:rgba(99,102,241,.18)!important;
+}
+
+/* ========================================
+   6) SMALL UTIL
+======================================== */
+.truncate{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 </style>
 
@@ -1097,9 +958,7 @@ body{
                     <th class="text-left py-3 px-3 border-b">대분류</th>
                     <th class="text-left py-3 px-3 border-b">소분류</th>
                     <th class="text-left py-3 px-3 border-b">&nbsp;</th>
-                    <th class="text-left py-3 px-3 border-b">상세 메모</th>
-                    <th class="text-right py-3 px-3 border-b">금액</th
-                    <th class="text-left py-3 px-3 border-b">메모</th>
+                    <th class="text-right py-3 px-3 border-b">금액</th>
                     <th class="text-left py-3 px-3 border-b">관리</th>
                   </tr>
                 </thead>
@@ -2155,39 +2014,56 @@ function memberNameById(id){
 function renderEntries(rows){
   const tbody = byId("entriesTbody");
   tbody.innerHTML = "";
+
   for(const r of rows){
     const g = r.detail_items?.subcategories?.categories?.name || "";
     const s = r.detail_items?.subcategories?.name || "";
     const d = r.detail_items?.name || "";
 
     const tr = document.createElement("tr");
+    tr.className = "hover:bg-black/5";
+
     tr.innerHTML = `
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.entry_date)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(memberNameById(r.member_id))}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(r.flow_type)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(g)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(s)}</td>
-      <td class="py-2 px-3 border-b text-white/80">${escapeHtml(d)}</td>
-      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.detail || "")}</td>
-      <td class="py-2 px-3 border-b text-right font-semibold">${fmt(r.amount)}</td>
-      <td class="py-2 px-3 border-b text-white/70">${escapeHtml(r.memo || "")}</td>
-      <td class="py-2 px-3 border-b">
+      <td class="py-2 px-3 border-b text-white/80 whitespace-nowrap">${escapeHtml(r.entry_date)}</td>
+      <td class="py-2 px-3 border-b text-white/80 whitespace-nowrap">${escapeHtml(memberNameById(r.member_id))}</td>
+      <td class="py-2 px-3 border-b text-white/80 whitespace-nowrap">${escapeHtml(flowLabel(r.flow_type))}</td>
+      <td class="py-2 px-3 border-b text-white/80 whitespace-nowrap truncate max-w-[110px]" title="${escapeHtml(g)}">${escapeHtml(g)}</td>
+      <td class="py-2 px-3 border-b text-white/80 whitespace-nowrap truncate max-w-[110px]" title="${escapeHtml(s)}">${escapeHtml(s)}</td>
+      <td class="py-2 px-3 border-b text-white/80 whitespace-nowrap truncate max-w-[160px]" title="${escapeHtml(d)}">${escapeHtml(d)}</td>
+      <td class="py-2 px-3 border-b text-right font-semibold whitespace-nowrap">${fmt(r.amount)}</td>
+      <td class="py-2 px-3 border-b whitespace-nowrap">
         <div class="flex gap-2">
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="edit"><i class="fa-regular fa-pen-to-square mr-1"></i>수정</button>
-          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="del"><i class="fa-regular fa-trash-can mr-1"></i>삭제</button>
+          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="edit">
+            <i class="fa-regular fa-pen-to-square mr-1"></i>수정
+          </button>
+          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="del">
+            <i class="fa-regular fa-trash-can mr-1"></i>삭제
+          </button>
         </div>
       </td>
     `;
+
     tr.querySelector('[data-act="edit"]').addEventListener("click", () => startEdit(r));
     tr.querySelector('[data-act="del"]').addEventListener("click", async () => {
       if(!confirm("삭제할까?")) return;
-      await apiFetch("/rest/v1/entries", { method:"DELETE", query:{ id:`eq.${r.id}` }, preferReturn:false });
+      await apiFetch("/rest/v1/entries", {
+        method:"DELETE",
+        query:{ id:`eq.${r.id}` },
+        preferReturn:false
+      });
       await refreshEverything();
     });
+
     tbody.appendChild(tr);
   }
 }
 
+  function flowLabel(v){
+  if(v === "expense") return "지출";
+  if(v === "income") return "수입";
+  if(v === "saving") return "저축";
+  return v || "";
+}
 
 function startEdit(r){
   byId("editId").value = r.id;
