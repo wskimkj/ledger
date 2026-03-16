@@ -1164,59 +1164,69 @@ body{
       </section>
       <!-- CATEGORY MANAGEMENT -->
 <section id="tab-settings" class="mt-4 hidden">
-        <div class="glass rounded-2xl p-4">
+  <div class="glass rounded-2xl p-4">
     <h2 class="text-lg font-semibold mb-3">설정</h2>
-            <div>
-              <div class="text-sm font-semibold">카테고리 관리 (대분류 → 소분류 → 상세항목)</div>
-              <div class="text-xs text-black/60 mt-1">
-                * 템플릿/드롭다운/대시보드에 즉시 반영돼. (권한: owner만 수정 가능)
-              </div>
-            </div>
-            <button id="btnCatReload" class="btn rounded-xl px-4 py-2 text-sm">
-              <i class="fa-solid fa-rotate mr-2"></i>새로고침
-            </button>
-          </div>
 
-          <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- Groups -->
-            <div class="glass2 rounded-2xl p-4">
-              <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold">대분류</div>
-              </div>
-              <div class="mt-3 flex gap-2">
-                <input id="catNewGroup" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="대분류 이름 (예: 소모 지출)" />
-                <button id="btnAddGroup" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
-              </div>
-              <div id="catGroupList" class="mt-3 space-y-2 text-sm"></div>
-            </div>
+    <!-- 계정별 마지막 예산 업로드 일시 -->
+    <div class="glass2 rounded-2xl p-4 mt-4">
+      <div class="text-sm font-semibold mb-2">계정별 마지막 예산 업로드 일시</div>
+      <div id="latestUploadByAccount" class="space-y-2">
+        <div class="text-sm text-black/60">업로드 이력을 불러오는 중...</div>
+      </div>
+    </div>
 
-            <!-- Subcategories -->
-            <div class="glass2 rounded-2xl p-4">
-              <div class="text-sm font-semibold">소분류</div>
-              <div class="mt-3 grid grid-cols-1 gap-2">
-                <select id="catPickGroup" class="rounded-xl px-3 py-2 text-sm"></select>
-                <div class="flex gap-2">
-                  <input id="catNewSub" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="소분류 이름 (예: 식비)" />
-                  <button id="btnAddSub" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
-                </div>
-              </div>
-              <div id="catSubList" class="mt-3 space-y-2 text-sm"></div>
-            </div>
-
-            <!-- Detail items -->
-            <div class="glass2 rounded-2xl p-4">
-              <div class="text-sm font-semibold">&nbsp;</div>
-              <div class="mt-3 grid grid-cols-1 gap-2">
-                <select id="catPickSub" class="rounded-xl px-3 py-2 text-sm"></select>
-                <input id="catNewDetail" class="rounded-xl px-3 py-2 text-sm" placeholder="상세항목 이름 (예: 외식)" />
-                <input id="catNewExample" class="rounded-xl px-3 py-2 text-sm" placeholder="설명(예시) (예: 점심/저녁, 스타벅스 등)" />
-                <button id="btnAddDetail" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
-              </div>
-              <div id="catDetailList" class="mt-3 space-y-2 text-sm"></div>
-            </div>
-          </div>
+    <div class="mt-4 flex items-center justify-between gap-2 flex-wrap">
+      <div>
+        <div class="text-sm font-semibold">카테고리 관리 (대분류 → 소분류 → 상세항목)</div>
+        <div class="text-xs text-black/60 mt-1">
+          * 템플릿/드롭다운/대시보드에 즉시 반영돼. (권한: owner만 수정 가능)
         </div>
-      </section>
+      </div>
+      <button id="btnCatReload" class="btn rounded-xl px-4 py-2 text-sm">
+        <i class="fa-solid fa-rotate mr-2"></i>새로고침
+      </button>
+    </div>
+  </div>
+
+  <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Groups -->
+    <div class="glass2 rounded-2xl p-4">
+      <div class="flex items-center justify-between">
+        <div class="text-sm font-semibold">대분류</div>
+      </div>
+      <div class="mt-3 flex gap-2">
+        <input id="catNewGroup" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="대분류 이름 (예: 소모 지출)" />
+        <button id="btnAddGroup" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
+      </div>
+      <div id="catGroupList" class="mt-3 space-y-2 text-sm"></div>
+    </div>
+
+    <!-- Subcategories -->
+    <div class="glass2 rounded-2xl p-4">
+      <div class="text-sm font-semibold">소분류</div>
+      <div class="mt-3 grid grid-cols-1 gap-2">
+        <select id="catPickGroup" class="rounded-xl px-3 py-2 text-sm"></select>
+        <div class="flex gap-2">
+          <input id="catNewSub" class="rounded-xl px-3 py-2 text-sm w-full" placeholder="소분류 이름 (예: 식비)" />
+          <button id="btnAddSub" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
+        </div>
+      </div>
+      <div id="catSubList" class="mt-3 space-y-2 text-sm"></div>
+    </div>
+
+    <!-- Detail items -->
+    <div class="glass2 rounded-2xl p-4">
+      <div class="text-sm font-semibold">상세항목</div>
+      <div class="mt-3 grid grid-cols-1 gap-2">
+        <select id="catPickSub" class="rounded-xl px-3 py-2 text-sm"></select>
+        <input id="catNewDetail" class="rounded-xl px-3 py-2 text-sm" placeholder="상세항목 이름 (예: 외식)" />
+        <input id="catNewExample" class="rounded-xl px-3 py-2 text-sm" placeholder="설명(예시) (예: 점심/저녁, 스타벅스 등)" />
+        <button id="btnAddDetail" class="btn btn-primary rounded-xl px-4 py-2 text-sm">추가</button>
+      </div>
+      <div id="catDetailList" class="mt-3 space-y-2 text-sm"></div>
+    </div>
+  </div>
+</section>
 
     </div>
   </div>
@@ -2934,8 +2944,83 @@ async function bulkUpload(){
     await sleep(80);
   }
 
+  await apiFetch("/rest/v1/budget_upload_logs", {
+  method: "POST",
+  preferReturn: false,
+  body: {
+    ledger_id: currentLedgerId,
+    uploaded_by: session.user.id,
+    uploaded_by_email: session.user?.email || "",
+    source_file_name: file.name || "",
+    target_ym: defaultYm || "",
+    row_count: toUpsertUnique.length
+  }
+});
+
   setStatus("업로드 완료!");
   await refreshEverything();
+}
+
+function fmtDateTime(iso){
+  if(!iso) return "-";
+  try{
+    return new Date(iso).toLocaleString("ko-KR");
+  }catch(_){
+    return String(iso);
+  }
+}
+
+async function fetchUploadLogs(){
+  const rows = await apiFetch("/rest/v1/budget_upload_logs", {
+    query: {
+      select: "id,uploaded_by,uploaded_by_email,source_file_name,target_ym,row_count,created_at",
+      ledger_id: `eq.${currentLedgerId}`,
+      order: "created_at.desc",
+      limit: "1000"
+    }
+  });
+  return rows || [];
+}
+
+function computeLatestUploadByAccount(rows){
+  const map = new Map();
+
+  for(const r of rows){
+    const key = r.uploaded_by || r.uploaded_by_email || "";
+    if(!key) continue;
+
+    if(!map.has(key)){
+      map.set(key, r);
+    }
+  }
+
+  return [...map.values()];
+}
+
+function renderLatestUploadByAccount(rows){
+  const el = byId("latestUploadByAccount");
+  if(!el) return;
+
+  const latestRows = computeLatestUploadByAccount(rows);
+
+  if(!latestRows.length){
+    el.innerHTML = `<div class="text-sm text-black/60">업로드 이력이 없습니다.</div>`;
+    return;
+  }
+
+  el.innerHTML = latestRows.map(r => `
+    <div class="flex items-center justify-between rounded-xl bg-white/60 border border-black/5 px-3 py-2">
+      <div class="min-w-0">
+        <div class="font-medium truncate">${escapeHtml(r.uploaded_by_email || r.uploaded_by || "-")}</div>
+        <div class="text-xs text-black/50">
+          파일: ${escapeHtml(r.source_file_name || "-")} · 대상월: ${escapeHtml(r.target_ym || "-")} · ${escapeHtml(String(r.row_count || 0))}건
+        </div>
+      </div>
+      <div class="text-sm text-black/60 shrink-0 ml-3">
+        ${escapeHtml(fmtDateTime(r.created_at))}
+      </div>
+    </div>
+  `).join("");
 }
 
 function pad2(n){ return String(n).padStart(2,"0"); }
@@ -3690,7 +3775,7 @@ async function refreshEverything(){
 
   try{
     await loadCategoryMaster();
-    renderMasterDropdowns(); // ✅ 이 줄이 핵심
+    renderMasterDropdowns();
   }catch(e){
     console.warn("카테고리 마스터 로드 실패", e);
   }
@@ -3698,6 +3783,13 @@ async function refreshEverything(){
   await loadEntries();
   await refreshDashboard();
   await refreshMatrix();
+
+  try{
+    const uploadLogs = await fetchUploadLogs();
+    renderLatestUploadByAccount(uploadLogs);
+  }catch(e){
+    console.warn("업로드 로그 로드 실패", e);
+  }
 }
 
 
