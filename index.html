@@ -977,51 +977,52 @@ thead{ background: rgba(255,255,255,.90) !important; }
       </section>
       <!-- ALL DATA GRID (월별 매트릭스 편집) -->
       <section id="tab-all" class="mt-4 hidden">
-        <div class="db-shell">
-          <div class="glass rounded-2xl p-4 db-top">
-            <div class="hidden">
-              <div class="db-chip" id="dbCtxYear"></div>
-              <div class="db-chip" id="dbCtxFlow"></div>
-              <div class="db-chip"></div>
+        <div class="glass rounded-2xl p-4">
+
+<div class="hidden">
+  <div class="db-chip" id="dbCtxYear"></div>
+  <div class="db-chip" id="dbCtxFlow"></div>
+  <div class="db-chip"></div>
+</div>
+<div class="hidden">
+  
+</div>
+
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div class="text-sm font-semibold">월별 매트릭스</div>
+             
             </div>
 
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div class="text-sm font-semibold">월별 매트릭스</div>
-              </div>
+            <div class="flex flex-wrap gap-2 items-center">
+              <div class="text-xs text-black/60">연도</div>
+              <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
+<div class="text-xs text-black/60 ml-1">흐름</div>
+              <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
+                <option value="expense">지출</option>
+                <option value="income">수입</option>
+                <option value="saving">저축</option>
+              </select>
 
-              <div class="flex flex-wrap gap-2 items-center">
-                <div class="text-xs text-black/60">연도</div>
-                <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
-                <div class="text-xs text-black/60 ml-1">흐름</div>
-                <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
-                  <option value="expense">지출</option>
-                  <option value="income">수입</option>
-                  <option value="saving">저축</option>
-                </select>
-
-                <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
-                  <i class="fa-solid fa-rotate mr-2"></i>새로고침
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-4 glass2 rounded-2xl p-3">
-              <div class="text-xs text-black/60">
-                * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
-              </div>
+              <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
+                <i class="fa-solid fa-rotate mr-2"></i>새로고침
+              </button>
             </div>
           </div>
 
-          <div class="glass rounded-2xl p-4 db-table-card">
-            <div class="db-table-wrap thin-scroll">
-              <table class="text-sm border-separate border-spacing-0" id="mxTable">
-                <thead id="mxThead" class="text-black/70"></thead>
-                <tbody id="mxTbody"></tbody>
-              </table>
+          <div class="mt-4 glass2 rounded-2xl p-3">
+            <div class="text-xs text-black/60">
+              * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
             </div>
-            <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
           </div>
+
+          <div class="mt-4 overflow-auto thin-scroll max-h-[70vh]">
+            <table class="w-full text-sm border-separate border-spacing-0" id="mxTable">
+              <thead id="mxThead" class="text-black/70 sticky top-0 bg-white/60 "></thead>
+              <tbody id="mxTbody"></tbody>
+            </table>
+          </div>
+          <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
         </div>
       </section>
       <!-- CATEGORY MANAGEMENT -->
@@ -2266,6 +2267,7 @@ function fillMatrixFilters(years){
   ySel.value = years.includes(prevY) ? prevY : (years.at(-1) || new Date().getFullYear().toString());
 }
 
+
 function renderMatrixTable3({ year, flow_type, rows }){
   const months = monthLabels();
   const members3 = getMatrixMembers3();
@@ -2273,34 +2275,62 @@ function renderMatrixTable3({ year, flow_type, rows }){
     setError("members 테이블에 '돌프/천사/공통'이 모두 있어야 3컬럼 매트릭스를 완전하게 표시할 수 있어. (일부만 있으면 있는 멤버만 표시함)");
   }
 
-  const map = new Map();
+  // 1) 마스터 카테고리 기준으로 전체 행 목록 생성
+  const masterRows = (masterDetailItems || [])
+    .filter(it => {
+      const gName = it?.subcategory?.category?.name || "";
+      return flowFromGroup(gName) === flow_type;
+    })
+    .map(it => ({
+      flow_type,
+      group: it?.subcategory?.category?.name || "",
+      subcategory: it?.subcategory?.name || "",
+      detail: it?.name || "",
+      detail_item_id: it?.id || "",
+      sort_group: it?.subcategory?.category?.sort_order ?? 9999,
+      sort_sub: it?.subcategory?.sort_order ?? 9999,
+      sort_detail: it?.sort_order ?? 9999,
+      cell: Object.fromEntries(
+        months.map(mm => [mm, Object.fromEntries(members3.map(m => [m.id, 0]))])
+      )
+    }));
+
+  const map = new Map(masterRows.map(r => [buildMatrixRowKey(flow_type, r.detail_item_id), r]));
+
+  // 2) 실제 입력 데이터 덮어쓰기/합산
   for(const r of rows){
-    const mk = (r.entry_date||"").slice(5,7);
+    const mk = (r.entry_date || "").slice(5,7);
     if(!months.includes(mk)) continue;
 
-    const g = r.detail_items?.subcategories?.categories?.name || "";
-    const s = r.detail_items?.subcategories?.name || "";
-    const d = r.detail_items?.name || "";
     const key = buildMatrixRowKey(flow_type, r.detail_item_id);
-
     if(!map.has(key)){
-      const cell = {};
-      for(const mm of months){
-        cell[mm] = {};
-        for(const m of members3){
-          cell[mm][m.id] = 0;
-        }
-      }
-      map.set(key, { flow_type, group: g, subcategory: s, detail: d, detail_item_id: r.detail_item_id, cell });
+      const fallback = {
+        flow_type,
+        group: r.detail_items?.subcategories?.categories?.name || "",
+        subcategory: r.detail_items?.subcategories?.name || "",
+        detail: r.detail_items?.name || "",
+        detail_item_id: r.detail_item_id || "",
+        sort_group: 9999,
+        sort_sub: 9999,
+        sort_detail: 9999,
+        cell: Object.fromEntries(
+          months.map(mm => [mm, Object.fromEntries(members3.map(m => [m.id, 0]))])
+        )
+      };
+      map.set(key, fallback);
     }
 
     const obj = map.get(key);
-    if(obj.cell[mk] && obj.cell[mk][r.member_id] !== undefined){
-      obj.cell[mk][r.member_id] += Number(r.amount||0);
+    if(obj.cell?.[mk] && obj.cell[mk][r.member_id] !== undefined){
+      obj.cell[mk][r.member_id] += Number(r.amount || 0);
     }
   }
 
   const arr = [...map.values()].sort((a,b)=>{
+    if((a.sort_group ?? 9999) !== (b.sort_group ?? 9999)) return (a.sort_group ?? 9999) - (b.sort_group ?? 9999);
+    if((a.sort_sub ?? 9999) !== (b.sort_sub ?? 9999)) return (a.sort_sub ?? 9999) - (b.sort_sub ?? 9999);
+    if((a.sort_detail ?? 9999) !== (b.sort_detail ?? 9999)) return (a.sort_detail ?? 9999) - (b.sort_detail ?? 9999);
+
     const A = `${a.group}||${a.subcategory}||${a.detail}`;
     const B = `${b.group}||${b.subcategory}||${b.detail}`;
     return A.localeCompare(B, "ko");
@@ -2309,15 +2339,19 @@ function renderMatrixTable3({ year, flow_type, rows }){
   const thead = byId("mxThead");
   thead.innerHTML = `
     <tr>
-      <th class="sticky-col">상세항목</th>
+      <th class="sticky-col">&nbsp;</th>
       ${months.map(mm => `
-        <th class="text-center ${mm !== months[months.length - 1] ? 'group-end' : ''}" colspan="${members3.length}">${Number(mm)}월</th>
+        <th class="text-center group-end" colspan="${members3.length}">
+          ${Number(mm)}월
+        </th>
       `).join("")}
     </tr>
     <tr>
       <th class="sticky-col"></th>
-      ${months.map((mm) => members3.map((m, idx) => `
-        <th class="text-right ${idx === members3.length - 1 ? 'group-end' : ''}">${escapeHtml(m.name)}</th>
+      ${months.map(() => members3.map((m, idx, arr) => `
+        <th class="text-right ${idx === arr.length - 1 ? 'group-end' : ''}">
+          ${escapeHtml(m.name)}
+        </th>
       `).join("")).join("")}
     </tr>
   `;
@@ -2331,14 +2365,16 @@ function renderMatrixTable3({ year, flow_type, rows }){
 
     const tdDet = document.createElement("td");
     tdDet.className = "sticky-col truncate font-semibold";
-    tdDet.title = row.detail || "";
+    tdDet.title = `${row.group || ""} > ${row.subcategory || ""} > ${row.detail || ""}`;
     tdDet.textContent = row.detail || "";
     tr.appendChild(tdDet);
 
     for(const mm of months){
       members3.forEach((m, idx) => {
         const td = document.createElement("td");
-        td.className = `font-medium cursor-pointer ${idx === members3.length - 1 ? 'group-end' : ''}`;
+        td.className = idx === members3.length - 1
+          ? "group-end"
+          : "";
         td.dataset.year = year;
         td.dataset.month = mm;
         td.dataset.member_id = m.id;
@@ -2348,6 +2384,7 @@ function renderMatrixTable3({ year, flow_type, rows }){
         td.dataset.group = row.group || "";
         td.dataset.subcategory = row.subcategory || "";
         td.dataset.detail = row.detail || "";
+
         const v = row.cell?.[mm]?.[m.id] || 0;
         td.textContent = v === 0 ? "" : fmt(v);
 
@@ -2364,7 +2401,8 @@ function renderMatrixTable3({ year, flow_type, rows }){
   byId("mxCellCount").textContent = String(cellCount);
 }
 
-function startCellEdit3(td){
+function startCellEdit3
+(td){
   setError("");
   if(td.querySelector("input")) return;
 
@@ -4075,9 +4113,7 @@ byId("btnRenameClear").addEventListener("click", ()=>{
 
 /* Left sticky detail column */
 #tab-all #mxTable td.sticky,
-#tab-all #mxTable th.sticky,
-#tab-all #mxTable td.sticky-col,
-#tab-all #mxTable th.sticky-col{
+#tab-all #mxTable th.sticky{
   position: sticky;
   left: 0;
   background: #FFFFFF;
