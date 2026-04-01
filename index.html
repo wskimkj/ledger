@@ -977,52 +977,51 @@ thead{ background: rgba(255,255,255,.90) !important; }
       </section>
       <!-- ALL DATA GRID (월별 매트릭스 편집) -->
       <section id="tab-all" class="mt-4 hidden">
-        <div class="glass rounded-2xl p-4">
-
-<div class="hidden">
-  <div class="db-chip" id="dbCtxYear"></div>
-  <div class="db-chip" id="dbCtxFlow"></div>
-  <div class="db-chip"></div>
-</div>
-<div class="hidden">
-  
-</div>
-
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div class="text-sm font-semibold">월별 매트릭스</div>
-             
+        <div class="db-shell">
+          <div class="glass rounded-2xl p-4 db-top">
+            <div class="hidden">
+              <div class="db-chip" id="dbCtxYear"></div>
+              <div class="db-chip" id="dbCtxFlow"></div>
+              <div class="db-chip"></div>
             </div>
 
-            <div class="flex flex-wrap gap-2 items-center">
-              <div class="text-xs text-black/60">연도</div>
-              <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
-<div class="text-xs text-black/60 ml-1">흐름</div>
-              <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
-                <option value="expense">지출</option>
-                <option value="income">수입</option>
-                <option value="saving">저축</option>
-              </select>
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div class="text-sm font-semibold">월별 매트릭스</div>
+              </div>
 
-              <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
-                <i class="fa-solid fa-rotate mr-2"></i>새로고침
-              </button>
+              <div class="flex flex-wrap gap-2 items-center">
+                <div class="text-xs text-black/60">연도</div>
+                <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
+                <div class="text-xs text-black/60 ml-1">흐름</div>
+                <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
+                  <option value="expense">지출</option>
+                  <option value="income">수입</option>
+                  <option value="saving">저축</option>
+                </select>
+
+                <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
+                  <i class="fa-solid fa-rotate mr-2"></i>새로고침
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div class="mt-4 glass2 rounded-2xl p-3">
-            <div class="text-xs text-black/60">
-              * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
+            <div class="mt-4 glass2 rounded-2xl p-3">
+              <div class="text-xs text-black/60">
+                * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
+              </div>
             </div>
           </div>
 
-          <div class="mt-4 overflow-auto thin-scroll max-h-[70vh]">
-            <table class="w-full text-sm border-separate border-spacing-0" id="mxTable">
-              <thead id="mxThead" class="text-black/70 sticky top-0 bg-white/60 "></thead>
-              <tbody id="mxTbody"></tbody>
-            </table>
+          <div class="glass rounded-2xl p-4 db-table-card">
+            <div class="db-table-wrap thin-scroll">
+              <table class="text-sm border-separate border-spacing-0" id="mxTable">
+                <thead id="mxThead" class="text-black/70"></thead>
+                <tbody id="mxTbody"></tbody>
+              </table>
+            </div>
+            <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
           </div>
-          <div class="text-xs text-black/60 mt-3">행 <span id="mxRowCount">0</span> · 셀 <span id="mxCellCount">0</span></div>
         </div>
       </section>
       <!-- CATEGORY MANAGEMENT -->
@@ -2274,7 +2273,6 @@ function renderMatrixTable3({ year, flow_type, rows }){
     setError("members 테이블에 '돌프/천사/공통'이 모두 있어야 3컬럼 매트릭스를 완전하게 표시할 수 있어. (일부만 있으면 있는 멤버만 표시함)");
   }
 
-  // Pivot: rowKey -> {meta, cell[mm][member_id]=sum}
   const map = new Map();
   for(const r of rows){
     const mk = (r.entry_date||"").slice(5,7);
@@ -2308,30 +2306,21 @@ function renderMatrixTable3({ year, flow_type, rows }){
     return A.localeCompare(B, "ko");
   });
 
-  // THEAD (2 rows: month colspans + member names)
-const thead = byId("mxThead");
-thead.innerHTML = `
-  <tr>
-    
-    <th class="text-left py-3 px-3 border-b sticky left-[230px] bg-white/70  z-30">&nbsp;</th>
-    ${months.map(mm => `
-      <th class="text-center py-3 px-3 border-b bg-white/70 " colspan="${members3.length}">
-        ${Number(mm)}월
-      </th>
-    `).join("")}
-  </tr>
-  <tr>
-    
-    <th class="border-b sticky left-[320px] bg-white/70  z-30"></th>
-    ${months.map(()=>members3.map(m=>`
-      <th class="text-right py-2 px-3 border-b bg-white/70  min-w-[110px]">
-        ${escapeHtml(m.name)}
-      </th>
-    `).join("")).join("")}
-  </tr>
-`;
-
-
+  const thead = byId("mxThead");
+  thead.innerHTML = `
+    <tr>
+      <th class="sticky-col">상세항목</th>
+      ${months.map(mm => `
+        <th class="text-center ${mm !== months[months.length - 1] ? 'group-end' : ''}" colspan="${members3.length}">${Number(mm)}월</th>
+      `).join("")}
+    </tr>
+    <tr>
+      <th class="sticky-col"></th>
+      ${months.map((mm) => members3.map((m, idx) => `
+        <th class="text-right ${idx === members3.length - 1 ? 'group-end' : ''}">${escapeHtml(m.name)}</th>
+      `).join("")).join("")}
+    </tr>
+  `;
 
   const tbody = byId("mxTbody");
   tbody.innerHTML = "";
@@ -2341,15 +2330,15 @@ thead.innerHTML = `
     const tr = document.createElement("tr");
 
     const tdDet = document.createElement("td");
-    tdDet.className = "py-2 px-3 border-b sticky left-0 z-30 bg-white min-w-[120px] max-w-[120px] truncate font-semibold";
+    tdDet.className = "sticky-col truncate font-semibold";
+    tdDet.title = row.detail || "";
     tdDet.textContent = row.detail || "";
-
     tr.appendChild(tdDet);
 
     for(const mm of months){
-      for(const m of members3){
+      members3.forEach((m, idx) => {
         const td = document.createElement("td");
-        td.className = "py-2 px-3 border-b text-right font-medium hover:bg-black/5 rounded-lg cursor-pointer";
+        td.className = `font-medium cursor-pointer ${idx === members3.length - 1 ? 'group-end' : ''}`;
         td.dataset.year = year;
         td.dataset.month = mm;
         td.dataset.member_id = m.id;
@@ -2360,13 +2349,12 @@ thead.innerHTML = `
         td.dataset.subcategory = row.subcategory || "";
         td.dataset.detail = row.detail || "";
         const v = row.cell?.[mm]?.[m.id] || 0;
-td.textContent = v === 0 ? "" : fmt(v);
+        td.textContent = v === 0 ? "" : fmt(v);
 
         cellCount++;
-
         td.addEventListener("dblclick", ()=>{ td.classList.add('cell-editing'); startCellEdit3(td); });
         tr.appendChild(td);
-      }
+      });
     }
 
     tbody.appendChild(tr);
@@ -4087,7 +4075,9 @@ byId("btnRenameClear").addEventListener("click", ()=>{
 
 /* Left sticky detail column */
 #tab-all #mxTable td.sticky,
-#tab-all #mxTable th.sticky{
+#tab-all #mxTable th.sticky,
+#tab-all #mxTable td.sticky-col,
+#tab-all #mxTable th.sticky-col{
   position: sticky;
   left: 0;
   background: #FFFFFF;
