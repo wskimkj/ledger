@@ -4108,16 +4108,18 @@ byId("btnRenameClear").addEventListener("click", ()=>{
   top: 0;
 }
 #tab-all #mxTable thead tr:nth-child(2) th{
-  top: 36px; /* stacked sticky header */
+  top: 48px; /* ✅ FIX1: 첫 번째 헤더 height:48px와 정확히 일치 */
 }
 
-/* Left sticky detail column */
+/* Left sticky detail column - ✅ FIX2: sticky-col로 통일 */
 #tab-all #mxTable td.sticky,
-#tab-all #mxTable th.sticky{
+#tab-all #mxTable th.sticky,
+#tab-all #mxTable td.sticky-col,
+#tab-all #mxTable th.sticky-col {
   position: sticky;
   left: 0;
   background: #FFFFFF;
-  z-index: 12;
+  z-index: 15;
   box-shadow: 2px 0 0 rgba(15,23,42,.06);
 }
 
@@ -4128,10 +4130,31 @@ byId("btnRenameClear").addEventListener("click", ()=>{
   outline: 1px solid rgba(99,102,241,.25);
 }
 
-/* Active row/column focus */
+/* Active row/column focus - ✅ FIX3: sticky-col 뒤로 안 숨게 */
 #tab-all #mxTable td.cell-focus{
   outline: 2px solid rgba(99,102,241,.55);
   outline-offset: -2px;
+  position: relative;
+  z-index: 3;
+}
+
+/* ✅ FIX4: 더블클릭 인라인 편집 input 셀 overflow 방지 */
+#mxTable td[data-month] input[type="number"]{
+  display: block !important;
+  width: 100% !important;
+  max-width: 78px !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  padding: 3px 6px !important;
+  font-size: 11px !important;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums !important;
+  border-radius: 6px !important;
+  border: 1.5px solid rgba(99,102,241,.55) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,.15) !important;
+  outline: none !important;
+  color: #1e293b !important;
 }
 
 /* Column separators per month block */
@@ -4170,31 +4193,58 @@ byId("btnRenameClear").addEventListener("click", ()=>{
 </style>
 
 <script>
-/* === DB RESULT UX PATCH ===
-   - Click to focus row/column
-   - Keyboard hint overlay
+/* === DB RESULT UX PATCH - ✅ FIX5: DOMContentLoaded + MutationObserver ===
+   mxTable이 로그인 후 동적 생성되므로 타이밍 오류 해결
 */
 (function(){
-  const table = document.getElementById('mxTable');
-  if(!table) return;
+  function bindTableEvents(t){
+    if(!t || t.dataset.fixPatchBound) return;
+    t.dataset.fixPatchBound = '1';
 
-  table.addEventListener('click', (e)=>{
-    const td = e.target.closest('td[data-month]');
-    if(!td) return;
-    table.querySelectorAll('.cell-focus').forEach(x=>x.classList.remove('cell-focus'));
-    td.classList.add('cell-focus');
-    // highlight column
-    const month = td.dataset.month;
-    table.querySelectorAll('td[data-month="'+month+'"]').forEach(x=>x.classList.add('cell-focus'));
-  });
+    t.addEventListener('click', function(e){
+      const td = e.target.closest('td[data-month]');
+      if(!td) return;
+      t.querySelectorAll('.cell-focus').forEach(x => x.classList.remove('cell-focus'));
+      td.classList.add('cell-focus');
+      const month = td.dataset.month;
+      if(month){
+        t.querySelectorAll('td[data-month="' + month + '"]').forEach(x => x.classList.add('cell-focus'));
+      }
+    });
+  }
 
-  // Legend injection
-  const wrap = document.querySelector('#tab-all .glass2');
-  if(wrap && !wrap.querySelector('.db-legend')){
-    const div = document.createElement('div');
-    div.className = 'db-legend mt-2';
-    div.innerHTML = '<span>더블클릭: 편집</span><span>Enter: 저장</span><span>빈칸 저장: 삭제</span><span>행/열 클릭: 포커스</span>';
-    wrap.appendChild(div);
+  function init(){
+    // MutationObserver: mxTable이 동적으로 나타날 때 자동 바인딩
+    const observer = new MutationObserver(()=>{
+      const t = document.getElementById('mxTable');
+      if(t) bindTableEvents(t);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // 이미 있으면 바로 바인딩
+    const t = document.getElementById('mxTable');
+    if(t) bindTableEvents(t);
+
+    // Legend: DB탭 버튼 클릭 시 삽입
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.tab-btn[data-tab="all"]');
+      if(!btn) return;
+      setTimeout(()=>{
+        const wrap = document.querySelector('#tab-all .glass2');
+        if(wrap && !wrap.querySelector('.db-legend')){
+          const div = document.createElement('div');
+          div.className = 'db-legend mt-2';
+          div.innerHTML = '<span>더블클릭: 편집</span><span>Enter: 저장</span><span>빈칸 저장: 삭제</span><span>열 클릭: 강조</span>';
+          wrap.appendChild(div);
+        }
+      }, 120);
+    });
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 })();
 </script>
