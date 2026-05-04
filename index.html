@@ -4035,7 +4035,7 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     byId("btnMxReload").addEventListener("click", async ()=>{
       try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); setStatus(""); }
     });
-    byId("btnAutoCalcSaving").addEventListener("click", async ()=>{
+    byId("btnAutoCalcSaving")?.addEventListener("click", async ()=>{
       try{ await autoCalcSaving(); }catch(e){ setError(e?.message||String(e)); setStatus(""); }
     });
     byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
