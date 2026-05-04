@@ -1011,6 +1011,7 @@ thead{ background: rgba(255,255,255,.90) !important; }
               <select id="mxYear" class="rounded-xl px-3 py-2 text-sm"></select>
 <div class="text-xs text-black/60 ml-1">흐름</div>
               <select id="mxFlow" class="rounded-xl px-3 py-2 text-sm">
+                <option value="all">전체</option>
                 <option value="expense">지출</option>
                 <option value="income">수입</option>
                 <option value="saving">저축</option>
@@ -2253,7 +2254,7 @@ async function fetchEntriesForMatrix(year, flow_type){
   const url = new URL(SUPABASE_URL + "/rest/v1/entries");
   url.searchParams.set("select", ENTRY_SELECT);
   url.searchParams.set("ledger_id", `eq.${currentLedgerId}`);
-  url.searchParams.set("flow_type", `eq.${flow_type}`);
+  if(flow_type !== "all") url.searchParams.set("flow_type", `eq.${flow_type}`);
   url.searchParams.set("entry_date", `gte.${year}-01-01`);
   url.searchParams.append("entry_date", `lte.${year}-12-31`);
   url.searchParams.set("order", "entry_date.asc,created_at.asc");
@@ -2290,11 +2291,14 @@ function renderMatrixTable3({ year, flow_type, rows }){
   // 1) 마스터 카테고리 기준으로 전체 행 목록 생성
   const masterRows = (masterDetailItems || [])
     .filter(it => {
+      if(flow_type === "all") return true;
       const gName = it?.subcategory?.category?.name || it?.subcategory?.group?.name || "";
       return flowFromGroup(gName) === flow_type;
     })
     .map(it => ({
-      flow_type,
+      flow_type: flow_type === "all"
+        ? flowFromGroup(it?.subcategory?.category?.name || it?.subcategory?.group?.name || "")
+        : flow_type,
       group: it?.subcategory?.category?.name || it?.subcategory?.group?.name || "",
       subcategory: it?.subcategory?.name || "",
       detail: it?.name || "",
