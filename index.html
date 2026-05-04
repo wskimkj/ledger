@@ -1796,6 +1796,12 @@ function renderCategoryAdmin(){
   // detail list (within selected sub)
   const details = masterDetailItems.filter(d => d.subcategory_id === sId);
   const wrapD = byId("catDetailList");
+  // 전체 소분류 목록 (소분류 이동용 드롭다운)
+  const allSubOptions = masterSubcategories.map(s => {
+    const grp = masterGroups.find(g => g.id === s.category_id);
+    return `<option value="${escapeHtml(s.id)}" ${s.id === sId ? "selected" : ""}>${escapeHtml(grp?.name||"")} &gt; ${escapeHtml(s.name)}</option>`;
+  }).join("");
+
   wrapD.innerHTML = details.map(d=>`
     <div class="p-2 rounded-xl bg-white/60 border border-black/5">
       <div class="flex items-center justify-between gap-2">
@@ -1805,12 +1811,18 @@ function renderCategoryAdmin(){
         </div>
         <div class="flex items-center gap-1 flex-shrink-0">
           <button class="btn rounded-lg px-2 py-1 text-xs" data-act="rename" data-id="${d.id}" title="이름 수정">✏️</button>
+          <button class="btn rounded-lg px-2 py-1 text-xs" data-act="move-detail" data-id="${d.id}" title="소분류 이동">📂</button>
           <button class="btn rounded-lg px-2 py-1 text-xs" data-act="d-up" data-id="${d.id}">↑</button>
           <button class="btn rounded-lg px-2 py-1 text-xs" data-act="d-down" data-id="${d.id}">↓</button>
           <button class="btn btn-danger rounded-lg px-2 py-1 text-xs" data-act="d-off" data-id="${d.id}">비활성</button>
         </div>
       </div>
       <div class="text-xs text-black/60 mt-1">예시: ${escapeHtml(d.example_note || "")}</div>
+      <div class="cat-move-wrap hidden mt-2 flex gap-2 items-center">
+        <select class="cat-move-select rounded-lg px-2 py-1 text-xs flex-1" data-id="${d.id}">${allSubOptions}</select>
+        <button class="btn btn-primary rounded-lg px-2 py-1 text-xs" data-act="move-confirm" data-id="${d.id}">이동</button>
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="move-cancel" data-id="${d.id}">취소</button>
+      </div>
     </div>
   `).join("");
 
@@ -1860,6 +1872,47 @@ function renderCategoryAdmin(){
           btn.dataset.act = "rename";
         }
       });
+    });
+  });
+
+  // 📂 소분류 이동 이벤트 바인딩
+  document.querySelectorAll("[data-act='move-detail']").forEach(btn => {
+    btn.addEventListener("click", ()=>{
+      const card = btn.closest(".p-2");
+      const wrap = card.querySelector(".cat-move-wrap");
+      if(wrap) wrap.classList.toggle("hidden");
+    });
+  });
+
+  document.querySelectorAll("[data-act='move-confirm']").forEach(btn => {
+    btn.addEventListener("click", async ()=>{
+      const id = btn.dataset.id;
+      const card = btn.closest(".p-2");
+      const sel = card.querySelector(".cat-move-select");
+      const newSubId = sel?.value;
+      if(!newSubId){ setError("소분류를 선택해줘."); return; }
+      try{
+        setStatus("소분류 이동 중...");
+        await apiFetch("/rest/v1/detail_items", {
+          method: "PATCH",
+          query: { id: `eq.${id}` },
+          body: { subcategory_id: newSubId },
+          preferReturn: false
+        });
+        setStatus("✅ 소분류 이동 완료!");
+        await refreshCategoryAdmin();
+      }catch(e){
+        setError(e?.message || String(e));
+        setStatus("");
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-act='move-cancel']").forEach(btn => {
+    btn.addEventListener("click", ()=>{
+      const card = btn.closest(".p-2");
+      const wrap = card.querySelector(".cat-move-wrap");
+      if(wrap) wrap.classList.add("hidden");
     });
   });
 }
@@ -3843,8 +3896,13 @@ function switchTab(tab){
     const on = b.dataset.tab === tab;
     b.dataset.active = on ? "true" : "false";
   }
-  for(const sec of ["dash","edit","all","settings"]){
-    byId(`tab-${sec}`).classList.toggle("hidden", sec !== tab);
+  for(const sec of ["dash","edit","all","settings","cat"]){
+    const el = byId(`tab-${sec}`);
+    if(el) el.classList.toggle("hidden", sec !== tab);
+  }
+  // 카테고리 탭 진입 시 자동 새로고침
+  if(tab === "cat"){
+    refreshCategoryAdmin().catch(e => setError(e.message));
   }
 }
 
