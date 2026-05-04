@@ -491,13 +491,21 @@ thead{ background: rgba(255,255,255,.90) !important; }
   box-shadow: inset -1px 0 0 rgba(99,102,241,.12);
 }
 
+/* ✅ FIX C: 첫 번째 헤더 행 - 높이 고정 + top:0 명시 */
 #mxTable thead tr:first-child th{
+  top: 0px !important;
   height: 48px;
+  box-sizing: border-box;
+  z-index: 22;
 }
+/* ✅ FIX C: 두 번째 헤더 행 - top을 첫 번째 행 높이(48px)에 정확히 맞춤 */
 #mxTable thead tr:nth-child(2) th{
-  height: 42px;
+  top: 48px !important;
+  height: 36px;
+  box-sizing: border-box;
   text-align: center;
   padding: 8px 6px !important;
+  z-index: 21;
 }
 
 /* 좌측 첫 열 sticky */
@@ -513,9 +521,13 @@ thead{ background: rgba(255,255,255,.90) !important; }
   box-shadow: 2px 0 0 rgba(15,23,42,.06);
 }
 
-/* 좌상단 sticky corner */
-#mxTable thead .sticky-col{
-  z-index: 25;
+/* ✅ FIX D: 좌상단 sticky corner - 헤더 행별 z-index */
+#mxTable thead tr:first-child .sticky-col{
+  z-index: 32 !important;
+  background: #EEF2FF !important;
+}
+#mxTable thead tr:nth-child(2) .sticky-col{
+  z-index: 31 !important;
   background: #F8FAFF !important;
 }
 
@@ -2278,16 +2290,16 @@ function renderMatrixTable3({ year, flow_type, rows }){
   // 1) 마스터 카테고리 기준으로 전체 행 목록 생성
   const masterRows = (masterDetailItems || [])
     .filter(it => {
-      const gName = it?.subcategory?.category?.name || "";
+      const gName = it?.subcategory?.category?.name || it?.subcategory?.group?.name || "";
       return flowFromGroup(gName) === flow_type;
     })
     .map(it => ({
       flow_type,
-      group: it?.subcategory?.category?.name || "",
+      group: it?.subcategory?.category?.name || it?.subcategory?.group?.name || "",
       subcategory: it?.subcategory?.name || "",
       detail: it?.name || "",
       detail_item_id: it?.id || "",
-      sort_group: it?.subcategory?.category?.sort_order ?? 9999,
+      sort_group: it?.subcategory?.category?.sort_order ?? it?.subcategory?.group?.sort_order ?? 9999,
       sort_sub: it?.subcategory?.sort_order ?? 9999,
       sort_detail: it?.sort_order ?? 9999,
       cell: Object.fromEntries(
@@ -2638,8 +2650,8 @@ async function downloadMonthlyTemplate(){
   const subOrder = new Map(subsSorted.map((s,i)=>[s.id,i]));
 
   const items = [...masterDetailItems].sort((a,b)=>{
-    const ga = a.subcategory?.category?.id ? (groupOrder.get(a.subcategory.category.id) ?? 99999) : 99999;
-    const gb = b.subcategory?.category?.id ? (groupOrder.get(b.subcategory.category.id) ?? 99999) : 99999;
+    const ga = (a.subcategory?.category?.id || a.subcategory?.group?.id) ? (groupOrder.get(a.subcategory?.category?.id || a.subcategory?.group?.id) ?? 99999) : 99999;
+    const gb = (b.subcategory?.category?.id || b.subcategory?.group?.id) ? (groupOrder.get(b.subcategory?.category?.id || b.subcategory?.group?.id) ?? 99999) : 99999;
     if(ga !== gb) return ga-gb;
     const sa = a.subcategory?.id ? (subOrder.get(a.subcategory.id) ?? 99999) : 99999;
     const sb = b.subcategory?.id ? (subOrder.get(b.subcategory.id) ?? 99999) : 99999;
