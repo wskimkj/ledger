@@ -2591,14 +2591,14 @@ async function autoCalcSaving(){
   if(!members3.length){ setError("멤버(돌프/천사/공통)를 찾을 수 없어."); return; }
 
   // 저축 detail_item 찾기:
-  // 소분류(subcategory) 이름이 "저축"인 항목들 중 sort_order 가장 낮은 첫 번째
+  // subcategory.name === "금융·저축" 인 항목들 중 sort_order 가장 낮은 첫 번째
   const savingCandidates = [...masterDetailItems]
-    .filter(d => d.subcategory?.name === "저축")
+    .filter(d => d.subcategory?.name === "금융·저축")
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
   const savingDetailItem = savingCandidates[0] || null;
 
   if(!savingDetailItem){
-    setError("소분류 '저축' 아래 항목을 찾을 수 없어. 카테고리 구조를 확인해줘.");
+    setError("'금융·저축' 카테고리 아래 항목을 찾을 수 없어. 카테고리 구조를 확인해줘.");
     return;
   }
 
