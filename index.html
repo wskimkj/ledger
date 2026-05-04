@@ -714,7 +714,7 @@ thead{ background: rgba(255,255,255,.90) !important; }
 <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="all" data-active="false">
           <i class="fa-solid fa-table mr-2"></i>DB
         </button>
-      <button class="tab-btn rounded-xl px-4 py-2 text-sm" data-tab="settings">
+      <button class="tab-btn btn rounded-xl px-4 py-2 text-sm" data-tab="settings" data-active="false">
     <i class="fa-solid fa-gear mr-2"></i>설정
   </button>
 </div>
@@ -1626,9 +1626,9 @@ async function loadMyMembership(){
     const r = rows?.[0];
     if(r?.role === "owner") isOwner = true;
   }catch(_){}
-  // 카테고리 관리 탭 노출/숨김
-  const catBtn = document.querySelector('.tab-btn[data-tab="cat"]');
-  if(catBtn) catBtn.classList.toggle("hidden", !isOwner);
+  // 설정 탭은 모든 승인 사용자에게 보이되, 수정 작업은 requireOwner()로 제한
+  const settingsBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+  if(settingsBtn) settingsBtn.classList.remove("hidden");
 }
 
 
@@ -1748,20 +1748,23 @@ function renderCategoryAdmin(){
   const selS = byId("catPickSub");
   if(!selG || !selS) return;
 
+  const prevG = selG.value || "";
+  const prevS = selS.value || "";
+
   selG.innerHTML = masterGroups.map(g=>`<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join("");
-  const gId = selG.value || masterGroups?.[0]?.id || "";
+  const gId = masterGroups.some(g => g.id === prevG) ? prevG : (masterGroups?.[0]?.id || "");
   selG.value = gId;
 
   const subs = masterSubcategories.filter(s => s.category_id === gId);
   selS.innerHTML = subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
-  const sId = selS.value || subs?.[0]?.id || "";
+  const sId = subs.some(s => s.id === prevS) ? prevS : (subs?.[0]?.id || "");
   selS.value = sId;
 
   // group list
   const wrapG = byId("catGroupList");
   wrapG.innerHTML = masterGroups.map(g=>`
-    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium flex-1 min-w-0">
+    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5 ${g.id === gId ? 'ring-2 ring-purple-300' : ''}" data-act="select-group" data-id="${g.id}">
+      <div class="font-medium flex-1 min-w-0 cursor-pointer">
         <span class="cat-name-label">${escapeHtml(g.name)}</span>
         <input class="cat-name-input hidden rounded-lg px-2 py-0.5 text-sm border border-purple-300 w-full" value="${escapeHtml(g.name)}" data-table="categories" data-id="${g.id}" />
         <div class="mt-1 h-0.5 w-32 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400"></div>
@@ -1778,8 +1781,8 @@ function renderCategoryAdmin(){
   // sub list (within selected group)
   const wrapS = byId("catSubList");
   wrapS.innerHTML = subs.map(s=>`
-    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium flex-1 min-w-0">
+    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5 ${s.id === sId ? 'ring-2 ring-purple-300' : ''}" data-act="select-sub" data-id="${s.id}">
+      <div class="font-medium flex-1 min-w-0 cursor-pointer">
         <span class="cat-name-label">${escapeHtml(s.name)}</span>
         <input class="cat-name-input hidden rounded-lg px-2 py-0.5 text-sm border border-purple-300 w-full" value="${escapeHtml(s.name)}" data-table="subcategories" data-id="${s.id}" />
         <div class="mt-1 h-0.5 w-32 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400"></div>
@@ -1825,6 +1828,23 @@ function renderCategoryAdmin(){
       </div>
     </div>
   `).join("");
+
+  // 목록 클릭으로 선택 변경
+  wrapG.querySelectorAll("[data-act='select-group']").forEach(row => {
+    row.addEventListener("click", (e)=>{
+      if(e.target.closest("button") || e.target.closest("input")) return;
+      selG.value = row.dataset.id;
+      renderCategoryAdmin();
+    });
+  });
+
+  wrapS.querySelectorAll("[data-act='select-sub']").forEach(row => {
+    row.addEventListener("click", (e)=>{
+      if(e.target.closest("button") || e.target.closest("input")) return;
+      selS.value = row.dataset.id;
+      renderCategoryAdmin();
+    });
+  });
 
   // ✏️ 인라인 이름 수정 이벤트 바인딩
   document.querySelectorAll("[data-act='rename']").forEach(btn => {
@@ -3900,8 +3920,8 @@ function switchTab(tab){
     const el = byId(`tab-${sec}`);
     if(el) el.classList.toggle("hidden", sec !== tab);
   }
-  // 카테고리 탭 진입 시 자동 새로고침
-  if(tab === "cat"){
+  // 설정 탭 진입 시 카테고리 관리 영역 자동 새로고침
+  if(tab === "settings"){
     refreshCategoryAdmin().catch(e => setError(e.message));
   }
 }
@@ -4167,7 +4187,7 @@ byId("category").addEventListener("change", ()=>{
 });
 
 
-byId("btnRenameApply").addEventListener("click", async ()=>{
+byId("btnRenameApply")?.addEventListener("click", async ()=>{
   try{
     setError("");
     await renameCategoryBatch();
@@ -4177,16 +4197,16 @@ byId("btnRenameApply").addEventListener("click", async ()=>{
   }
 });
 
-byId("btnRenameClear").addEventListener("click", ()=>{
-  byId("renameOldCategory").value = "";
-  byId("renameNewCategory").value = "";
-  try{ byId("renameOldCategory").dispatchEvent(new Event("change")); }catch(_){}
-  try{ byId("renameNewCategory").dispatchEvent(new Event("change")); }catch(_){}
-  byId("renameOldSubcategory").value = "";
-  byId("renameOldDetail").value = "";
-  byId("renameNewSubcategory").value = "";
-  byId("renameNewDetail").value = "";
-  byId("renameHint").textContent = "";
+byId("btnRenameClear")?.addEventListener("click", ()=>{
+  if(byId("renameOldCategory")) byId("renameOldCategory").value = "";
+  if(byId("renameNewCategory")) byId("renameNewCategory").value = "";
+  try{ byId("renameOldCategory")?.dispatchEvent(new Event("change")); }catch(_){}
+  try{ byId("renameNewCategory")?.dispatchEvent(new Event("change")); }catch(_){}
+  if(byId("renameOldSubcategory")) byId("renameOldSubcategory").value = "";
+  if(byId("renameOldDetail")) byId("renameOldDetail").value = "";
+  if(byId("renameNewSubcategory")) byId("renameNewSubcategory").value = "";
+  if(byId("renameNewDetail")) byId("renameNewDetail").value = "";
+  if(byId("renameHint")) byId("renameHint").textContent = "";
 });
 
     // pending approval UI
@@ -4296,25 +4316,27 @@ byId("btnRenameClear").addEventListener("click", ()=>{
     byId("catPickSub")?.addEventListener("change", ()=> renderCategoryAdmin());
 
     // list actions (sort / deactivate)
-    byId("tab-cat")?.addEventListener("click", async (e)=>{
+    byId("tab-settings")?.addEventListener("click", async (e)=>{
       const b = e.target.closest("button[data-act]");
       if(!b) return;
       try{
         const act = b.dataset.act;
         const id = b.dataset.id;
-        if(act === "g-up") await bumpSort("categories", id, "up");
-        if(act === "g-down") await bumpSort("categories", id, "down");
-        if(act === "g-off") await deactivateRow("categories", id);
+        let handled = false;
 
-        if(act === "s-up") await bumpSort("subcategories", id, "up");
-        if(act === "s-down") await bumpSort("subcategories", id, "down");
-        if(act === "s-off") await deactivateRow("subcategories", id);
+        if(act === "g-up"){ await bumpSort("categories", id, "up"); handled = true; }
+        if(act === "g-down"){ await bumpSort("categories", id, "down"); handled = true; }
+        if(act === "g-off"){ await deactivateRow("categories", id); handled = true; }
 
-        if(act === "d-up") await bumpSort("detail_items", id, "up");
-        if(act === "d-down") await bumpSort("detail_items", id, "down");
-        if(act === "d-off") await deactivateRow("detail_items", id);
+        if(act === "s-up"){ await bumpSort("subcategories", id, "up"); handled = true; }
+        if(act === "s-down"){ await bumpSort("subcategories", id, "down"); handled = true; }
+        if(act === "s-off"){ await deactivateRow("subcategories", id); handled = true; }
 
-        await refreshCategoryAdmin();
+        if(act === "d-up"){ await bumpSort("detail_items", id, "up"); handled = true; }
+        if(act === "d-down"){ await bumpSort("detail_items", id, "down"); handled = true; }
+        if(act === "d-off"){ await deactivateRow("detail_items", id); handled = true; }
+
+        if(handled) await refreshCategoryAdmin();
       }catch(err){ setError(err.message); }
     });
 
