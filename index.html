@@ -2636,7 +2636,7 @@ async function autoCalcSaving(){
       for(const m of members3){
         const income  = inc[mm][m.id] || 0;
         const expense = exp[mm][m.id] || 0;
-        const saving  = Math.max(0, income - expense);
+        const saving  = income - expense;
         upsertPayloads.push({
           ledger_id:      currentLedgerId,
           entry_date:     `${year}-${mm}-01`,
