@@ -1018,12 +1018,18 @@ thead{ background: rgba(255,255,255,.90) !important; }
               <button id="btnMxReload" class="btn rounded-xl px-4 py-2 text-sm">
                 <i class="fa-solid fa-rotate mr-2"></i>새로고침
               </button>
+              <button id="btnAutoCalcSaving" class="btn rounded-xl px-4 py-2 text-sm" style="background:linear-gradient(135deg,#8B5CF6,#EC4899);color:#fff;">
+                <i class="fa-solid fa-calculator mr-2"></i>저축 자동계산
+              </button>
             </div>
           </div>
 
           <div class="mt-4 glass2 rounded-2xl p-3">
             <div class="text-xs text-black/60">
               * 수정: 셀 더블클릭 → 금액 입력 → Enter/포커스아웃 저장 (빈칸으로 저장하면 해당 월/멤버 항목 삭제)
+            </div>
+            <div class="text-xs text-black/50 mt-1">
+              * <b>저축 자동계산</b>: 현재 연도 기준 수입 − (소모+생존) 을 멤버별(돌프/천사/공통)로 계산해 저축 항목에 저장. 저장 후 셀 더블클릭으로 직접 수정 가능.
             </div>
           </div>
 
@@ -2572,7 +2578,97 @@ async function refreshMatrix(){
 }
 
 /** =========================
- * 6) BULK TEMPLATE + UPLOAD (YOUR TEMPLATE FORMAT)
+ * 저축 자동계산: 수입 - (소모+생존) = 저축
+ * 멤버별(돌프/천사/공통) 월별 계산 후 upsert
+ * ========================= */
+async function autoCalcSaving(){
+  setError("");
+  const year = byId("mxYear").value;
+  if(!year){ setError("연도를 먼저 선택해줘."); return; }
+  if(!currentLedgerId){ setError("가계부가 선택되지 않았어."); return; }
+
+  const members3 = getMatrixMembers3();
+  if(!members3.length){ setError("멤버(돌프/천사/공통)를 찾을 수 없어."); return; }
+
+  // 저축 detail_item 찾기:
+  // 소분류(subcategory) 이름이 "저축"인 항목들 중 sort_order 가장 낮은 첫 번째
+  const savingCandidates = [...masterDetailItems]
+    .filter(d => d.subcategory?.name === "저축")
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+  const savingDetailItem = savingCandidates[0] || null;
+
+  if(!savingDetailItem){
+    setError("소분류 '저축' 아래 항목을 찾을 수 없어. 카테고리 구조를 확인해줘.");
+    return;
+  }
+
+  try{
+    setStatus("수입·지출 데이터 불러오는 중...");
+    // income + expense 모두 fetch (saving은 계산으로 채울 예정)
+    const [incRows, expRows] = await Promise.all([
+      fetchEntriesForMatrix(year, "income"),
+      fetchEntriesForMatrix(year, "expense")
+    ]);
+
+    const months = monthLabels(); // ["01","02",...,"12"]
+
+    // 월×멤버 집계 헬퍼
+    function aggregate(rows){
+      // result[mm][memberId] = sum
+      const result = Object.fromEntries(months.map(mm=>[mm, Object.fromEntries(members3.map(m=>[m.id, 0]))]));
+      for(const r of rows){
+        const mm = (r.entry_date||"").slice(5,7);
+        if(!months.includes(mm)) continue;
+        const mid = r.member_id;
+        if(result[mm] && result[mm][mid] !== undefined){
+          result[mm][mid] += Number(r.amount||0);
+        }
+      }
+      return result;
+    }
+
+    const inc = aggregate(incRows);
+    const exp = aggregate(expRows);
+
+    // 저축 = 수입 - 지출 (멤버별, 월별), 음수는 0
+    const upsertPayloads = [];
+    for(const mm of months){
+      for(const m of members3){
+        const income  = inc[mm][m.id] || 0;
+        const expense = exp[mm][m.id] || 0;
+        const saving  = Math.max(0, income - expense);
+        upsertPayloads.push({
+          ledger_id:      currentLedgerId,
+          entry_date:     `${year}-${mm}-01`,
+          member_id:      m.id,
+          flow_type:      "saving",
+          amount:         saving,
+          detail_item_id: savingDetailItem.id,
+          created_by:     session.user.id
+        });
+      }
+    }
+
+    setStatus("저축 자동계산 저장 중...");
+    const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
+    await apiFetch("/rest/v1/entries", {
+      method:       "POST",
+      query:        { on_conflict: onConflict },
+      body:         upsertPayloads,
+      preferReturn: false,
+      extraHeaders: { "Prefer": "resolution=merge-duplicates" }
+    });
+
+    setStatus("저축 자동계산 완료! 매트릭스 새로고침 중...");
+    await refreshMatrix();
+    setStatus("✅ 저축 자동계산 완료! (더블클릭으로 개별 수정 가능)");
+  }catch(e){
+    setError(e?.message || String(e));
+    setStatus("");
+  }
+}
+
+
  *    - Sheet: 기록
  *    - Row1: 안내문(옵션)
  *    - Row2: 헤더 [날짜, 대분류, 소분류, 설명, 돌프, 천사, 공통]
@@ -3938,6 +4034,9 @@ window.addEventListener("DOMContentLoaded", async ()=>{
     // matrix tab (월별 매트릭스)
     byId("btnMxReload").addEventListener("click", async ()=>{
       try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); setStatus(""); }
+    });
+    byId("btnAutoCalcSaving").addEventListener("click", async ()=>{
+      try{ await autoCalcSaving(); }catch(e){ setError(e?.message||String(e)); setStatus(""); }
     });
     byId("mxYear").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
     byId("mxFlow").addEventListener("change", async ()=>{ try{ setError(""); await refreshMatrix(); }catch(e){ setError(e.message); } });
