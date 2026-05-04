@@ -2343,10 +2343,14 @@ function renderMatrixTable3({ year, flow_type, rows }){
   }
 
   const arr = [...map.values()].sort((a,b)=>{
+    // ✅ 템플릿 기준 순서 우선 정렬
+    const oa = TEMPLATE_ORDER_MAP.has(a.detail) ? TEMPLATE_ORDER_MAP.get(a.detail) : 9999;
+    const ob = TEMPLATE_ORDER_MAP.has(b.detail) ? TEMPLATE_ORDER_MAP.get(b.detail) : 9999;
+    if(oa !== ob) return oa - ob;
+    // fallback: DB sort_order
     if((a.sort_group ?? 9999) !== (b.sort_group ?? 9999)) return (a.sort_group ?? 9999) - (b.sort_group ?? 9999);
     if((a.sort_sub ?? 9999) !== (b.sort_sub ?? 9999)) return (a.sort_sub ?? 9999) - (b.sort_sub ?? 9999);
     if((a.sort_detail ?? 9999) !== (b.sort_detail ?? 9999)) return (a.sort_detail ?? 9999) - (b.sort_detail ?? 9999);
-
     const A = `${a.group}||${a.subcategory}||${a.detail}`;
     const B = `${b.group}||${b.subcategory}||${b.detail}`;
     return A.localeCompare(B, "ko");
@@ -2383,6 +2387,15 @@ function renderMatrixTable3({ year, flow_type, rows }){
     tdDet.className = "sticky-col truncate font-semibold";
     tdDet.title = `${row.group || ""} > ${row.subcategory || ""} > ${row.detail || ""}`;
     tdDet.textContent = row.detail || "";
+    // ✅ 모달용 data 속성
+    tdDet.dataset.group = row.group || "";
+    tdDet.dataset.subcategory = row.subcategory || "";
+    tdDet.dataset.detail = row.detail || "";
+    const diKey = `${row.group}||${row.subcategory}||${row.detail}`;
+    const diItem = detailItemById ? [...detailItemById.values()].find(d=>d.name===row.detail) : null;
+    tdDet.dataset.example = diItem?.example_note || "";
+    tdDet.addEventListener("mouseenter", showMxTooltip);
+    tdDet.addEventListener("mouseleave", hideMxTooltip);
     tr.appendChild(tdDet);
 
     for(const mm of months){
@@ -2513,6 +2526,21 @@ function startCellEdit3
   });
   inp.addEventListener("blur", async ()=>{ await commit(); });
 }
+
+
+/* ===== 템플릿 기준 정렬 순서 (엑셀 템플릿과 동일) ===== */
+const TEMPLATE_DETAIL_ORDER = [
+  "식재료","외식","배달","중식","카페/간식",
+  "쇼핑","미용","구독","생활편의",
+  "여행","문화생활",
+  "보험","병원·약국","건강식품","운동",
+  "회비","경조/선물","친목",
+  "기부","기타",
+  "주거/통신","교통","공과금",
+  "저축","투자","부채상환",
+  "월급","기타수입","금융이자","주식매도"
+];
+const TEMPLATE_ORDER_MAP = new Map(TEMPLATE_DETAIL_ORDER.map((n,i)=>[n,i]));
 
 async function refreshMatrix(){
   // year candidates from DB quickly: use dashRowsCache if already loaded, else fetch minimal.
@@ -4262,6 +4290,82 @@ byId("btnRenameClear").addEventListener("click", ()=>{
   } else {
     init();
   }
+})();
+</script>
+
+
+<!-- ✅ DB탭 행 호버 툴팁 모달 -->
+<div id="mxTooltip" style="
+  display:none;
+  position:fixed;
+  z-index:9999;
+  pointer-events:none;
+  max-width:280px;
+">
+  <div style="
+    background:rgba(255,255,255,0.97);
+    border:1px solid rgba(99,102,241,0.25);
+    border-radius:14px;
+    padding:12px 16px;
+    box-shadow:0 12px 32px rgba(99,102,241,0.18), 0 2px 8px rgba(0,0,0,0.08);
+    backdrop-filter:blur(12px);
+  ">
+    <div id="mxTooltipGroup" style="font-size:10px;color:#6366f1;font-weight:700;letter-spacing:.04em;margin-bottom:3px;"></div>
+    <div id="mxTooltipSub" style="font-size:11px;color:#64748b;margin-bottom:5px;"></div>
+    <div id="mxTooltipDetail" style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:6px;"></div>
+    <div id="mxTooltipExample" style="font-size:11px;color:#94a3b8;line-height:1.5;display:none;border-top:1px solid rgba(99,102,241,0.1);padding-top:6px;margin-top:2px;"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const tooltip = document.getElementById('mxTooltip');
+  let hideTimer = null;
+
+  window.showMxTooltip = function(e){
+    if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
+    const td = e.currentTarget;
+    const group = td.dataset.group || "";
+    const sub = td.dataset.subcategory || "";
+    const detail = td.dataset.detail || "";
+    const example = td.dataset.example || "";
+
+    document.getElementById('mxTooltipGroup').textContent = group;
+    document.getElementById('mxTooltipSub').textContent = sub ? "└ " + sub : "";
+    document.getElementById('mxTooltipDetail').textContent = detail;
+
+    const exEl = document.getElementById('mxTooltipExample');
+    if(example){
+      exEl.textContent = "예시: " + example;
+      exEl.style.display = "block";
+    } else {
+      exEl.style.display = "none";
+    }
+
+    tooltip.style.display = "block";
+
+    const rect = td.getBoundingClientRect();
+    let left = rect.right + 10;
+    let top = rect.top + window.scrollY;
+
+    // 오른쪽 화면 밖으로 나가면 왼쪽에 표시
+    if(left + 290 > window.innerWidth){
+      left = rect.left - 290;
+    }
+    if(left < 0) left = 10;
+
+    tooltip.style.left = left + "px";
+    tooltip.style.top = top + "px";
+  };
+
+  window.hideMxTooltip = function(){
+    hideTimer = setTimeout(()=>{
+      tooltip.style.display = "none";
+    }, 80);
+  };
+
+  // 스크롤 시 툴팁 숨기기
+  document.addEventListener('scroll', ()=>{ tooltip.style.display = "none"; }, true);
 })();
 </script>
 
