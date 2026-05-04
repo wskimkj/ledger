@@ -1761,17 +1761,16 @@ function renderCategoryAdmin(){
   const wrapG = byId("catGroupList");
   wrapG.innerHTML = masterGroups.map(g=>`
     <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium">${escapeHtml(g.name)}
-      <div class="mt-2 h-1 w-40 rounded-full
-                  bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400
-                  shadow-[0_0_18px_rgba(168,85,247,0.55)]">
+      <div class="font-medium flex-1 min-w-0">
+        <span class="cat-name-label">${escapeHtml(g.name)}</span>
+        <input class="cat-name-input hidden rounded-lg px-2 py-0.5 text-sm border border-purple-300 w-full" value="${escapeHtml(g.name)}" data-table="categories" data-id="${g.id}" />
+        <div class="mt-1 h-0.5 w-32 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400"></div>
       </div>
-    </div>
-      <div class="flex items-center gap-2">
-
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-up" data-id="${g.id}">↑</button>
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="g-down" data-id="${g.id}">↓</button>
-        <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="g-off" data-id="${g.id}">비활성</button>
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="rename" data-id="${g.id}" title="이름 수정">✏️</button>
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="g-up" data-id="${g.id}">↑</button>
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="g-down" data-id="${g.id}">↓</button>
+        <button class="btn btn-danger rounded-lg px-2 py-1 text-xs" data-act="g-off" data-id="${g.id}">비활성</button>
       </div>
     </div>
   `).join("");
@@ -1780,17 +1779,16 @@ function renderCategoryAdmin(){
   const wrapS = byId("catSubList");
   wrapS.innerHTML = subs.map(s=>`
     <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 border border-black/5">
-      <div class="font-medium">${escapeHtml(s.name)}
-      <div class="mt-2 h-1 w-40 rounded-full
-                  bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400
-                  shadow-[0_0_18px_rgba(168,85,247,0.55)]">
+      <div class="font-medium flex-1 min-w-0">
+        <span class="cat-name-label">${escapeHtml(s.name)}</span>
+        <input class="cat-name-input hidden rounded-lg px-2 py-0.5 text-sm border border-purple-300 w-full" value="${escapeHtml(s.name)}" data-table="subcategories" data-id="${s.id}" />
+        <div class="mt-1 h-0.5 w-32 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-400 to-pink-400"></div>
       </div>
-    </div>
-      <div class="flex items-center gap-2">
-
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-up" data-id="${s.id}">↑</button>
-        <button class="btn rounded-lg px-3 py-1 text-xs" data-act="s-down" data-id="${s.id}">↓</button>
-        <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="s-off" data-id="${s.id}">비활성</button>
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="rename" data-id="${s.id}" title="이름 수정">✏️</button>
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="s-up" data-id="${s.id}">↑</button>
+        <button class="btn rounded-lg px-2 py-1 text-xs" data-act="s-down" data-id="${s.id}">↓</button>
+        <button class="btn btn-danger rounded-lg px-2 py-1 text-xs" data-act="s-off" data-id="${s.id}">비활성</button>
       </div>
     </div>
   `).join("");
@@ -1801,16 +1799,69 @@ function renderCategoryAdmin(){
   wrapD.innerHTML = details.map(d=>`
     <div class="p-2 rounded-xl bg-white/60 border border-black/5">
       <div class="flex items-center justify-between gap-2">
-        <div class="font-medium">${escapeHtml(d.name)}</div>
-        <div class="flex items-center gap-2">
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="d-up" data-id="${d.id}">↑</button>
-          <button class="btn rounded-lg px-3 py-1 text-xs" data-act="d-down" data-id="${d.id}">↓</button>
-          <button class="btn btn-danger rounded-lg px-3 py-1 text-xs" data-act="d-off" data-id="${d.id}">비활성</button>
+        <div class="font-medium flex-1 min-w-0">
+          <span class="cat-name-label">${escapeHtml(d.name)}</span>
+          <input class="cat-name-input hidden rounded-lg px-2 py-0.5 text-sm border border-purple-300 w-full" value="${escapeHtml(d.name)}" data-table="detail_items" data-id="${d.id}" />
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <button class="btn rounded-lg px-2 py-1 text-xs" data-act="rename" data-id="${d.id}" title="이름 수정">✏️</button>
+          <button class="btn rounded-lg px-2 py-1 text-xs" data-act="d-up" data-id="${d.id}">↑</button>
+          <button class="btn rounded-lg px-2 py-1 text-xs" data-act="d-down" data-id="${d.id}">↓</button>
+          <button class="btn btn-danger rounded-lg px-2 py-1 text-xs" data-act="d-off" data-id="${d.id}">비활성</button>
         </div>
       </div>
       <div class="text-xs text-black/60 mt-1">예시: ${escapeHtml(d.example_note || "")}</div>
     </div>
   `).join("");
+
+  // ✏️ 인라인 이름 수정 이벤트 바인딩
+  document.querySelectorAll("[data-act='rename']").forEach(btn => {
+    btn.addEventListener("click", ()=>{
+      const row = btn.closest("div.flex, div.p-2");
+      const label = row.querySelector(".cat-name-label");
+      const input = row.querySelector(".cat-name-input");
+      if(!label || !input) return;
+      // 토글: 편집모드 진입
+      label.classList.add("hidden");
+      input.classList.remove("hidden");
+      input.focus();
+      input.select();
+      btn.textContent = "✅";
+      btn.dataset.act = "rename-confirm";
+
+      const confirm = async ()=>{
+        const newName = input.value.trim();
+        if(!newName){ setError("이름을 입력해줘."); return; }
+        const table = input.dataset.table;
+        const id = input.dataset.id;
+        try{
+          setStatus("이름 수정 중...");
+          await apiFetch(`/rest/v1/${table}`, {
+            method: "PATCH",
+            query: { id: `eq.${id}` },
+            body: { name: newName },
+            preferReturn: false
+          });
+          setStatus("✅ 이름 수정 완료!");
+          await refreshCategoryAdmin();
+        }catch(e){
+          setError(e?.message || String(e));
+          setStatus("");
+        }
+      };
+
+      btn.addEventListener("click", confirm, { once: true });
+      input.addEventListener("keydown", async (e)=>{
+        if(e.key === "Enter"){ e.preventDefault(); await confirm(); }
+        if(e.key === "Escape"){
+          label.classList.remove("hidden");
+          input.classList.add("hidden");
+          btn.textContent = "✏️";
+          btn.dataset.act = "rename";
+        }
+      });
+    });
+  });
 }
 
 async function refreshCategoryAdmin(){
