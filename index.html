@@ -2715,24 +2715,35 @@ async function autoCalcSaving(){
   if(!members3.length){ setError("멤버(돌프/천사/공통)를 찾을 수 없어."); return; }
 
   // 저축 detail_item 찾기:
-  // subcategory.name === "금융·저축" 인 항목들 중 sort_order 가장 낮은 첫 번째
+  // 상세항목 이름이 "저축"인 항목을 우선, 없으면 소분류 이름에 "저축"이 포함된 항목 중 첫 번째
+  // (부채상환, 투자 등 다른 항목이 잘못 선택되지 않도록 이름 기준으로 정확히 찾음)
   const savingCandidates = [...masterDetailItems]
-    .filter(d => d.subcategory?.name === "금융·저축")
+    .filter(d => d.name === "저축")
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-  const savingDetailItem = savingCandidates[0] || null;
+  // 이름이 정확히 "저축"인 항목이 없으면 소분류 이름에 "저축"이 포함된 것 중 이름도 "저축"류인 항목
+  const savingCandidatesFallback = savingCandidates.length ? savingCandidates : [...masterDetailItems]
+    .filter(d => (d.subcategory?.name || "").includes("저축") && d.name !== "부채상환" && d.name !== "투자")
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+  const savingDetailItem = savingCandidatesFallback[0] || null;
 
   if(!savingDetailItem){
-    setError("'금융·저축' 카테고리 아래 항목을 찾을 수 없어. 카테고리 구조를 확인해줘.");
+    setError("'저축' 상세항목을 찾을 수 없어. 카테고리 구조에서 상세항목 이름이 '저축'인 항목이 있는지 확인해줘.");
     return;
   }
 
   try{
     setStatus("수입·지출 데이터 불러오는 중...");
-    // income + expense 모두 fetch (saving은 계산으로 채울 예정)
-    const [incRows, expRows] = await Promise.all([
+    // income + expense + saving(부채상환 포함 가능성) 모두 fetch
+    const [incRows, expRows, savRows] = await Promise.all([
       fetchEntriesForMatrix(year, "income"),
-      fetchEntriesForMatrix(year, "expense")
+      fetchEntriesForMatrix(year, "expense"),
+      fetchEntriesForMatrix(year, "saving")
     ]);
+
+    // saving flow_type 중 부채상환 항목은 지출로 합산 (saving detail_item_id와 다른 것들)
+    const debtRows = savRows.filter(r => r.detail_item_id !== savingDetailItem.id);
+    // 실제 지출 = expense + 부채상환(saving으로 잘못 분류된 것)
+    const allExpRows = [...expRows, ...debtRows];
 
     const months = monthLabels(); // ["01","02",...,"12"]
 
@@ -2752,7 +2763,7 @@ async function autoCalcSaving(){
     }
 
     const inc = aggregate(incRows);
-    const exp = aggregate(expRows);
+    const exp = aggregate(allExpRows);
 
     // 저축 = 수입 - 지출 (멤버별, 월별), 음수는 0
     const upsertPayloads = [];
@@ -2956,7 +2967,8 @@ function detectHeaderRow(rows){
 function flowFromGroup(groupName){
   const c = (groupName||"").trim();
   if(c === "수입") return "income";
-  if(c === "저축") return "saving";
+  // "저축" 또는 "금융·저축"은 saving으로 분류
+  if(c === "저축" || c === "금융·저축") return "saving";
   return "expense";
 }
 
@@ -4287,28 +4299,46 @@ byId("btnRenameClear")?.addEventListener("click", ()=>{
     safeBind("btnAddSub", async ()=>{
       try{
         requireOwner();
-        const category_id = byId("catPickGroup").value;
+        const selG = byId("catPickGroup");
+        const category_id = selG ? selG.value : "";
         const name = (byId("catNewSub").value||"").trim();
-        if(!category_id) throw new Error("대분류를 선택해줘");
+        if(!category_id || category_id === "") throw new Error("대분류를 선택해줘 (대분류 목록에서 선택 후 소분류를 추가해야 해)");
         if(!name) throw new Error("소분류 이름을 입력해줘");
+        // 추가 전 선택된 group_id 저장
+        const savedGroupId = category_id;
         await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, category_id, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
         byId("catNewSub").value = "";
         await refreshCategoryAdmin();
+        // 새로고침 후 선택했던 대분류 복원
+        const selGAfter = byId("catPickGroup");
+        if(selGAfter && savedGroupId) { selGAfter.value = savedGroupId; renderCategoryAdmin(); }
+        setStatus("✅ 소분류 추가 완료!");
       }catch(e){ setError(e.message); }
     });
 
     safeBind("btnAddDetail", async ()=>{
       try{
         requireOwner();
-        const subcategory_id = byId("catPickSub").value;
+        const selS = byId("catPickSub");
+        const subcategory_id = selS ? selS.value : "";
         const name = (byId("catNewDetail").value||"").trim();
         const example_note = (byId("catNewExample").value||"").trim();
-        if(!subcategory_id) throw new Error("소분류를 선택해줘");
+        if(!subcategory_id || subcategory_id === "") throw new Error("소분류를 선택해줘 (소분류 목록에서 선택 후 상세항목을 추가해야 해)");
         if(!name) throw new Error("상세항목 이름을 입력해줘");
+        // 추가 전 선택 상태 저장
+        const savedGroupId = byId("catPickGroup")?.value || "";
+        const savedSubId = subcategory_id;
         await apiFetch("/rest/v1/detail_items", { method:"POST", body:{ ledger_id: currentLedgerId, subcategory_id, name, example_note, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
         byId("catNewDetail").value = "";
         byId("catNewExample").value = "";
         await refreshCategoryAdmin();
+        // 새로고침 후 선택 복원
+        const selGAfter = byId("catPickGroup");
+        const selSAfter = byId("catPickSub");
+        if(selGAfter && savedGroupId) selGAfter.value = savedGroupId;
+        if(selSAfter && savedSubId) selSAfter.value = savedSubId;
+        if(savedGroupId || savedSubId) renderCategoryAdmin();
+        setStatus("✅ 상세항목 추가 완료!");
       }catch(e){ setError(e.message); }
     });
 
