@@ -2803,22 +2803,23 @@ async function autoCalcSaving(){
   const members3 = getMatrixMembers3();
   if(!members3.length){ setError("멤버(돌프/천사/공통)를 찾을 수 없어."); return; }
 
-  // 저축 detail_item 찾기:
-  // 상세항목 이름이 "저축"인 항목을 우선, 없으면 소분류 이름에 "저축"이 포함된 항목 중 첫 번째
-  // (부채상환, 투자 등 다른 항목이 잘못 선택되지 않도록 이름 기준으로 정확히 찾음)
-  const savingCandidates = [...masterDetailItems]
-    .filter(d => d.name === "저축")
-    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-  // 이름이 정확히 "저축"인 항목이 없으면 소분류 이름에 "저축"이 포함된 것 중 이름도 "저축"류인 항목
-  const savingCandidatesFallback = savingCandidates.length ? savingCandidates : [...masterDetailItems]
-    .filter(d => (d.subcategory?.name || "").includes("저축") && d.name !== "부채상환" && d.name !== "투자")
-    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
-  const savingDetailItem = savingCandidatesFallback[0] || null;
+  // 저축 detail_item 찾기 (우선순위):
+  // 1순위: 이름이 정확히 "저축"
+  // 2순위: 이름에 "저축" 포함하고 "부채상환","투자" 아닌 것
+  // 3순위: 소분류 이름에 "저축" 포함하고 이름이 "부채상환","투자" 아닌 것
+  const EXCLUDE_NAMES = ["부채상환", "투자", "투자금", "대출", "상환"];
+  const savingDetailItem = (
+    [...masterDetailItems].filter(d => d.name === "저축").sort((a,b)=>(a.sort_order??9999)-(b.sort_order??9999))[0]
+    || [...masterDetailItems].filter(d => d.name.includes("저축") && !EXCLUDE_NAMES.includes(d.name)).sort((a,b)=>(a.sort_order??9999)-(b.sort_order??9999))[0]
+    || [...masterDetailItems].filter(d => (d.subcategory?.name||"").includes("저축") && !EXCLUDE_NAMES.includes(d.name)).sort((a,b)=>(a.sort_order??9999)-(b.sort_order??9999))[0]
+    || null
+  );
 
   if(!savingDetailItem){
     setError("'저축' 상세항목을 찾을 수 없어. 카테고리 구조에서 상세항목 이름이 '저축'인 항목이 있는지 확인해줘.");
     return;
   }
+  console.log("[autoCalcSaving] 저축 항목:", savingDetailItem.name, "/ 소분류:", savingDetailItem.subcategory?.name, "/ id:", savingDetailItem.id);
 
   try{
     setStatus("수입·지출 데이터 불러오는 중...");
@@ -2854,7 +2855,8 @@ async function autoCalcSaving(){
     const inc = aggregate(incRows);
     const exp = aggregate(allExpRows);
 
-    // 저축 = 수입 - 지출 (멤버별, 월별), 음수는 0
+    // 저축 = 수입 - 지출 (멤버별, 월별)
+    // conflict key: ledger_id + entry_date + member_id + detail_item_id (저축 항목만 정확히 upsert)
     const upsertPayloads = [];
     for(const mm of months){
       for(const m of members3){
@@ -2867,14 +2869,14 @@ async function autoCalcSaving(){
           member_id:      m.id,
           flow_type:      "saving",
           amount:         saving,
-          detail_item_id: savingDetailItem.id,
-          created_by:     session.user.id
+          detail_item_id: savingDetailItem.id
         });
       }
     }
 
     setStatus("저축 자동계산 저장 중...");
-    const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
+    // conflict key에서 flow_type 제거 → detail_item_id 기준으로만 upsert (부채상환 등 다른 saving 항목 덮어쓰기 방지)
+    const onConflict = "ledger_id,entry_date,member_id,detail_item_id";
     await apiFetch("/rest/v1/entries", {
       method:       "POST",
       query:        { on_conflict: onConflict },
