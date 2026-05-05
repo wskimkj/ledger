@@ -4290,9 +4290,10 @@ byId("btnRenameClear")?.addEventListener("click", ()=>{
         requireOwner();
         const name = (byId("catNewGroup").value||"").trim();
         if(!name) throw new Error("대분류 이름을 입력해줘");
-        await apiFetch("/rest/v1/categories", { method:"POST", body:{ ledger_id: currentLedgerId, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        await apiFetch("/rest/v1/categories", { method:"POST", body:{ ledger_id: currentLedgerId, name, sort_order: 9999, is_active:true }, preferReturn:true });
         byId("catNewGroup").value = "";
         await refreshCategoryAdmin();
+        setStatus("✅ 대분류 추가 완료!");
       }catch(e){ setError(e.message); }
     });
 
@@ -4304,12 +4305,11 @@ byId("btnRenameClear")?.addEventListener("click", ()=>{
         const name = (byId("catNewSub").value||"").trim();
         if(!category_id || category_id === "") throw new Error("대분류를 선택해줘 (대분류 목록에서 선택 후 소분류를 추가해야 해)");
         if(!name) throw new Error("소분류 이름을 입력해줘");
-        // 추가 전 선택된 group_id 저장
         const savedGroupId = category_id;
-        await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, category_id, name, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        // preferReturn:true → Supabase가 삽입된 행을 반환 (RLS 에러도 명확하게 잡힘)
+        await apiFetch("/rest/v1/subcategories", { method:"POST", body:{ ledger_id: currentLedgerId, category_id, name, sort_order: 9999, is_active:true }, preferReturn:true });
         byId("catNewSub").value = "";
         await refreshCategoryAdmin();
-        // 새로고침 후 선택했던 대분류 복원
         const selGAfter = byId("catPickGroup");
         if(selGAfter && savedGroupId) { selGAfter.value = savedGroupId; renderCategoryAdmin(); }
         setStatus("✅ 소분류 추가 완료!");
@@ -4328,7 +4328,7 @@ byId("btnRenameClear")?.addEventListener("click", ()=>{
         // 추가 전 선택 상태 저장
         const savedGroupId = byId("catPickGroup")?.value || "";
         const savedSubId = subcategory_id;
-        await apiFetch("/rest/v1/detail_items", { method:"POST", body:{ ledger_id: currentLedgerId, subcategory_id, name, example_note, sort_order: 9999, is_active:true, created_by: session.user.id }, preferReturn:false });
+        await apiFetch("/rest/v1/detail_items", { method:"POST", body:{ ledger_id: currentLedgerId, subcategory_id, name, example_note, sort_order: 9999, is_active:true }, preferReturn:true });
         byId("catNewDetail").value = "";
         byId("catNewExample").value = "";
         await refreshCategoryAdmin();
