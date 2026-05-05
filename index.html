@@ -2984,33 +2984,21 @@ async function autoCalcSaving(){
 
     setStatus("저축 자동계산 저장 중...");
 
-    // 기존 저축 항목만 정확히 삭제 후 재삽입 (부채상환 등 다른 saving 항목 건드리지 않음)
-    // step1: 해당 연도 + 저축 detail_item_id 기준으로만 기존 row 삭제 (URL 직접 구성 - lte 중복 파라미터 필요)
-    {
-      const url = new URL(SUPABASE_URL + "/rest/v1/entries");
-      url.searchParams.set("ledger_id",      `eq.${currentLedgerId}`);
-      url.searchParams.set("flow_type",      `eq.saving`);
-      url.searchParams.set("detail_item_id", `eq.${savingDetailItem.id}`);
-      url.searchParams.set("entry_date",     `gte.${year}-01-01`);
-      url.searchParams.append("entry_date",  `lte.${year}-12-31`);
-      const headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + session.access_token,
-        "Content-Type": "application/json"
-      };
-      const delRes = await fetch(url.toString(), { method:"DELETE", headers });
-      if(!delRes.ok){
-        const t = await delRes.text();
-        throw new Error("삭제 실패: " + t);
-      }
+    // ✅ DELETE+INSERT 방식 제거 → 순수 upsert(merge-duplicates)로 교체
+    // duplicate key 에러 방지: on_conflict 키 기준으로 기존 row를 덮어씀
+    const onConflict = "ledger_id,entry_date,member_id,flow_type,detail_item_id";
+    const chunkSize = 200;
+    for(let i = 0; i < upsertPayloads.length; i += chunkSize){
+      const part = upsertPayloads.slice(i, i + chunkSize);
+      await apiFetch("/rest/v1/entries", {
+        method:       "POST",
+        query:        { on_conflict: onConflict },
+        body:         part,
+        preferReturn: false,
+        extraHeaders: { "Prefer": "resolution=merge-duplicates" }
+      });
+      await sleep(60);
     }
-
-    // step2: 새 저축 데이터 일괄 insert
-    await apiFetch("/rest/v1/entries", {
-      method:       "POST",
-      body:         upsertPayloads,
-      preferReturn: false
-    });
 
     setStatus("저축 자동계산 완료! 매트릭스 새로고침 중...");
     await refreshMatrix();
