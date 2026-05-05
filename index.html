@@ -1106,6 +1106,20 @@ thead{ background: rgba(255,255,255,.90) !important; }
       <div id="catDetailList" class="mt-3 space-y-2 text-sm"></div>
     </div>
   </div>
+
+  <!-- 비활성 항목 복구 -->
+  <div class="mt-6 glass2 rounded-2xl p-4">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <div>
+        <div class="text-sm font-semibold">🗂️ 비활성 항목 복구</div>
+        <div class="text-xs text-black/60 mt-1">실수로 비활성화한 항목을 여기서 되살릴 수 있어.</div>
+      </div>
+      <button id="btnShowInactive" class="btn rounded-xl px-4 py-2 text-sm">
+        <i class="fa-solid fa-eye mr-2"></i>비활성 목록 보기
+      </button>
+    </div>
+    <div id="inactiveList" class="mt-3 hidden space-y-2 text-sm max-h-80 overflow-y-auto thin-scroll"></div>
+  </div>
 </section>
 
     </div>
@@ -1960,7 +1974,82 @@ async function deactivateRow(table, id){
   await apiFetch(`/rest/v1/${table}`, { method:"PATCH", query:{ id:`eq.${id}` }, body:{ is_active:false }, preferReturn:false });
 }
 
+async function restoreRow(table, id){
+  requireOwner();
+  await apiFetch(`/rest/v1/${table}`, { method:"PATCH", query:{ id:`eq.${id}` }, body:{ is_active:true }, preferReturn:false });
+}
 
+async function loadAndRenderInactiveItems(){
+  requireOwner();
+  const wrap = byId("inactiveList");
+  if(!wrap) return;
+  wrap.innerHTML = `<div class="text-xs text-black/40 py-2">불러오는 중...</div>`;
+
+  // 비활성 항목 fetch (3개 테이블)
+  const [inactiveGroups, inactiveSubs, inactiveDetails] = await Promise.all([
+    apiFetch("/rest/v1/categories", { query:{ select:"id,name", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.false", order:"name.asc", limit:"500" }}),
+    apiFetch("/rest/v1/subcategories", { query:{ select:"id,name,category_id", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.false", order:"name.asc", limit:"500" }}),
+    apiFetch("/rest/v1/detail_items", { query:{ select:"id,name,subcategory_id", ledger_id:`eq.${currentLedgerId}`, is_active:"eq.false", order:"name.asc", limit:"500" }})
+  ]);
+
+  const allGroups = [...masterGroups, ...(inactiveGroups||[])];
+  const allSubs   = [...masterSubcategories, ...(inactiveSubs||[])];
+  const groupNameById = new Map(allGroups.map(g=>[g.id, g.name]));
+  const subNameById   = new Map(allSubs.map(s=>[s.id, { name:s.name, catId:s.category_id }]));
+
+  const rows = [];
+
+  for(const g of (inactiveGroups||[])){
+    rows.push({ table:"categories", id:g.id, label:`대분류`, name:g.name, path:g.name });
+  }
+  for(const s of (inactiveSubs||[])){
+    const gName = groupNameById.get(s.category_id) || "?";
+    rows.push({ table:"subcategories", id:s.id, label:`소분류`, name:s.name, path:`${gName} > ${s.name}` });
+  }
+  for(const d of (inactiveDetails||[])){
+    const sub = subNameById.get(d.subcategory_id);
+    const sName = sub?.name || "?";
+    const gName = sub ? (groupNameById.get(sub.catId) || "?") : "?";
+    rows.push({ table:"detail_items", id:d.id, label:`상세항목`, name:d.name, path:`${gName} > ${sName} > ${d.name}` });
+  }
+
+  if(!rows.length){
+    wrap.innerHTML = `<div class="text-xs text-black/40 py-2 text-center">비활성화된 항목이 없어 ✅</div>`;
+    return;
+  }
+
+  const tagColor = { categories:"bg-purple-100 text-purple-700", subcategories:"bg-blue-100 text-blue-700", detail_items:"bg-green-100 text-green-700" };
+
+  wrap.innerHTML = rows.map(r => `
+    <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/70 border border-black/5">
+      <div class="flex-1 min-w-0">
+        <span class="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-semibold mr-1 ${tagColor[r.table]||''}">${r.label}</span>
+        <span class="text-xs text-black/70">${escapeHtml(r.path)}</span>
+      </div>
+      <button class="btn btn-primary rounded-lg px-3 py-1 text-xs flex-shrink-0" data-act="restore" data-table="${r.table}" data-id="${r.id}">
+        <i class="fa-solid fa-rotate-left mr-1"></i>복구
+      </button>
+    </div>
+  `).join("");
+
+  // 복구 버튼 이벤트
+  wrap.querySelectorAll("[data-act='restore']").forEach(btn => {
+    btn.addEventListener("click", async ()=>{
+      try{
+        btn.disabled = true;
+        btn.textContent = "복구 중...";
+        await restoreRow(btn.dataset.table, btn.dataset.id);
+        setStatus("✅ 복구 완료!");
+        await refreshCategoryAdmin();
+        await loadAndRenderInactiveItems();
+      }catch(e){
+        setError(e.message);
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-rotate-left mr-1"></i>복구`;
+      }
+    });
+  });
+}
 
 function getAllSubsSorted(){
   const set = new Set();
@@ -4284,6 +4373,22 @@ byId("btnRenameClear")?.addEventListener("click", ()=>{
     };
 
     safeBind("btnCatReload", async ()=>{ try{ setError(""); setStatus("카테고리 새로고침..."); await refreshCategoryAdmin(); setStatus("준비 완료!"); }catch(e){ setError(e.message); setStatus(""); } });
+
+    safeBind("btnShowInactive", async ()=>{
+      try{
+        const wrap = byId("inactiveList");
+        const btn  = byId("btnShowInactive");
+        if(!wrap) return;
+        if(!wrap.classList.contains("hidden")){
+          wrap.classList.add("hidden");
+          btn.innerHTML = `<i class="fa-solid fa-eye mr-2"></i>비활성 목록 보기`;
+          return;
+        }
+        wrap.classList.remove("hidden");
+        btn.innerHTML = `<i class="fa-solid fa-eye-slash mr-2"></i>닫기`;
+        await loadAndRenderInactiveItems();
+      }catch(e){ setError(e.message); }
+    });
 
     safeBind("btnAddGroup", async ()=>{
       try{
