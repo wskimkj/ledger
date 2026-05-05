@@ -84,7 +84,13 @@ body:before{
 }
 
 @media (min-width:1024px){
-  .max-w-7xl{ max-width:1240px !important; }
+  .max-w-7xl{ max-width:1440px !important; }
+}
+@media (min-width:1600px){
+  .max-w-7xl{ max-width:1560px !important; }
+}
+@media (min-width:1920px){
+  .max-w-7xl{ max-width:1800px !important; }
 }
 
 /* ========================================
@@ -610,12 +616,113 @@ thead{ background: rgba(255,255,255,.90) !important; }
   text-overflow:ellipsis;
   white-space:nowrap;
 }
+
+/* ========================================
+   PC 최적화 (1024px+)
+======================================== */
+@media (min-width: 1024px) {
+
+  /* 탭 버튼 더 크게 */
+  .tab-btn {
+    padding: 10px 22px !important;
+    font-size: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  /* 카드 패딩 확대 */
+  .glass, .glass2 {
+    border-radius: 24px !important;
+  }
+
+  /* 헤더 */
+  h1 { font-size: 2.6rem !important; }
+
+  /* 기록/수정 탭 - 입력 폼 패딩 */
+  #tab-edit .glass, #tab-edit .glass2 {
+    padding: 20px 24px !important;
+  }
+
+  /* 대시보드 KPI 카드 */
+  #tab-dash .glass .text-2xl {
+    font-size: 1.85rem !important;
+  }
+
+  /* DB 탭 테이블 셀 */
+  #mxTable tbody td { 
+    padding: 10px 14px !important; 
+    font-size: 12px !important;
+  }
+  #mxTable thead th {
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+  }
+  #mxTable .sticky-col {
+    min-width: 220px !important;
+    width: 220px !important;
+    max-width: 220px !important;
+  }
+  #mxTable tbody td[data-month] {
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+  }
+
+  /* 설정 탭 */
+  #tab-settings .glass, #tab-settings .glass2 {
+    padding: 20px 24px !important;
+  }
+
+  /* 입력/select 높이 */
+  input, select {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    font-size: 14px !important;
+  }
+
+  /* 버튼 */
+  .btn {
+    font-size: 13px !important;
+  }
+
+  /* 섹션 간격 */
+  #appWrap > section {
+    margin-top: 18px !important;
+  }
+}
+
+@media (min-width: 1440px) {
+  /* 더 큰 화면에서 추가 확장 */
+  #tab-dash .glass .text-2xl {
+    font-size: 2rem !important;
+  }
+  #mxTable .sticky-col {
+    min-width: 240px !important;
+    width: 240px !important;
+    max-width: 240px !important;
+  }
+}
+
+/* ========================================
+   PC 추가 최적화
+======================================== */
+#tab-all, #tab-edit, #tab-dash, #tab-settings { width: 100%; }
+.tab-btn { white-space: nowrap; }
+
+@media (min-width: 1280px) {
+  /* 차트 높이 확대 */
+  #tab-dash .h-\[260px\] { height: 300px !important; }
+  #tab-dash .h-\[280px\] { height: 320px !important; }
+
+  /* DB탭 안내 문구 한줄로 */
+  #tab-all .glass2 .text-xs { display: inline; margin-right: 12px; }
+}
+
 </style>
 
 </head>
 
 <body class="text-white">
-  <div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="max-w-7xl mx-auto px-6 py-5">
     <!-- Header -->
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
@@ -721,10 +828,10 @@ thead{ background: rgba(255,255,255,.90) !important; }
 
       <!-- DASHBOARD -->
       <section id="tab-dash" class="mt-4">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
           
           <!-- slicers -->
-          <div class="glass rounded-2xl p-4 lg:col-span-3">
+          <div class="glass rounded-2xl p-4 xl:col-span-2">
             <div class="flex items-center justify-between mb-3">
               <div class="text-sm font-semibold">필터</div>
               <button id="btnDashRefetch" class="btn rounded-xl px-3 py-2 text-xs">
@@ -804,7 +911,7 @@ thead{ background: rgba(255,255,255,.90) !important; }
 
           <!-- main dashboard -->
 
-          <div class="lg:col-span-9 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="xl:col-span-10 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="glass rounded-2xl p-4">
               <div class="text-xs text-white/60">저축 현황</div>
               <div class="text-2xl font-bold mt-1"><span id="kpiSaving">0</span> <span class="text-base font-medium text-white/60">원</span></div>
@@ -886,8 +993,8 @@ thead{ background: rgba(255,255,255,.90) !important; }
 
       <!-- EDIT -->
       <section id="tab-edit" class="mt-4 hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div class="glass rounded-2xl p-4 lg:col-span-4">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div class="glass rounded-2xl p-5 lg:col-span-3">
             <div class="text-sm font-semibold mb-3">거래 입력/수정</div>
             
 <form id="entryForm" class="space-y-3">
@@ -939,7 +1046,7 @@ thead{ background: rgba(255,255,255,.90) !important; }
 
           </div>
 
-          <div class="glass rounded-2xl p-4 lg:col-span-8">
+          <div class="glass rounded-2xl p-5 lg:col-span-9">
             <div class="flex flex-wrap gap-2 items-end justify-between">
               <div>
                 <div class="text-sm font-semibold">거래 목록</div>
@@ -1044,7 +1151,7 @@ thead{ background: rgba(255,255,255,.90) !important; }
       </section>
       <!-- CATEGORY MANAGEMENT -->
 <section id="tab-settings" class="mt-4 hidden">
-  <div class="glass rounded-2xl p-4">
+  <div class="glass rounded-2xl p-5">
     <h2 class="text-lg font-semibold mb-3">설정</h2>
 
     <!-- 계정별 마지막 예산 업로드 일시 -->
@@ -1068,7 +1175,7 @@ thead{ background: rgba(255,255,255,.90) !important; }
     </div>
   </div>
 
-  <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
     <!-- Groups -->
     <div class="glass2 rounded-2xl p-4">
       <div class="flex items-center justify-between">
