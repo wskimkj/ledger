@@ -2976,7 +2976,8 @@ async function autoCalcSaving(){
           member_id:      m.id,
           flow_type:      "saving",
           amount:         saving,
-          detail_item_id: savingDetailItem.id
+          detail_item_id: savingDetailItem.id,
+          created_by:     session.user.id   // ✅ RLS 정책 통과를 위해 추가
         });
       }
     }
